@@ -1,5 +1,5 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-dockerfile
-ARG BUILD_FROM=alpine:3.18
+ARG BUILD_FROM
 FROM $BUILD_FROM
 
 # Execute during the build of the image
