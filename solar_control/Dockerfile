@@ -1,5 +1,5 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-dockerfile
-ARG BUILD_FROM
+ARG BUILD_FROM=alpine:3.18
 FROM $BUILD_FROM
 
 # Execute during the build of the image
@@ -19,6 +19,5 @@ RUN \
 COPY rootfs /
 
 # Make service scripts executable
-RUN chmod a+x /usr/bin/my_program && \
-    chmod a+x /etc/services.d/solar-control/run && \
+RUN chmod a+x /etc/services.d/solar-control/run && \
     chmod a+x /etc/services.d/solar-control/finish
