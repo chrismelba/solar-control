@@ -2,3 +2,5 @@
 name: Solar Control Add-on Repository
 url: 'https://github.com/chrismelba/solar-control'
 maintainer: chrismelba
+addons:
+  - solar-control
