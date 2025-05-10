@@ -1,4 +1,4 @@
-# Solar Optimiser add-on repository
+# Example Home Assistant add-on repository
 
 This repository can be used as a "blueprint" for add-on development to help you get started.
 
