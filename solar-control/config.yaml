@@ -3,13 +3,9 @@ name: Solar Control
 version: "1.2.0"
 slug: solar-control
 description: Solar Control add-on
-url: "https://github.com/home-assistant/solar-control"
+url: "https://github.com/chrismelba/solar-control"
 arch:
-  - armhf
-  - armv7
   - aarch64
-  - amd64
-  - i386
 init: false
 map:
   - share:rw
@@ -17,4 +13,4 @@ options:
   message: "Hello world..."
 schema:
   message: "str?"
-image: "ghcr.io/home-assistant/{arch}-addon-solar-control"
+image: "ghcr.io/chrismelba/{arch}-addon-solar-control"
