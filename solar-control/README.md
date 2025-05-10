@@ -1,6 +1,10 @@
-# Home Assistant Add-on: Example add-on
+# Home Assistant Add-on: Solar Control
 
-_Example add-on to use as a blueprint for new add-ons._
+_Solar Control add-on for Home Assistant._
+
+## About
+
+This add-on provides solar control functionality for Home Assistant.
 
 ![Supports aarch64 Architecture][aarch64-shield]
 ![Supports amd64 Architecture][amd64-shield]

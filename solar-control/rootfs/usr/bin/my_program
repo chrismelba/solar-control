@@ -1,0 +1,3 @@
+#!/usr/bin/with-contenv bashio
+
+echo "All done!" > /share/solar_control_output.txt
