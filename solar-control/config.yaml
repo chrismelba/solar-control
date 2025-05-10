@@ -5,7 +5,11 @@ slug: solar-control
 description: Solar Control add-on
 url: "https://github.com/chrismelba/solar-control"
 arch:
+  - armhf
+  - armv7
   - aarch64
+  - amd64
+  - i386
 init: false
 map:
   - share:rw
