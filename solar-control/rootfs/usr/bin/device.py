@@ -9,6 +9,7 @@ class Device:
     switch_entity: str
     typical_power_draw: float  # in watts
     current_power_sensor: Optional[str] = None  # Home Assistant entity ID
+    energy_sensor: Optional[str] = None  # Home Assistant entity ID for energy consumption
     has_variable_amperage: bool = False
     min_amperage: Optional[float] = None  # in amps
     max_amperage: Optional[float] = None  # in amps
@@ -24,6 +25,7 @@ class Device:
             'switch_entity': self.switch_entity,
             'typical_power_draw': self.typical_power_draw,
             'current_power_sensor': self.current_power_sensor,
+            'energy_sensor': self.energy_sensor,
             'has_variable_amperage': self.has_variable_amperage,
             'min_amperage': self.min_amperage,
             'max_amperage': self.max_amperage,

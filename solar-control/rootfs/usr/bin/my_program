@@ -6,6 +6,8 @@ import logging
 import json
 import requests
 from device import Device
+from datetime import datetime, timezone
+import pytz
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -111,6 +113,85 @@ def get_sensor_value(entity_id):
         logger.error(f"Failed to get sensor value for {entity_id}: {e}")
         return None
 
+def get_energy_consumption(entity_id):
+    """Get the energy consumption for today from a Home Assistant energy sensor"""
+    if not entity_id:
+        return None
+        
+    supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+    if not supervisor_token:
+        return None
+        
+    try:
+        headers = {
+            "Authorization": f"Bearer {supervisor_token}",
+            "Content-Type": "application/json",
+        }
+        
+        hass_url = "http://supervisor/core"
+        
+        # Get the current value
+        response = requests.get(f"{hass_url}/api/states/{entity_id}", headers=headers)
+        response.raise_for_status()
+        current_state = response.json()
+        current_value = float(current_state.get('state', 0))
+        
+        # Get the history for today
+        now = datetime.now(timezone.utc)
+        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        history_url = f"{hass_url}/api/history/period/{start_of_day.isoformat()}?filter_entity_id={entity_id}"
+        response = requests.get(history_url, headers=headers)
+        response.raise_for_status()
+        
+        history = response.json()
+        if not history or not history[0]:
+            return {
+                'value': current_value,
+                'unit': current_state.get('attributes', {}).get('unit_of_measurement', 'kWh'),
+                'today': current_value
+            }
+            
+        # Get the first value of the day
+        first_value = float(history[0][0].get('state', 0))
+        
+        return {
+            'value': current_value,
+            'unit': current_state.get('attributes', {}).get('unit_of_measurement', 'kWh'),
+            'today': current_value - first_value
+        }
+    except Exception as e:
+        logger.error(f"Failed to get energy consumption for {entity_id}: {e}")
+        return None
+
+def get_current_power(entity_id):
+    """Get the current power value from a Home Assistant power sensor"""
+    if not entity_id:
+        return None
+        
+    supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+    if not supervisor_token:
+        return None
+        
+    try:
+        headers = {
+            "Authorization": f"Bearer {supervisor_token}",
+            "Content-Type": "application/json",
+        }
+        
+        hass_url = "http://supervisor/core"
+        response = requests.get(f"{hass_url}/api/states/{entity_id}", headers=headers)
+        response.raise_for_status()
+        
+        entity = response.json()
+        return {
+            'value': float(entity.get('state', 0)),
+            'unit': entity.get('attributes', {}).get('unit_of_measurement', 'W')
+        }
+    except Exception as e:
+        logger.error(f"Failed to get current power for {entity_id}: {e}")
+        return None
+
 @app.route('/')
 def index():
     logger.debug('Received request for index page')
@@ -181,7 +262,36 @@ def status():
 @app.route('/api/devices', methods=['GET'])
 def get_devices():
     devices = Device.load_all(DEVICES_FILE)
-    return jsonify([device.to_dict() for device in devices])
+    devices_data = []
+    
+    for device in devices:
+        device_dict = device.to_dict()
+        
+        # Get current power if sensor is configured
+        if device.current_power_sensor:
+            power_data = get_current_power(device.current_power_sensor)
+            if power_data:
+                device_dict['current_power'] = power_data
+            else:
+                device_dict['current_power'] = {
+                    'value': device.typical_power_draw,
+                    'unit': 'W'
+                }
+        else:
+            device_dict['current_power'] = {
+                'value': device.typical_power_draw,
+                'unit': 'W'
+            }
+        
+        # Get energy consumption if sensor is configured
+        if device.energy_sensor:
+            energy_data = get_energy_consumption(device.energy_sensor)
+            if energy_data:
+                device_dict['energy_consumption'] = energy_data
+        
+        devices_data.append(device_dict)
+    
+    return jsonify(devices_data)
 
 @app.route('/api/devices', methods=['POST'])
 def create_device():

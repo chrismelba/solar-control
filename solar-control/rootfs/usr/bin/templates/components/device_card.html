@@ -1,0 +1,99 @@
+{% macro device_card(device, draggable=false) %}
+<div class="device-card{% if draggable %} draggable{% endif %}" data-device-name="{{ device.name }}" {% if draggable %}draggable="true"{% endif %}>
+    <div class="device-info">
+        <p class="device-name">{{ device.name }}</p>
+        <p class="device-power">
+            {% if device.current_power %}
+                {{ device.current_power.value|round(1) }} {{ device.current_power.unit }}
+            {% else %}
+                {{ device.typical_power_draw }}W
+            {% endif %}
+        </p>
+        {% if device.energy_consumption %}
+        <p class="device-energy">
+            Today: {{ device.energy_consumption.today|round(2) }} {{ device.energy_consumption.unit }}
+        </p>
+        {% endif %}
+    </div>
+    {% if not draggable %}
+    <div class="device-actions">
+        <button class="edit-device button">Edit</button>
+        <button class="delete-device button">Delete</button>
+    </div>
+    {% else %}
+    <span class="device-status status-off">Off</span>
+    {% endif %}
+</div>
+{% endmacro %}
+
+<style>
+    .device-card {
+        background: #f5f5f5;
+        padding: 1rem;
+        border-radius: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 0.5rem 0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .device-card.draggable {
+        cursor: move;
+        transition: transform 0.2s;
+    }
+
+    .device-card.draggable:hover {
+        transform: translateX(5px);
+    }
+
+    .device-card.draggable.dragging {
+        opacity: 0.5;
+    }
+
+    .device-info {
+        flex-grow: 1;
+    }
+
+    .device-name {
+        font-weight: bold;
+        margin: 0;
+        color: #333;
+    }
+
+    .device-power {
+        color: #666;
+        margin: 0.25rem 0 0 0;
+        font-size: 1.1rem;
+        font-weight: 500;
+    }
+
+    .device-energy {
+        color: #666;
+        margin: 0.25rem 0 0 0;
+        font-size: 0.9rem;
+    }
+
+    .device-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-left: 1rem;
+    }
+
+    .device-status {
+        margin-left: 1rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.9rem;
+    }
+
+    .status-on {
+        background: #4caf50;
+        color: white;
+    }
+
+    .status-off {
+        background: #f44336;
+        color: white;
+    }
+</style> 

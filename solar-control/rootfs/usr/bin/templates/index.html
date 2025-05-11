@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/device_card.html" import device_card %}
 
 {% block title %}Solar Control Dashboard{% endblock %}
 
@@ -89,57 +90,6 @@
         .device-list {
             margin-top: 1rem;
         }
-
-        .device-item {
-            background: #f5f5f5;
-            padding: 1rem;
-            margin: 0.5rem 0;
-            border-radius: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: move;
-            transition: transform 0.2s;
-        }
-
-        .device-item:hover {
-            transform: translateX(5px);
-        }
-
-        .device-item.dragging {
-            opacity: 0.5;
-        }
-
-        .device-info {
-            flex-grow: 1;
-        }
-
-        .device-name {
-            font-weight: bold;
-            margin: 0;
-        }
-
-        .device-power {
-            color: #666;
-            margin: 0.25rem 0 0 0;
-        }
-
-        .device-status {
-            margin-left: 1rem;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.9rem;
-        }
-
-        .status-on {
-            background: #4caf50;
-            color: white;
-        }
-
-        .status-off {
-            background: #f44336;
-            color: white;
-        }
     </style>
 
     <script>
@@ -169,19 +119,8 @@
                 
                 devices.forEach(device => {
                     const deviceElement = document.createElement('div');
-                    deviceElement.className = 'device-item';
-                    deviceElement.draggable = true;
-                    deviceElement.dataset.deviceName = device.name;
-                    
-                    deviceElement.innerHTML = `
-                        <div class="device-info">
-                            <p class="device-name">${device.name}</p>
-                            <p class="device-power">${device.typical_power_draw}W</p>
-                        </div>
-                        <span class="device-status status-off">Off</span>
-                    `;
-                    
-                    deviceList.appendChild(deviceElement);
+                    deviceElement.innerHTML = `{{ device_card(device, draggable=true) }}`;
+                    deviceList.appendChild(deviceElement.firstElementChild);
                 });
                 
                 // Initialize drag and drop
@@ -194,7 +133,7 @@
 
         function initializeDragAndDrop() {
             const deviceList = document.getElementById('deviceList');
-            const items = deviceList.querySelectorAll('.device-item');
+            const items = deviceList.querySelectorAll('.device-card.draggable');
             
             items.forEach(item => {
                 item.addEventListener('dragstart', () => {
@@ -210,7 +149,7 @@
             deviceList.addEventListener('dragover', e => {
                 e.preventDefault();
                 const draggingItem = deviceList.querySelector('.dragging');
-                const siblings = [...deviceList.querySelectorAll('.device-item:not(.dragging)')];
+                const siblings = [...deviceList.querySelectorAll('.device-card:not(.dragging)')];
                 
                 const nextSibling = siblings.find(sibling => {
                     const box = sibling.getBoundingClientRect();
@@ -223,7 +162,7 @@
         }
 
         async function updateDeviceOrder() {
-            const items = document.querySelectorAll('.device-item');
+            const items = document.querySelectorAll('.device-card');
             const orderData = Array.from(items).map((item, index) => ({
                 name: item.dataset.deviceName,
                 order: index
