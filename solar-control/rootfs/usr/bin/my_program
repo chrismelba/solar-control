@@ -33,6 +33,7 @@ for root, dirs, files in os.walk(static_dir):
 # Configuration file paths
 CONFIG_FILE = '/data/solar_config.json'
 DEVICES_FILE = '/data/devices.json'
+SETTINGS_FILE = '/data/settings.json'
 
 # Ensure data directory exists
 os.makedirs('/data', exist_ok=True)
@@ -52,6 +53,18 @@ def load_config():
 def save_config(config):
     with open(CONFIG_FILE, 'w') as f:
         json.dump(config, f)
+
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, 'r') as f:
+            return json.load(f)
+    return {
+        'power_optimization_enabled': True  # Default to enabled
+    }
+
+def save_settings(settings):
+    with open(SETTINGS_FILE, 'w') as f:
+        json.dump(settings, f)
 
 def get_hass_entities():
     # Get Home Assistant token from environment
@@ -253,6 +266,7 @@ def configure_devices():
 def status():
     logger.debug('Received request for status API')
     config = load_config()
+    settings = load_settings()
     sensor_values = {
         'solar_generation': get_sensor_value(config.get('solar_generation')),
         'grid_power': get_sensor_value(config.get('grid_power')),
@@ -261,8 +275,20 @@ def status():
     return jsonify({
         'status': 'running',
         'version': '1.0.0',
-        'sensor_values': sensor_values
+        'sensor_values': sensor_values,
+        'power_optimization_enabled': settings.get('power_optimization_enabled', True)
     })
+
+@app.route('/api/settings/power_optimization', methods=['POST'])
+def update_power_optimization():
+    try:
+        data = request.json
+        settings = load_settings()
+        settings['power_optimization_enabled'] = data.get('enabled', True)
+        save_settings(settings)
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/devices', methods=['GET'])
 def get_devices():

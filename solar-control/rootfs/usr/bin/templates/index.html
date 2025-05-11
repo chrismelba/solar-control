@@ -56,7 +56,16 @@
 
     <div class="card" id="status">
         <h2>System Status</h2>
-        <p>Loading status...</p>
+        <div class="status-content">
+            <p>Loading status...</p>
+            <div class="toggle-container">
+                <label class="switch">
+                    <input type="checkbox" id="powerOptimizationToggle">
+                    <span class="slider round"></span>
+                </label>
+                <span class="toggle-label">Power Optimization</span>
+            </div>
+        </div>
     </div>
 
     <style>
@@ -148,20 +157,110 @@
             background: #4CAF50;
             color: white;
         }
+
+        /* Toggle switch styles */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            margin-top: 1rem;
+        }
+        .toggle-label {
+            margin-left: 1rem;
+            font-weight: 500;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+        }
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:focus + .slider {
+            box-shadow: 0 0 1px #2196F3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        .slider.round {
+            border-radius: 34px;
+        }
+        .slider.round:before {
+            border-radius: 50%;
+        }
     </style>
 
     <script>
         // Fetch status from API
-        fetch('/api/status')
-            .then(response => response.json())
-            .then(data => {
-                document.querySelector('#status p').textContent = 
+        async function updateStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                document.querySelector('#status .status-content p').textContent = 
                     `Status: ${data.status}, Version: ${data.version}`;
-            })
-            .catch(error => {
-                document.querySelector('#status p').textContent = 
+                    
+                // Update toggle state
+                const toggle = document.getElementById('powerOptimizationToggle');
+                toggle.checked = data.power_optimization_enabled;
+            } catch (error) {
+                document.querySelector('#status .status-content p').textContent = 
                     'Error loading status';
-            });
+            }
+        }
+
+        // Update status periodically
+        updateStatus();
+        setInterval(updateStatus, 30000);  // Update every 30 seconds
+
+        // Handle toggle changes
+        document.getElementById('powerOptimizationToggle').addEventListener('change', async function(e) {
+            try {
+                const response = await fetch('/api/settings/power_optimization', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        enabled: e.target.checked
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to update power optimization setting');
+                }
+            } catch (error) {
+                console.error('Error updating power optimization:', error);
+                // Revert toggle state on error
+                e.target.checked = !e.target.checked;
+            }
+        });
 
         // Load and display devices
         async function loadDevices() {
