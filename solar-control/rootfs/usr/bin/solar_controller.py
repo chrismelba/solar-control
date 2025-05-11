@@ -87,9 +87,10 @@ class SolarController:
             return 230.0  # Default to 230V on error
             
     def get_available_power(self) -> float:
-        """Calculate available power by subtracting non-controllable loads from grid power.
+        """Calculate available power by subtracting controlled loads from grid power.
         Negative grid power means we're exporting to the grid, which is available power.
-        Positive grid power means we're importing from the grid, which means no available power."""
+        Positive grid power means we're importing from the grid.
+        We subtract the power consumption of all controlled devices to get the true available power."""
         if self.manual_power_override is not None:
             return self.manual_power_override
 
@@ -111,11 +112,20 @@ class SolarController:
             if unit.lower() == 'kw':
                 grid_power *= 1000
                 
-            # If grid power is negative, we're exporting to the grid
-            # This means we have that much power available
-            # If grid power is positive, we're importing from the grid
-            # This means we have no power available
-            return abs(min(0, grid_power))  # Convert negative to positive, or return 0 if positive
+            # Calculate total power consumption of controlled devices
+            controlled_power = 0.0
+            for device_state in self.device_states.values():
+                if device_state.is_on:
+                    controlled_power += self.get_device_power(device_state)
+            
+            # Subtract controlled power from grid power
+            # If result is negative, we have that much power available
+            # If result is positive, we're importing that much power
+            available_power = -grid_power + controlled_power
+            
+            # Return available power (must be positive or zero)
+            return max(0, available_power)
+            
         except Exception as e:
             logger.error(f"Failed to get available power: {e}")
             return 0.0
@@ -318,9 +328,11 @@ class SolarController:
                     power_optimization_enabled=power_optimization_enabled,
                     manual_power_override=self.manual_power_override
                 )
-                
-                # First pass: Handle mandatory devices
+
+                # Phase 1: Handle mandatory devices
                 mandatory_devices = []
+                devices_to_turn_on = []  # List of (device_state, power_needed, amperage) tuples
+                
                 for device_state in self.device_states.values():
                     device = device_state.device
                     
@@ -328,9 +340,8 @@ class SolarController:
                     if device.run_once and device_state.is_on:
                         if self.check_device_completion(device_state):
                             device_state.has_completed = True
-                            self.set_device_state(device_state, False)
                             continue
-                            
+                    
                     # Check minimum on/off times
                     if device_state.last_state_change:
                         time_since_change = (current_time - device_state.last_state_change).total_seconds()
@@ -344,6 +355,7 @@ class SolarController:
                                 'power': power,
                                 'reason': 'Minimum on time not met'
                             })
+                            devices_to_turn_on.append((device_state, power, device_state.current_amperage))
                             continue
                             
                         if not device_state.is_on and time_since_change < device.min_off_time:
@@ -359,7 +371,7 @@ class SolarController:
                 
                 # Only run optimization if enabled
                 if power_optimization_enabled:
-                    # Second pass: Handle optional devices by priority
+                    # Phase 2: Create list of potential devices to optimize
                     # Sort devices by their order (priority)
                     sorted_devices = sorted(
                         self.device_states.values(),
@@ -367,18 +379,12 @@ class SolarController:
                     )
                     
                     optional_devices = []
+                    potential_devices = []
+                    
+                    # First, create list of all devices we might want to turn on
                     for device_state in sorted_devices:
                         device = device_state.device
                         
-                        # Skip if device is already on
-                        if device_state.is_on:
-                            optional_devices.append({
-                                'name': device.name,
-                                'power': self.get_device_power(device_state),
-                                'reason': 'Already on'
-                            })
-                            continue
-                            
                         # Skip if device has completed its task
                         if device.run_once and device_state.has_completed:
                             optional_devices.append({
@@ -388,8 +394,27 @@ class SolarController:
                             })
                             continue
                             
-                        # Calculate power needed
+                        # Skip if device is in minimum off time
+                        if not device_state.is_on and device_state.last_state_change:
+                            time_since_change = (current_time - device_state.last_state_change).total_seconds()
+                            if time_since_change < device.min_off_time:
+                                optional_devices.append({
+                                    'name': device.name,
+                                    'power': 0,
+                                    'reason': 'Minimum off time not met'
+                                })
+                                continue
+                        
+                        # Add to potential devices list
+                        potential_devices.append(device_state)
+                    
+                    # Phase 3: Process potential devices in priority order
+                    for device_state in potential_devices:
+                        device = device_state.device
+                        
+                        # Calculate power needed based on current state of devices_to_turn_on
                         if device.has_variable_amperage:
+                            # Calculate optimal amperage considering current load
                             optimal_amperage = self.calculate_optimal_amperage(device, available_power)
                             if optimal_amperage is None:
                                 optional_devices.append({
@@ -401,18 +426,15 @@ class SolarController:
                             power_needed = voltage * optimal_amperage
                         else:
                             power_needed = device.typical_power_draw
-                            
+                        
                         # Check if we have enough power
                         if power_needed <= available_power:
-                            if device.has_variable_amperage:
-                                self.set_device_state(device_state, True, optimal_amperage)
-                            else:
-                                self.set_device_state(device_state, True)
+                            devices_to_turn_on.append((device_state, power_needed, optimal_amperage if device.has_variable_amperage else None))
                             available_power -= power_needed
                             optional_devices.append({
                                 'name': device.name,
                                 'power': power_needed,
-                                'reason': 'Turned on'
+                                'reason': 'Will be turned on'
                             })
                         else:
                             optional_devices.append({
@@ -420,8 +442,30 @@ class SolarController:
                                 'power': 0,
                                 'reason': 'Not enough power available'
                             })
-
+                    
                     self.debug_state.optional_devices = optional_devices
+                    
+                    # Phase 4: Apply all state changes
+                    for device_state in self.device_states.values():
+                        # Find if this device should be on
+                        should_be_on = False
+                        power_needed = 0
+                        amperage = None
+                        
+                        for turn_on_device, power, amp in devices_to_turn_on:
+                            if turn_on_device == device_state:
+                                should_be_on = True
+                                power_needed = power
+                                amperage = amp
+                                break
+                        
+                        # Apply state changes
+                        if should_be_on:
+                            if not device_state.is_on or (device_state.device.has_variable_amperage and device_state.current_amperage != amperage):
+                                self.set_device_state(device_state, True, amperage)
+                        else:
+                            if device_state.is_on:
+                                self.set_device_state(device_state, False)
                 else:
                     # If optimization is disabled, turn off all devices that aren't mandatory
                     optional_devices = []

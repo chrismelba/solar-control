@@ -286,7 +286,7 @@
                     
                     const nameElement = document.createElement('p');
                     nameElement.className = 'device-name';
-                    nameElement.textContent = device.name;
+                    nameElement.textContent = `${device.name} (Priority ${device.order + 1})`;
                     
                     const powerElement = document.createElement('p');
                     powerElement.className = 'device-power';

@@ -1,5 +1,12 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.2.2
+
+- Refactor control loop for better power optimization
+- Improve handling of device priorities
+- Fix issue with devices being incorrectly skipped when already on
+- Add proper handling of variable load devices in optimization
+
 ## 1.2.1
 
 - Fix data persistence issues

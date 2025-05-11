@@ -13,6 +13,7 @@ class Device:
     has_variable_amperage: bool = False
     min_amperage: Optional[float] = None  # in amps
     max_amperage: Optional[float] = None  # in amps
+    variable_amperage_control: Optional[str] = None  # Home Assistant entity ID for controlling amperage
     min_on_time: int = 60  # in seconds
     min_off_time: int = 60  # in seconds
     run_once: bool = False
@@ -29,6 +30,7 @@ class Device:
             'has_variable_amperage': self.has_variable_amperage,
             'min_amperage': self.min_amperage,
             'max_amperage': self.max_amperage,
+            'variable_amperage_control': self.variable_amperage_control,
             'min_on_time': self.min_on_time,
             'min_off_time': self.min_off_time,
             'run_once': self.run_once,
