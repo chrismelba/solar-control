@@ -251,8 +251,31 @@
                 
                 devices.forEach(device => {
                     const deviceElement = document.createElement('div');
-                    deviceElement.innerHTML = `{{ device_card(device, draggable=false) }}`;
-                    deviceList.appendChild(deviceElement.firstElementChild);
+                    deviceElement.className = 'device-card';
+                    deviceElement.dataset.deviceName = device.name;
+                    
+                    let html = `
+                        <div class="device-info">
+                            <h3>${device.name}</h3>
+                            <p>Switch: ${device.switch_entity}</p>
+                            <p>Power Draw: ${device.typical_power_draw}W</p>
+                            ${device.current_power_sensor ? `<p>Power Sensor: ${device.current_power_sensor}</p>` : ''}
+                            ${device.has_variable_amperage ? `
+                                <p>Amperage Range: ${device.min_amperage}A - ${device.max_amperage}A</p>
+                            ` : ''}
+                            <p>Min On Time: ${Math.floor(device.min_on_time / 60)} minutes</p>
+                            <p>Min Off Time: ${Math.floor(device.min_off_time / 60)} minutes</p>
+                            ${device.run_once ? '<p>Run Once Mode</p>' : ''}
+                            ${device.completion_sensor ? `<p>Completion Sensor: ${device.completion_sensor}</p>` : ''}
+                        </div>
+                        <div class="device-actions">
+                            <button class="edit-device">Edit</button>
+                            <button class="delete-device">Delete</button>
+                        </div>
+                    `;
+                    
+                    deviceElement.innerHTML = html;
+                    deviceList.appendChild(deviceElement);
                 });
                 
                 // Add event listeners for edit and delete buttons
