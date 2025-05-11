@@ -9,6 +9,7 @@ RUN \
         curl \
         python3 \
         py3-pip \
+        nginx \
     && \
     curl -sSLf -o /usr/bin/tempio \
     "https://github.com/home-assistant/tempio/releases/download/${TEMPIO_VERSION}/tempio_${BUILD_ARCH}" && \
@@ -22,6 +23,10 @@ RUN mkdir -p /usr/bin/static/css /usr/bin/static/js
 RUN mkdir -p /data && \
     chown -R root:root /data && \
     chmod -R 755 /data
+
+# Create Nginx configuration directory
+RUN mkdir -p /etc/nginx/http.d && \
+    chmod -R 755 /etc/nginx
 
 # Copy root filesystem
 COPY rootfs /

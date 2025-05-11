@@ -12,6 +12,12 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
+# Check if Nginx is available
+if ! command -v nginx &> /dev/null; then
+    bashio::log.error "Nginx is not installed!"
+    exit 1
+fi
+
 # Check if the program exists
 if [ ! -f /usr/bin/my_program ]; then
     bashio::log.error "my_program not found at /usr/bin/my_program"
@@ -63,6 +69,10 @@ fi
 # Export required environment variables
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN}"
 export HASS_URL="${HASS_URL}"
+
+# Start Nginx
+bashio::log.info "Starting Nginx..."
+nginx
 
 bashio::log.info "Starting Python web server..."
 exec python3 /usr/bin/my_program

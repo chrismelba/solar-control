@@ -1,5 +1,9 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.2.11] - 2024-03-19
+### Changed
+- Added nginx
+
 ## [1.2.7] - 2024-03-19
 ### Changed
 - Modified amperage rounding to always round down to nearest whole number
