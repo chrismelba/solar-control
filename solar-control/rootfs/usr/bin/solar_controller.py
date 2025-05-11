@@ -17,7 +17,7 @@ try:
     config = response.json()
     debug_level = config.get('debug_level', 'info').upper()
 except Exception as e:
-    debug_level = 'INFO'
+    debug_level = 'DEBUG'
 
 # Set up logging with configuration-based level
 logging.basicConfig(
@@ -246,14 +246,14 @@ class SolarController:
             # For variable load devices, we can always set the amperage
             if device.has_variable_amperage and amperage is not None:
                 logger.info(f"Setting amperage for {device.name} to {amperage}A")
-                logger.debug(f"Device details - min_amperage: {device.min_amperage}A, max_amperage: {device.max_amperage}A")
-                logger.debug(f"Control entity: {device.variable_amperage_control}")
+                logger.info(f"Device details - min_amperage: {device.min_amperage}A, max_amperage: {device.max_amperage}A")
+                logger.info(f"Control entity: {device.variable_amperage_control}")
                 
                 service_data = {
                     "entity_id": device.variable_amperage_control,  # Use the variable amperage control entity
                     "value": amperage
                 }
-                logger.debug(f"Sending request to Home Assistant: {service_data}")
+                logger.info(f"Sending request to Home Assistant: {service_data}")
                 
                 response = requests.post(
                     f"{self.hass_url}/api/services/input_number/set_value",
@@ -262,11 +262,11 @@ class SolarController:
                 )
                 response.raise_for_status()
                 logger.info(f"Successfully set amperage for {device.name} to {amperage}A")
-                logger.debug(f"Response status: {response.status_code}")
-                logger.debug(f"Response content: {response.text}")
+                logger.info(f"Response status: {response.status_code}")
+                logger.info(f"Response content: {response.text}")
                 device_state.current_amperage = amperage
             else:
-                logger.debug(f"No amperage change needed for {device.name} - has_variable_amperage: {device.has_variable_amperage}, amperage: {amperage}")
+                logger.info(f"No amperage change needed for {device.name} - has_variable_amperage: {device.has_variable_amperage}, amperage: {amperage}")
             
             # Only change switch state if we're allowed to
             if not (device_state.is_on and device_state.last_state_change and 
