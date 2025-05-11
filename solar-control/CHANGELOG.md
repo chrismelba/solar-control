@@ -1,5 +1,11 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.2.1
+
+- Fix data persistence issues
+- Improve file handling and permissions
+- Add detailed logging for debugging
+
 ## 1.2.0
 
 - Add an apparmor profile
