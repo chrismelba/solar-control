@@ -13,7 +13,7 @@ RUN \
     curl -sSLf -o /usr/bin/tempio \
     "https://github.com/home-assistant/tempio/releases/download/${TEMPIO_VERSION}/tempio_${BUILD_ARCH}" && \
     chmod a+x /usr/bin/tempio && \
-    pip3 install flask requests
+    pip3 install flask requests pytz
 
 # Create static directory
 RUN mkdir -p /usr/bin/static/css /usr/bin/static/js
