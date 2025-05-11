@@ -10,3 +10,9 @@ RUN \
 
 # Copy root filesystem
 COPY rootfs /
+
+# Make the Python script executable
+RUN chmod +x /usr/bin/my_program && \
+chmod a+x /etc/services.d/solar-control/run && \
+chmod a+x /etc/services.d/solar-control/finish
+
