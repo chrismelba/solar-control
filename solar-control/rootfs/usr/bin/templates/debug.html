@@ -56,10 +56,37 @@
         font-size: 1.2em;
         font-weight: bold;
     }
+    .power-exporting {
+        color: #4CAF50;
+    }
+    .power-importing {
+        color: #f44336;
+    }
     .controls {
         display: flex;
         gap: 10px;
         align-items: center;
+    }
+    .power-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+    .power-card {
+        background: #f5f5f5;
+        padding: 1rem;
+        border-radius: 8px;
+        text-align: center;
+    }
+    .power-card h3 {
+        margin: 0 0 0.5rem 0;
+        color: #333;
+    }
+    .power-card .value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin: 0.5rem 0;
     }
 </style>
 {% endblock %}
@@ -77,10 +104,42 @@
 
                 const html = `
                     <div class="timestamp">Last updated: ${new Date(data.timestamp).toLocaleString()}</div>
-                    <div class="power-value">Available Power: ${data.available_power.toFixed(1)}W</div>
-                    <div>Grid Voltage: ${data.grid_voltage.toFixed(1)}V</div>
-                    <div>Power Optimization: ${data.power_optimization_enabled ? 'Enabled' : 'Disabled'}</div>
-                    ${data.manual_power_override !== null ? `<div>Manual Power Override: ${data.manual_power_override.toFixed(1)}W</div>` : ''}
+                    
+                    <div class="power-grid">
+                        <div class="power-card">
+                            <h3>Grid Power</h3>
+                            <div class="value ${data.grid_power < 0 ? 'power-exporting' : 'power-importing'}">
+                                ${data.grid_power.toFixed(1)}W
+                                <div style="font-size: 0.8em; color: #666;">
+                                    ${data.grid_power < 0 ? 'Exporting to grid' : 'Importing from grid'}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="power-card">
+                            <h3>Available Power</h3>
+                            <div class="value power-exporting">
+                                ${data.available_power.toFixed(1)}W
+                                <div style="font-size: 0.8em; color: #666;">
+                                    For device control
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="power-card">
+                            <h3>Grid Voltage</h3>
+                            <div class="value">
+                                ${data.grid_voltage.toFixed(1)}V
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin: 1rem 0;">
+                        <strong>Power Optimization:</strong> ${data.power_optimization_enabled ? 'Enabled' : 'Disabled'}
+                        ${data.manual_power_override !== null ? 
+                            `<div><strong>Manual Power Override:</strong> ${data.manual_power_override.toFixed(1)}W</div>` : 
+                            ''}
+                    </div>
                     
                     <h3>Mandatory Devices</h3>
                     <div class="device-list">

@@ -29,6 +29,7 @@ class DebugState:
     timestamp: datetime
     available_power: float
     grid_voltage: float
+    grid_power: float
     mandatory_devices: List[Dict] = None
     optional_devices: List[Dict] = None
     power_optimization_enabled: bool = True
@@ -39,6 +40,7 @@ class DebugState:
             'timestamp': self.timestamp.isoformat(),
             'available_power': self.available_power,
             'grid_voltage': self.grid_voltage,
+            'grid_power': self.grid_power,
             'mandatory_devices': self.mandatory_devices or [],
             'optional_devices': self.optional_devices or [],
             'power_optimization_enabled': self.power_optimization_enabled,
@@ -85,7 +87,9 @@ class SolarController:
             return 230.0  # Default to 230V on error
             
     def get_available_power(self) -> float:
-        """Calculate available power by subtracting non-controllable loads from grid power"""
+        """Calculate available power by subtracting non-controllable loads from grid power.
+        Negative grid power means we're exporting to the grid, which is available power.
+        Positive grid power means we're importing from the grid, which means no available power."""
         if self.manual_power_override is not None:
             return self.manual_power_override
 
@@ -107,7 +111,11 @@ class SolarController:
             if unit.lower() == 'kw':
                 grid_power *= 1000
                 
-            return max(0, grid_power)  # Don't return negative power
+            # If grid power is negative, we're exporting to the grid
+            # This means we have that much power available
+            # If grid power is positive, we're importing from the grid
+            # This means we have no power available
+            return abs(min(0, grid_power))  # Convert negative to positive, or return 0 if positive
         except Exception as e:
             logger.error(f"Failed to get available power: {e}")
             return 0.0
@@ -259,6 +267,31 @@ class SolarController:
         """Get the current debug state"""
         return self.debug_state
 
+    def get_grid_power(self) -> float:
+        """Get the current grid power"""
+        config = self.load_config()
+        if not config.get('grid_power'):
+            logger.error("No grid power sensor configured")
+            return 0.0
+            
+        try:
+            response = requests.get(
+                f"{self.hass_url}/api/states/{config['grid_power']}", 
+                headers=self.get_headers()
+            )
+            response.raise_for_status()
+            grid_power = float(response.json().get('state', 0))
+            
+            # Convert to watts if needed
+            unit = response.json().get('attributes', {}).get('unit_of_measurement', 'W')
+            if unit.lower() == 'kw':
+                grid_power *= 1000
+                
+            return grid_power
+        except Exception as e:
+            logger.error(f"Failed to get grid power: {e}")
+            return 0.0
+
     def run_control_loop(self):
         """Main control loop"""
         while True:
@@ -267,6 +300,7 @@ class SolarController:
                 self.initialize_device_states()
                 
                 # Get current conditions
+                grid_power = self.get_grid_power()
                 available_power = self.get_available_power()
                 voltage = self.get_grid_voltage()
                 current_time = datetime.now(timezone.utc)
@@ -280,6 +314,7 @@ class SolarController:
                     timestamp=current_time,
                     available_power=available_power,
                     grid_voltage=voltage,
+                    grid_power=grid_power,
                     power_optimization_enabled=power_optimization_enabled,
                     manual_power_override=self.manual_power_override
                 )
