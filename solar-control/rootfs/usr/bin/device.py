@@ -2,6 +2,10 @@ from dataclasses import dataclass
 from typing import Optional
 import json
 import os
+import requests
+import logging
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class Device:
@@ -94,4 +98,48 @@ class Device:
                 json.dump([d.to_dict() for d in devices], f, indent=2)
                 
         except Exception as e:
-            raise Exception(f"Failed to delete device: {str(e)}") 
+            raise Exception(f"Failed to delete device: {str(e)}")
+
+    def set_state(self, state: bool) -> bool:
+        """Set the state of the device in Home Assistant"""
+        if not self.switch_entity:
+            return False
+            
+        supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+        if not supervisor_token:
+            return False
+            
+        try:
+            headers = {
+                "Authorization": f"Bearer {supervisor_token}",
+                "Content-Type": "application/json",
+            }
+            
+            hass_url = "http://supervisor/core"
+            
+            # For variable load devices, we need to set the amperage when turning on
+            if state and self.has_variable_amperage and self.min_amperage is not None:
+                service_data = {
+                    "entity_id": self.switch_entity,
+                    "amperage": self.min_amperage
+                }
+                response = requests.post(
+                    f"{hass_url}/api/services/switch/turn_on",
+                    headers=headers,
+                    json=service_data
+                )
+            else:
+                # For regular devices or turning off, use the standard service
+                service = "turn_on" if state else "turn_off"
+                service_data = {"entity_id": self.switch_entity}
+                response = requests.post(
+                    f"{hass_url}/api/services/switch/{service}",
+                    headers=headers,
+                    json=service_data
+                )
+            
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to set state for {self.name}: {e}")
+            return False 

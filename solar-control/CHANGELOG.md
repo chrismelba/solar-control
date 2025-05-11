@@ -1,5 +1,12 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.2.3
+
+- Fix webserver responsiveness when turning devices on/off
+- Fix device state setting for variable load devices
+- Run control loop in separate thread to prevent blocking
+- Improve error handling for device state changes
+
 ## 1.2.2
 
 - Refactor control loop for better power optimization

@@ -226,31 +226,33 @@ class SolarController:
         current_time = datetime.now(timezone.utc)
         
         try:
-            # Set switch state
-            response = requests.post(
-                f"{self.hass_url}/api/services/switch/turn_{'on' if turn_on else 'off'}",
-                headers=self.get_headers(),
-                json={"entity_id": device.switch_entity}
-            )
+            # For variable load devices, we need to set the amperage when turning on
+            if turn_on and device.has_variable_amperage and amperage is not None:
+                service_data = {
+                    "entity_id": device.switch_entity,
+                    "amperage": amperage
+                }
+                response = requests.post(
+                    f"{self.hass_url}/api/services/switch/turn_on",
+                    headers=self.get_headers(),
+                    json=service_data
+                )
+            else:
+                # For regular devices or turning off, use the standard service
+                service = "turn_on" if turn_on else "turn_off"
+                service_data = {"entity_id": device.switch_entity}
+                response = requests.post(
+                    f"{self.hass_url}/api/services/switch/{service}",
+                    headers=self.get_headers(),
+                    json=service_data
+                )
+            
             response.raise_for_status()
             
             # Update state tracking
             device_state.is_on = turn_on
             device_state.last_state_change = current_time
-            
-            # Set amperage if applicable
-            if turn_on and device.has_variable_amperage and amperage is not None:
-                # This assumes there's a service to set the amperage
-                # You'll need to implement this based on your specific devices
-                response = requests.post(
-                    f"{self.hass_url}/api/services/switch/set_amperage",
-                    headers=self.get_headers(),
-                    json={
-                        "entity_id": device.switch_entity,
-                        "amperage": amperage
-                    }
-                )
-                response.raise_for_status()
+            if turn_on and device.has_variable_amperage:
                 device_state.current_amperage = amperage
                 
         except Exception as e:
@@ -303,6 +305,118 @@ class SolarController:
             return 0.0
 
     def run_control_loop(self):
+        """Main control loop - runs one iteration"""
+        try:
+            # Initialize/update device states
+            self.initialize_device_states()
+            
+            # Get current conditions
+            grid_power = self.get_grid_power()
+            available_power = self.get_available_power()
+            voltage = self.get_grid_voltage()
+            current_time = datetime.now(timezone.utc)
+            
+            # Load settings
+            settings = self.load_settings()
+            power_optimization_enabled = settings.get('power_optimization_enabled', True)
+            
+            # Initialize debug state
+            self.debug_state = DebugState(
+                timestamp=current_time,
+                available_power=available_power,
+                grid_voltage=voltage,
+                grid_power=grid_power,
+                power_optimization_enabled=power_optimization_enabled,
+                manual_power_override=self.manual_power_override
+            )
+
+            # Phase 1: Handle mandatory devices
+            mandatory_devices = []
+            devices_to_turn_on = []  # List of (device_state, power_needed, amperage) tuples
+            
+            for device_state in self.device_states.values():
+                device = device_state.device
+                
+                # Check if device has completed its task
+                if device.run_once and device_state.is_on:
+                    if self.check_device_completion(device_state):
+                        device_state.has_completed = True
+                        continue
+                
+                # Check minimum on/off times
+                if device_state.last_state_change:
+                    time_since_change = (current_time - device_state.last_state_change).total_seconds()
+                    
+                    if device_state.is_on and time_since_change < device.min_on_time:
+                        # Must stay on
+                        power = self.get_device_power(device_state)
+                        available_power -= power
+                        mandatory_devices.append({
+                            'name': device.name,
+                            'power': power,
+                            'reason': 'Minimum on time not met'
+                        })
+                        devices_to_turn_on.append((device_state, power, device_state.current_amperage))
+                        continue
+                        
+                    if not device_state.is_on and time_since_change < device.min_off_time:
+                        # Must stay off
+                        mandatory_devices.append({
+                            'name': device.name,
+                            'power': 0,
+                            'reason': 'Minimum off time not met'
+                        })
+                        continue
+
+            self.debug_state.mandatory_devices = mandatory_devices
+            
+            # Only run optimization if enabled
+            if power_optimization_enabled:
+                # Phase 2: Create list of potential devices to optimize
+                # Sort devices by their order (priority)
+                sorted_devices = sorted(
+                    self.device_states.values(),
+                    key=lambda x: x.device.order
+                )
+                
+                optional_devices = []
+                potential_devices = []
+                
+                # First, create list of all devices we might want to turn on
+                for device_state in sorted_devices:
+                    device = device_state.device
+                    
+                    # Skip if device has completed its task
+                    if device.run_once and device_state.has_completed:
+                        optional_devices.append({
+                            'name': device.name,
+                            'power': 0,
+                            'reason': 'Task completed'
+                        })
+                        continue
+                        
+                    # Skip if device is in minimum off time
+                    if not device_state.is_on and device_state.last_state_change:
+                        time_since_change = (current_time - device_state.last_state_change).total_seconds()
+                        if time_since_change < device.min_off_time:
+                            optional_devices.append({
+                                'name': device.name,
+                                'power': 0,
+                                'reason': 'Minimum off time not met'
+                            })
+                            continue
+                    
+                    # Add to potential devices list
+                    potential_devices.append(device_state)
+                
+                # Phase 3: Process potential devices in priority order
+                for device_state in potential_devices:
+                    device = device_state.device
+                    
+                    # Calculate power needed based on current state of devices_to_turn_on
+                    if device.has_variable_amperage:
+                        # Calculate optimal amperage considering current load
+                        optimal_amperage = self.calculate_optimal_amperage(device, available_power)
         """Main control loop"""
         while True:
             try:

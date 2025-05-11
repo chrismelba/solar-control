@@ -104,6 +104,9 @@ controller = SolarController(
     devices_file=DEVICES_FILE
 )
 
+# Start the control loop in a separate thread
+controller.start_control_loop()
+
 # Log static file configuration
 logger.info('Static folder: %s', app.static_folder)
 logger.info('Static URL path: %s', app.static_url_path)
@@ -382,7 +385,7 @@ def status():
     }
     return jsonify({
         'status': 'running',
-        'version': '1.2.2',
+        'version': '1.2.3',
         'sensor_values': sensor_values,
         'power_optimization_enabled': settings.get('power_optimization_enabled', True)
     })
