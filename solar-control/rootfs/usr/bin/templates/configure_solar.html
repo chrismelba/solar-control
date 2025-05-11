@@ -1,97 +1,159 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configure Solar - Solar Control</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        select {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        .back-link {
-            display: inline-block;
-            margin-bottom: 20px;
-            color: #666;
-            text-decoration: none;
-        }
-        .back-link:hover {
-            color: #333;
-        }
-    </style>
-</head>
-<body>
-    <a href="{{ url_for('index') }}" class="back-link">← Back to Dashboard</a>
-    <h1>Configure Solar Settings</h1>
-    
+{% extends "base.html" %}
+
+{% block title %}Configure Solar - Solar Control{% endblock %}
+
+{% block heading %}Configure Solar Settings{% endblock %}
+
+{% block extra_head %}
+<style>
+    .searchable-select {
+        position: relative;
+        width: 100%;
+    }
+    .searchable-select input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+    .searchable-select .options {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        max-height: 200px;
+        overflow-y: auto;
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        z-index: 1000;
+    }
+    .searchable-select .options.active {
+        display: block;
+    }
+    .searchable-select .option {
+        padding: 8px;
+        cursor: pointer;
+    }
+    .searchable-select .option:hover {
+        background: #f0f0f0;
+    }
+    .searchable-select .option.selected {
+        background: #e0e0e0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
     <form method="POST">
-        <div class="form-group">
-            <label for="solar_generation">Solar Generation Entity:</label>
-            <select name="solar_generation" id="solar_generation">
-                <option value="">Select an entity...</option>
-                {% for entity in entities %}
-                    <option value="{{ entity.entity_id }}" 
-                            {% if entity.entity_id == config.solar_generation %}selected{% endif %}>
-                        {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
+        <div class="card">
+            <div class="form-group">
+                <label for="solar_generation">Solar Generation Entity:</label>
+                <div class="searchable-select">
+                    <input type="text" id="solar_generation_input" placeholder="Search for an entity..." autocomplete="off">
+                    <input type="hidden" name="solar_generation" id="solar_generation" value="{{ config.solar_generation }}">
+                    <div class="options" id="solar_generation_options">
+                        {% for entity in entities %}
+                            <div class="option" data-value="{{ entity.entity_id }}" 
+                                 {% if entity.entity_id == config.solar_generation %}data-selected="true"{% endif %}>
+                                {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
 
-        <div class="form-group">
-            <label for="grid_power">Grid Power Entity:</label>
-            <select name="grid_power" id="grid_power">
-                <option value="">Select an entity...</option>
-                {% for entity in entities %}
-                    <option value="{{ entity.entity_id }}"
-                            {% if entity.entity_id == config.grid_power %}selected{% endif %}>
-                        {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
+            <div class="form-group">
+                <label for="grid_power">Grid Power Entity:</label>
+                <div class="searchable-select">
+                    <input type="text" id="grid_power_input" placeholder="Search for an entity..." autocomplete="off">
+                    <input type="hidden" name="grid_power" id="grid_power" value="{{ config.grid_power }}">
+                    <div class="options" id="grid_power_options">
+                        {% for entity in entities %}
+                            <div class="option" data-value="{{ entity.entity_id }}"
+                                 {% if entity.entity_id == config.grid_power %}data-selected="true"{% endif %}>
+                                {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
 
-        <div class="form-group">
-            <label for="solar_forecast">Solar Forecast Entity:</label>
-            <select name="solar_forecast" id="solar_forecast">
-                <option value="">Select an entity...</option>
-                {% for entity in entities %}
-                    <option value="{{ entity.entity_id }}"
-                            {% if entity.entity_id == config.solar_forecast %}selected{% endif %}>
-                        {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
+            <div class="form-group">
+                <label for="solar_forecast">Solar Forecast Entity:</label>
+                <div class="searchable-select">
+                    <input type="text" id="solar_forecast_input" placeholder="Search for an entity..." autocomplete="off">
+                    <input type="hidden" name="solar_forecast" id="solar_forecast" value="{{ config.solar_forecast }}">
+                    <div class="options" id="solar_forecast_options">
+                        {% for entity in entities %}
+                            <div class="option" data-value="{{ entity.entity_id }}"
+                                 {% if entity.entity_id == config.solar_forecast %}data-selected="true"{% endif %}>
+                                {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
 
-        <button type="submit">Save Configuration</button>
+            <button type="submit" class="button">Save Configuration</button>
+        </div>
     </form>
-</body>
-</html> 
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const setupSearchableSelect = (inputId, optionsId, hiddenInputId) => {
+                const input = document.getElementById(inputId);
+                const options = document.getElementById(optionsId);
+                const hiddenInput = document.getElementById(hiddenInputId);
+                
+                // Set initial value if selected
+                const selectedOption = options.querySelector('[data-selected="true"]');
+                if (selectedOption) {
+                    input.value = selectedOption.textContent;
+                }
+
+                input.addEventListener('focus', () => {
+                    options.classList.add('active');
+                });
+
+                input.addEventListener('input', () => {
+                    const searchText = input.value.toLowerCase();
+                    const optionElements = options.querySelectorAll('.option');
+                    
+                    optionElements.forEach(option => {
+                        const text = option.textContent.toLowerCase();
+                        option.style.display = text.includes(searchText) ? '' : 'none';
+                    });
+                    
+                    options.classList.add('active');
+                });
+
+                options.addEventListener('click', (e) => {
+                    const option = e.target.closest('.option');
+                    if (option) {
+                        input.value = option.textContent;
+                        hiddenInput.value = option.dataset.value;
+                        options.classList.remove('active');
+                        
+                        // Update selected state
+                        options.querySelectorAll('.option').forEach(opt => {
+                            opt.classList.remove('selected');
+                        });
+                        option.classList.add('selected');
+                    }
+                });
+
+                document.addEventListener('click', (e) => {
+                    if (!input.contains(e.target) && !options.contains(e.target)) {
+                        options.classList.remove('active');
+                    }
+                });
+            };
+
+            setupSearchableSelect('solar_generation_input', 'solar_generation_options', 'solar_generation');
+            setupSearchableSelect('grid_power_input', 'grid_power_options', 'grid_power');
+            setupSearchableSelect('solar_forecast_input', 'solar_forecast_options', 'solar_forecast');
+        });
+    </script>
+{% endblock %} 

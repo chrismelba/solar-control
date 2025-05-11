@@ -4,36 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configure Battery - Solar Control</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .back-link {
-            display: inline-block;
-            margin-bottom: 20px;
-            color: #666;
-            text-decoration: none;
-        }
-        .back-link:hover {
-            color: #333;
-        }
-        .coming-soon {
-            text-align: center;
-            padding: 40px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            margin-top: 20px;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <a href="{{ url_for('index') }}" class="back-link">← Back to Dashboard</a>
     <h1>Configure Battery Settings</h1>
     
-    <div class="coming-soon">
+    <div class="card">
         <h2>Coming Soon</h2>
         <p>Battery configuration features are currently under development.</p>
     </div>

@@ -1,41 +1,17 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Control</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .nav-menu {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        .nav-menu a {
-            text-decoration: none;
-            color: #333;
-            padding: 10px 20px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        .nav-menu a:hover {
-            background-color: #f0f0f0;
-        }
-    </style>
-</head>
-<body>
-    <h1>Solar Control Dashboard</h1>
+{% extends "base.html" %}
+
+{% block title %}Solar Control Dashboard{% endblock %}
+
+{% block heading %}Solar Control Dashboard{% endblock %}
+
+{% block content %}
     <div class="nav-menu">
-        <a href="{{ url_for('configure_solar') }}">Configure Solar</a>
-        <a href="{{ url_for('configure_battery') }}">Configure Battery</a>
-        <a href="{{ url_for('configure_devices') }}">Configure Devices</a>
+        <a href="{{ url_for('configure_solar') }}" class="button">Configure Solar</a>
+        <a href="{{ url_for('configure_battery') }}" class="button">Configure Battery</a>
+        <a href="{{ url_for('configure_devices') }}" class="button">Configure Devices</a>
     </div>
-    <div id="status">
+    
+    <div class="card" id="status">
         <h2>System Status</h2>
         <p>Loading status...</p>
     </div>
@@ -53,5 +29,4 @@
                     'Error loading status';
             });
     </script>
-</body>
-</html> 
+{% endblock %} 
