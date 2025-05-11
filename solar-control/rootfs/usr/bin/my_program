@@ -380,6 +380,17 @@ def create_device():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
+@app.route('/api/devices/<name>', methods=['GET'])
+def get_device(name):
+    try:
+        devices = Device.load_all(DEVICES_FILE)
+        device = next((d for d in devices if d.name == name), None)
+        if device is None:
+            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+        return jsonify(device.to_dict())
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
 @app.route('/api/devices/<name>', methods=['PUT'])
 def update_device(name):
     try:
