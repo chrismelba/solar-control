@@ -71,8 +71,8 @@ export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN}"
 export HASS_URL="${HASS_URL}"
 
 # Start Nginx
-bashio::log.info "Starting Nginx..."
-nginx
+# bashio::log.info "Starting Nginx..."
+# nginx
 
 bashio::log.info "Starting Python web server..."
 exec python3 /usr/bin/my_program
