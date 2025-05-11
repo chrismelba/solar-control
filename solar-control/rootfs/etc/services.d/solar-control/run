@@ -40,14 +40,15 @@ if [ ! -d /data ]; then
     mkdir -p /data
 fi
 
-# Debug: Show directory creation result
-bashio::log.info "Data directory status after creation:"
-ls -la /data || true
-
-# Set permissions
+# Set directory permissions (755 for directories)
 bashio::log.info "Setting data directory permissions..."
 chown -R root:root /data
-chmod -R 755 /data
+chmod 755 /data
+
+# Set file permissions (644 for files)
+bashio::log.info "Setting file permissions..."
+find /data -type f -exec chmod 644 {} \;
+find /data -type f -exec chown root:root {} \;
 
 # Debug: Show final directory state
 bashio::log.info "Final data directory state:"

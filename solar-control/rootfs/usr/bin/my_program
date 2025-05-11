@@ -27,24 +27,23 @@ app = Flask(__name__,
            static_folder=static_dir,
            template_folder='templates')
 
-# Create controller instance
-controller = SolarController(
-    config_file="/data/solar_config.json",
-    devices_file="/data/devices.json"
-)
-
-# Log static file configuration
-logger.info('Static folder: %s', app.static_folder)
-logger.info('Static URL path: %s', app.static_url_path)
-logger.info('Static files available:')
-for root, dirs, files in os.walk(static_dir):
-    for file in files:
-        logger.info('  %s', os.path.join(root, file))
-
 # Configuration file paths
 CONFIG_FILE = '/data/solar_config.json'
 DEVICES_FILE = '/data/devices.json'
 SETTINGS_FILE = '/data/settings.json'
+
+# Default configurations
+DEFAULT_CONFIG = {
+    'solar_generation': '',
+    'grid_power': '',
+    'solar_forecast': '',
+    'grid_voltage': '',
+    'grid_voltage_fixed': None
+}
+
+DEFAULT_SETTINGS = {
+    'power_optimization_enabled': True
+}
 
 # Debug: Log data directory state
 logger.info("Checking data directory state...")
@@ -55,6 +54,57 @@ logger.info(f"Data directory owner: {os.stat('/data').st_uid}")
 # Ensure data directory exists
 logger.info("Ensuring data directory exists...")
 os.makedirs('/data', exist_ok=True)
+
+def create_default_files():
+    """Create default configuration files if they don't exist"""
+    logger.info("Checking and creating default configuration files...")
+    
+    # Create solar_config.json if it doesn't exist
+    if not os.path.exists(CONFIG_FILE):
+        logger.info(f"Creating default config file: {CONFIG_FILE}")
+        try:
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump(DEFAULT_CONFIG, f, indent=2)
+            logger.info("Default config file created successfully")
+        except Exception as e:
+            logger.error(f"Error creating default config file: {e}")
+    
+    # Create settings.json if it doesn't exist
+    if not os.path.exists(SETTINGS_FILE):
+        logger.info(f"Creating default settings file: {SETTINGS_FILE}")
+        try:
+            with open(SETTINGS_FILE, 'w') as f:
+                json.dump(DEFAULT_SETTINGS, f, indent=2)
+            logger.info("Default settings file created successfully")
+        except Exception as e:
+            logger.error(f"Error creating default settings file: {e}")
+    
+    # Create devices.json if it doesn't exist
+    if not os.path.exists(DEVICES_FILE):
+        logger.info(f"Creating empty devices file: {DEVICES_FILE}")
+        try:
+            with open(DEVICES_FILE, 'w') as f:
+                json.dump([], f, indent=2)
+            logger.info("Empty devices file created successfully")
+        except Exception as e:
+            logger.error(f"Error creating empty devices file: {e}")
+
+# Create default files
+create_default_files()
+
+# Create controller instance
+controller = SolarController(
+    config_file=CONFIG_FILE,
+    devices_file=DEVICES_FILE
+)
+
+# Log static file configuration
+logger.info('Static folder: %s', app.static_folder)
+logger.info('Static URL path: %s', app.static_url_path)
+logger.info('Static files available:')
+for root, dirs, files in os.walk(static_dir):
+    for file in files:
+        logger.info('  %s', os.path.join(root, file))
 
 def load_config():
     logger.info(f"Loading config from: {CONFIG_FILE}")
@@ -67,21 +117,20 @@ def load_config():
                 return config
         except Exception as e:
             logger.error(f"Error loading config: {e}")
+            # If there's an error loading the config, create a new one
+            logger.info("Creating new config file due to error...")
+            create_default_files()
+            return DEFAULT_CONFIG
     else:
-        logger.info("Config file does not exist, using defaults")
-    return {
-        'solar_generation': '',
-        'grid_power': '',
-        'solar_forecast': '',
-        'grid_voltage': '',
-        'grid_voltage_fixed': None
-    }
+        logger.info("Config file does not exist, creating default...")
+        create_default_files()
+        return DEFAULT_CONFIG
 
 def save_config(config):
     logger.info(f"Saving config to: {CONFIG_FILE}")
     try:
         with open(CONFIG_FILE, 'w') as f:
-            json.dump(config, f)
+            json.dump(config, f, indent=2)
         logger.info("Config saved successfully")
     except Exception as e:
         logger.error(f"Error saving config: {e}")
@@ -97,17 +146,20 @@ def load_settings():
                 return settings
         except Exception as e:
             logger.error(f"Error loading settings: {e}")
+            # If there's an error loading the settings, create a new one
+            logger.info("Creating new settings file due to error...")
+            create_default_files()
+            return DEFAULT_SETTINGS
     else:
-        logger.info("Settings file does not exist, using defaults")
-    return {
-        'power_optimization_enabled': True  # Default to enabled
-    }
+        logger.info("Settings file does not exist, creating default...")
+        create_default_files()
+        return DEFAULT_SETTINGS
 
 def save_settings(settings):
     logger.info(f"Saving settings to: {SETTINGS_FILE}")
     try:
         with open(SETTINGS_FILE, 'w') as f:
-            json.dump(settings, f)
+            json.dump(settings, f, indent=2)
         logger.info("Settings saved successfully")
     except Exception as e:
         logger.error(f"Error saving settings: {e}")
