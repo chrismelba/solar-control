@@ -15,11 +15,15 @@ RUN \
     chmod a+x /usr/bin/tempio && \
     pip3 install flask requests
 
+# Create static directory
+RUN mkdir -p /usr/bin/static/css /usr/bin/static/js
+
 # Copy root filesystem
 COPY rootfs /
 
 # Make the Python script executable
 RUN chmod +x /usr/bin/my_program && \
-chmod a+x /etc/services.d/solar-control/run && \
-chmod a+x /etc/services.d/solar-control/finish
+    chmod a+x /etc/services.d/solar-control/run && \
+    chmod a+x /etc/services.d/solar-control/finish && \
+    chmod -R 755 /usr/bin/static
 

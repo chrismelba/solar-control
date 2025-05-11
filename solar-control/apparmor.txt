@@ -53,5 +53,8 @@ profile solar-control flags=(attach_disconnected,mediate_deleted) {
     /bin/echo ix,
     /etc/passwd r,
     /dev/tty rw,
+    
+    # Access to static files
+    /usr/bin/static/** r,
   }
 }

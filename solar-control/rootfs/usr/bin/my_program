@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-from flask import Flask, render_template, jsonify, request, redirect, url_for
+from flask import Flask, render_template, jsonify, request, redirect, url_for, send_from_directory
 import os
 import logging
 import json
@@ -18,6 +18,14 @@ if not os.path.exists(static_dir):
 app = Flask(__name__, 
            static_folder=static_dir,
            template_folder='templates')
+
+# Log static file configuration
+logger.info('Static folder: %s', app.static_folder)
+logger.info('Static URL path: %s', app.static_url_path)
+logger.info('Static files available:')
+for root, dirs, files in os.walk(static_dir):
+    for file in files:
+        logger.info('  %s', os.path.join(root, file))
 
 # Configuration file path
 CONFIG_FILE = '/data/solar_config.json'
@@ -73,10 +81,44 @@ def get_hass_entities():
         logger.error(f"Failed to get entities from Home Assistant: {e}")
         return []
 
+def get_sensor_value(entity_id):
+    if not entity_id:
+        return None
+        
+    supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+    if not supervisor_token:
+        return None
+        
+    try:
+        headers = {
+            "Authorization": f"Bearer {supervisor_token}",
+            "Content-Type": "application/json",
+        }
+        
+        hass_url = "http://supervisor/core"
+        response = requests.get(f"{hass_url}/api/states/{entity_id}", headers=headers)
+        response.raise_for_status()
+        
+        entity = response.json()
+        return {
+            'state': entity.get('state'),
+            'friendly_name': entity.get('attributes', {}).get('friendly_name'),
+            'unit': entity.get('attributes', {}).get('unit_of_measurement')
+        }
+    except Exception as e:
+        logger.error(f"Failed to get sensor value for {entity_id}: {e}")
+        return None
+
 @app.route('/')
 def index():
     logger.debug('Received request for index page')
-    return render_template('index.html')
+    config = load_config()
+    sensor_values = {
+        'solar_generation': get_sensor_value(config.get('solar_generation')),
+        'grid_power': get_sensor_value(config.get('grid_power')),
+        'solar_forecast': get_sensor_value(config.get('solar_forecast'))
+    }
+    return render_template('index.html', sensor_values=sensor_values)
 
 @app.route('/configure/solar', methods=['GET', 'POST'])
 def configure_solar():
@@ -93,10 +135,19 @@ def configure_solar():
     
     # Get Home Assistant entities
     entities = get_hass_entities()
+    config = load_config()
+    
+    # Get current sensor values
+    sensor_values = {
+        'solar_generation': get_sensor_value(config.get('solar_generation')),
+        'grid_power': get_sensor_value(config.get('grid_power')),
+        'solar_forecast': get_sensor_value(config.get('solar_forecast'))
+    }
     
     return render_template('configure_solar.html', 
                          entities=entities,
-                         config=load_config())
+                         config=config,
+                         sensor_values=sensor_values)
 
 @app.route('/configure/battery')
 def configure_battery():
@@ -111,10 +162,27 @@ def configure_devices():
 @app.route('/api/status')
 def status():
     logger.debug('Received request for status API')
+    config = load_config()
+    sensor_values = {
+        'solar_generation': get_sensor_value(config.get('solar_generation')),
+        'grid_power': get_sensor_value(config.get('grid_power')),
+        'solar_forecast': get_sensor_value(config.get('solar_forecast'))
+    }
     return jsonify({
         'status': 'running',
-        'version': '1.0.0'
+        'version': '1.0.0',
+        'sensor_values': sensor_values
     })
+
+# Debug route to check static files
+@app.route('/debug/static/<path:filename>')
+def debug_static(filename):
+    logger.debug('Debug request for static file: %s', filename)
+    try:
+        return send_from_directory(app.static_folder, filename)
+    except Exception as e:
+        logger.error('Error serving static file %s: %s', filename, e)
+        return str(e), 500
 
 if __name__ == '__main__':
     logger.info('Starting Flask application...')

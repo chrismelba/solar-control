@@ -1,0 +1,42 @@
+.searchable-select {
+    position: relative;
+    width: 100%;
+}
+
+.searchable-select input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.searchable-select .options {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    z-index: 1000;
+}
+
+.searchable-select .options.active {
+    display: block;
+}
+
+.searchable-select .option {
+    padding: 8px;
+    cursor: pointer;
+}
+
+.searchable-select .option:hover {
+    background: #f0f0f0;
+}
+
+.searchable-select .option.selected {
+    background: #e0e0e0;
+} 

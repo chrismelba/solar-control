@@ -4,50 +4,45 @@
 
 {% block heading %}Configure Solar Settings{% endblock %}
 
-{% block extra_head %}
-<style>
-    .searchable-select {
-        position: relative;
-        width: 100%;
-    }
-    .searchable-select input {
-        width: 100%;
-        padding: 8px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-    }
-    .searchable-select .options {
-        display: none;
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        max-height: 200px;
-        overflow-y: auto;
-        background: white;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        z-index: 1000;
-    }
-    .searchable-select .options.active {
-        display: block;
-    }
-    .searchable-select .option {
-        padding: 8px;
-        cursor: pointer;
-    }
-    .searchable-select .option:hover {
-        background: #f0f0f0;
-    }
-    .searchable-select .option.selected {
-        background: #e0e0e0;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
+    <div class="card">
+        <h2>Current Sensor Values</h2>
+        <div class="sensor-grid">
+            <div class="sensor-card">
+                <h3>Solar Generation</h3>
+                {% if sensor_values.solar_generation %}
+                    <p class="value">{{ sensor_values.solar_generation.state }} {{ sensor_values.solar_generation.unit }}</p>
+                    <p class="name">{{ sensor_values.solar_generation.friendly_name }}</p>
+                {% else %}
+                    <p class="value">Not configured</p>
+                {% endif %}
+            </div>
+            
+            <div class="sensor-card">
+                <h3>Grid Power</h3>
+                {% if sensor_values.grid_power %}
+                    <p class="value">{{ sensor_values.grid_power.state }} {{ sensor_values.grid_power.unit }}</p>
+                    <p class="name">{{ sensor_values.grid_power.friendly_name }}</p>
+                {% else %}
+                    <p class="value">Not configured</p>
+                {% endif %}
+            </div>
+            
+            <div class="sensor-card">
+                <h3>Solar Forecast</h3>
+                {% if sensor_values.solar_forecast %}
+                    <p class="value">{{ sensor_values.solar_forecast.state }} {{ sensor_values.solar_forecast.unit }}</p>
+                    <p class="name">{{ sensor_values.solar_forecast.friendly_name }}</p>
+                {% else %}
+                    <p class="value">Not configured</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
     <form method="POST">
         <div class="card">
+            <h2>Configure Sensors</h2>
             <div class="form-group">
                 <label for="solar_generation">Solar Generation Entity:</label>
                 <div class="searchable-select">
@@ -99,61 +94,4 @@
             <button type="submit" class="button">Save Configuration</button>
         </div>
     </form>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const setupSearchableSelect = (inputId, optionsId, hiddenInputId) => {
-                const input = document.getElementById(inputId);
-                const options = document.getElementById(optionsId);
-                const hiddenInput = document.getElementById(hiddenInputId);
-                
-                // Set initial value if selected
-                const selectedOption = options.querySelector('[data-selected="true"]');
-                if (selectedOption) {
-                    input.value = selectedOption.textContent;
-                }
-
-                input.addEventListener('focus', () => {
-                    options.classList.add('active');
-                });
-
-                input.addEventListener('input', () => {
-                    const searchText = input.value.toLowerCase();
-                    const optionElements = options.querySelectorAll('.option');
-                    
-                    optionElements.forEach(option => {
-                        const text = option.textContent.toLowerCase();
-                        option.style.display = text.includes(searchText) ? '' : 'none';
-                    });
-                    
-                    options.classList.add('active');
-                });
-
-                options.addEventListener('click', (e) => {
-                    const option = e.target.closest('.option');
-                    if (option) {
-                        input.value = option.textContent;
-                        hiddenInput.value = option.dataset.value;
-                        options.classList.remove('active');
-                        
-                        // Update selected state
-                        options.querySelectorAll('.option').forEach(opt => {
-                            opt.classList.remove('selected');
-                        });
-                        option.classList.add('selected');
-                    }
-                });
-
-                document.addEventListener('click', (e) => {
-                    if (!input.contains(e.target) && !options.contains(e.target)) {
-                        options.classList.remove('active');
-                    }
-                });
-            };
-
-            setupSearchableSelect('solar_generation_input', 'solar_generation_options', 'solar_generation');
-            setupSearchableSelect('grid_power_input', 'grid_power_options', 'grid_power');
-            setupSearchableSelect('solar_forecast_input', 'solar_forecast_options', 'solar_forecast');
-        });
-    </script>
 {% endblock %} 
