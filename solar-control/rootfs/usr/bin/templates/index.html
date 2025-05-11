@@ -46,6 +46,13 @@
         </div>
     </div>
 
+    <div class="card" id="devices">
+        <h2>Controllable Devices</h2>
+        <div id="deviceList" class="device-list">
+            <p>Loading devices...</p>
+        </div>
+    </div>
+
     <div class="card" id="status">
         <h2>System Status</h2>
         <p>Loading status...</p>
@@ -79,6 +86,60 @@
             color: #666;
             margin: 0;
         }
+        .device-list {
+            margin-top: 1rem;
+        }
+
+        .device-item {
+            background: #f5f5f5;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+            transition: transform 0.2s;
+        }
+
+        .device-item:hover {
+            transform: translateX(5px);
+        }
+
+        .device-item.dragging {
+            opacity: 0.5;
+        }
+
+        .device-info {
+            flex-grow: 1;
+        }
+
+        .device-name {
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .device-power {
+            color: #666;
+            margin: 0.25rem 0 0 0;
+        }
+
+        .device-status {
+            margin-left: 1rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .status-on {
+            background: #4caf50;
+            color: white;
+        }
+
+        .status-off {
+            background: #f44336;
+            color: white;
+        }
     </style>
 
     <script>
@@ -93,5 +154,99 @@
                 document.querySelector('#status p').textContent = 
                     'Error loading status';
             });
+
+        // Load and display devices
+        async function loadDevices() {
+            try {
+                const response = await fetch('/api/devices');
+                const devices = await response.json();
+                
+                const deviceList = document.getElementById('deviceList');
+                deviceList.innerHTML = '';
+                
+                // Sort devices by order
+                devices.sort((a, b) => a.order - b.order);
+                
+                devices.forEach(device => {
+                    const deviceElement = document.createElement('div');
+                    deviceElement.className = 'device-item';
+                    deviceElement.draggable = true;
+                    deviceElement.dataset.deviceName = device.name;
+                    
+                    deviceElement.innerHTML = `
+                        <div class="device-info">
+                            <p class="device-name">${device.name}</p>
+                            <p class="device-power">${device.typical_power_draw}W</p>
+                        </div>
+                        <span class="device-status status-off">Off</span>
+                    `;
+                    
+                    deviceList.appendChild(deviceElement);
+                });
+                
+                // Initialize drag and drop
+                initializeDragAndDrop();
+            } catch (error) {
+                document.getElementById('deviceList').innerHTML = 
+                    '<p>Error loading devices</p>';
+            }
+        }
+
+        function initializeDragAndDrop() {
+            const deviceList = document.getElementById('deviceList');
+            const items = deviceList.querySelectorAll('.device-item');
+            
+            items.forEach(item => {
+                item.addEventListener('dragstart', () => {
+                    item.classList.add('dragging');
+                });
+                
+                item.addEventListener('dragend', () => {
+                    item.classList.remove('dragging');
+                    updateDeviceOrder();
+                });
+            });
+            
+            deviceList.addEventListener('dragover', e => {
+                e.preventDefault();
+                const draggingItem = deviceList.querySelector('.dragging');
+                const siblings = [...deviceList.querySelectorAll('.device-item:not(.dragging)')];
+                
+                const nextSibling = siblings.find(sibling => {
+                    const box = sibling.getBoundingClientRect();
+                    const offset = e.clientY - box.top - box.height / 2;
+                    return offset < 0;
+                });
+                
+                deviceList.insertBefore(draggingItem, nextSibling);
+            });
+        }
+
+        async function updateDeviceOrder() {
+            const items = document.querySelectorAll('.device-item');
+            const orderData = Array.from(items).map((item, index) => ({
+                name: item.dataset.deviceName,
+                order: index
+            }));
+            
+            try {
+                const response = await fetch('/api/devices/reorder', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(orderData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to update device order');
+                }
+            } catch (error) {
+                console.error('Error updating device order:', error);
+            }
+        }
+
+        // Load devices when page loads
+        document.addEventListener('DOMContentLoaded', loadDevices);
     </script>
 {% endblock %} 

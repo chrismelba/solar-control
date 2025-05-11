@@ -6,7 +6,328 @@
 
 {% block content %}
     <div class="card">
-        <h2>Coming Soon</h2>
-        <p>Device configuration features are currently under development.</p>
+        <div class="device-list">
+            <h2>Configured Devices</h2>
+            <button id="addDeviceBtn" class="button">Add New Device</button>
+            <div id="deviceList" class="device-grid">
+                {% for device in devices %}
+                <div class="device-card" data-device-name="{{ device.name }}">
+                    <h3>{{ device.name }}</h3>
+                    <p>Power: {{ device.typical_power_draw }}W</p>
+                    <div class="device-actions">
+                        <button class="edit-device button">Edit</button>
+                        <button class="delete-device button">Delete</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
     </div>
+
+    <!-- Device Form Modal -->
+    <div id="deviceModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modalTitle">Add New Device</h2>
+            <form id="deviceForm">
+                <div class="form-group">
+                    <label for="deviceName">Device Name:</label>
+                    <input type="text" id="deviceName" name="name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="switchEntity">Switch Entity:</label>
+                    <div class="searchable-select">
+                        <input type="text" id="switchEntityInput" placeholder="Search for a switch..." autocomplete="off">
+                        <input type="hidden" name="switch_entity" id="switchEntity">
+                        <div class="options" id="switchEntityOptions">
+                            {% for entity in entities %}
+                                {% if 'switch' in entity.entity_id %}
+                                <div class="option" data-value="{{ entity.entity_id }}">
+                                    {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="typicalPowerDraw">Typical Power Draw (W):</label>
+                    <input type="number" id="typicalPowerDraw" name="typical_power_draw" required min="0" step="0.1">
+                </div>
+
+                <div class="form-group">
+                    <label for="currentPowerSensor">Current Power Sensor (optional):</label>
+                    <div class="searchable-select">
+                        <input type="text" id="currentPowerSensorInput" placeholder="Search for a sensor..." autocomplete="off">
+                        <input type="hidden" name="current_power_sensor" id="currentPowerSensor">
+                        <div class="options" id="currentPowerSensorOptions">
+                            {% for entity in entities %}
+                                {% if 'sensor' in entity.entity_id and 'power' in entity.entity_id %}
+                                <div class="option" data-value="{{ entity.entity_id }}">
+                                    {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="hasVariableAmperage" name="has_variable_amperage">
+                        Has Variable Amperage Control
+                    </label>
+                </div>
+
+                <div id="amperageControls" style="display: none;">
+                    <div class="form-group">
+                        <label for="minAmperage">Minimum Amperage (A):</label>
+                        <input type="number" id="minAmperage" name="min_amperage" min="0" step="0.1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="maxAmperage">Maximum Amperage (A):</label>
+                        <input type="number" id="maxAmperage" name="max_amperage" min="0" step="0.1">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="minOnTime">Minimum On Time (minutes):</label>
+                    <input type="number" id="minOnTime" name="min_on_time" value="1" min="1" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="minOffTime">Minimum Off Time (minutes):</label>
+                    <input type="number" id="minOffTime" name="min_off_time" value="1" min="1" required>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="runOnce" name="run_once">
+                        Run Once (e.g., washing machine)
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="completionSensor">Completion Sensor (optional):</label>
+                    <div class="searchable-select">
+                        <input type="text" id="completionSensorInput" placeholder="Search for a sensor..." autocomplete="off">
+                        <input type="hidden" name="completion_sensor" id="completionSensor">
+                        <div class="options" id="completionSensorOptions">
+                            {% for entity in entities %}
+                                {% if 'binary_sensor' in entity.entity_id or 'input_boolean' in entity.entity_id %}
+                                <div class="option" data-value="{{ entity.entity_id }}">
+                                    {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="button">Save Device</button>
+            </form>
+        </div>
+    </div>
+
+    <style>
+        .device-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .device-card {
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .device-card h3 {
+            margin: 0 0 0.5rem 0;
+            color: #333;
+        }
+
+        .device-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 2rem;
+            width: 80%;
+            max-width: 600px;
+            border-radius: 8px;
+            position: relative;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .close {
+            position: absolute;
+            right: 1rem;
+            top: 1rem;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        #addDeviceBtn {
+            margin-bottom: 1rem;
+        }
+    </style>
+
+    <script>
+        // Initialize searchable selects
+        document.addEventListener('DOMContentLoaded', function() {
+            new SearchableSelect('switchEntityInput', 'switchEntityOptions', 'switchEntity');
+            new SearchableSelect('currentPowerSensorInput', 'currentPowerSensorOptions', 'currentPowerSensor');
+            new SearchableSelect('completionSensorInput', 'completionSensorOptions', 'completionSensor');
+
+            // Modal handling
+            const modal = document.getElementById('deviceModal');
+            const addBtn = document.getElementById('addDeviceBtn');
+            const closeBtn = document.querySelector('.close');
+            const deviceForm = document.getElementById('deviceForm');
+            const hasVariableAmperage = document.getElementById('hasVariableAmperage');
+            const amperageControls = document.getElementById('amperageControls');
+
+            // Show modal for new device
+            addBtn.onclick = function() {
+                document.getElementById('modalTitle').textContent = 'Add New Device';
+                deviceForm.reset();
+                modal.style.display = 'block';
+            }
+
+            // Close modal
+            closeBtn.onclick = function() {
+                modal.style.display = 'none';
+            }
+
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+            }
+
+            // Toggle amperage controls
+            hasVariableAmperage.onchange = function() {
+                amperageControls.style.display = this.checked ? 'block' : 'none';
+            }
+
+            // Handle form submission
+            deviceForm.onsubmit = async function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(deviceForm);
+                const deviceData = {
+                    name: formData.get('name'),
+                    switch_entity: formData.get('switch_entity'),
+                    typical_power_draw: parseFloat(formData.get('typical_power_draw')),
+                    current_power_sensor: formData.get('current_power_sensor') || null,
+                    has_variable_amperage: formData.get('has_variable_amperage') === 'on',
+                    min_amperage: formData.get('min_amperage') ? parseFloat(formData.get('min_amperage')) : null,
+                    max_amperage: formData.get('max_amperage') ? parseFloat(formData.get('max_amperage')) : null,
+                    min_on_time: parseInt(formData.get('min_on_time')) * 60, // Convert to seconds
+                    min_off_time: parseInt(formData.get('min_off_time')) * 60, // Convert to seconds
+                    run_once: formData.get('run_once') === 'on',
+                    completion_sensor: formData.get('completion_sensor') || null
+                };
+
+                try {
+                    const response = await fetch('/api/devices', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(deviceData)
+                    });
+
+                    if (response.ok) {
+                        window.location.reload();
+                    } else {
+                        const error = await response.json();
+                        alert('Error saving device: ' + error.message);
+                    }
+                } catch (error) {
+                    alert('Error saving device: ' + error);
+                }
+            }
+
+            // Handle edit buttons
+            document.querySelectorAll('.edit-device').forEach(button => {
+                button.onclick = async function() {
+                    const deviceName = this.closest('.device-card').dataset.deviceName;
+                    try {
+                        const response = await fetch('/api/devices');
+                        const devices = await response.json();
+                        const device = devices.find(d => d.name === deviceName);
+                        
+                        if (device) {
+                            document.getElementById('modalTitle').textContent = 'Edit Device';
+                            document.getElementById('deviceName').value = device.name;
+                            document.getElementById('switchEntity').value = device.switch_entity;
+                            document.getElementById('switchEntityInput').value = device.switch_entity;
+                            document.getElementById('typicalPowerDraw').value = device.typical_power_draw;
+                            document.getElementById('currentPowerSensor').value = device.current_power_sensor || '';
+                            document.getElementById('currentPowerSensorInput').value = device.current_power_sensor || '';
+                            document.getElementById('hasVariableAmperage').checked = device.has_variable_amperage;
+                            document.getElementById('minAmperage').value = device.min_amperage || '';
+                            document.getElementById('maxAmperage').value = device.max_amperage || '';
+                            document.getElementById('minOnTime').value = device.min_on_time / 60;
+                            document.getElementById('minOffTime').value = device.min_off_time / 60;
+                            document.getElementById('runOnce').checked = device.run_once;
+                            document.getElementById('completionSensor').value = device.completion_sensor || '';
+                            document.getElementById('completionSensorInput').value = device.completion_sensor || '';
+                            
+                            amperageControls.style.display = device.has_variable_amperage ? 'block' : 'none';
+                            modal.style.display = 'block';
+                        }
+                    } catch (error) {
+                        alert('Error loading device: ' + error);
+                    }
+                }
+            });
+
+            // Handle delete buttons
+            document.querySelectorAll('.delete-device').forEach(button => {
+                button.onclick = async function() {
+                    if (confirm('Are you sure you want to delete this device?')) {
+                        const deviceName = this.closest('.device-card').dataset.deviceName;
+                        try {
+                            const response = await fetch(`/api/devices/${deviceName}`, {
+                                method: 'DELETE'
+                            });
+
+                            if (response.ok) {
+                                window.location.reload();
+                            } else {
+                                const error = await response.json();
+                                alert('Error deleting device: ' + error.message);
+                            }
+                        } catch (error) {
+                            alert('Error deleting device: ' + error);
+                        }
+                    }
+                }
+            });
+        });
+    </script>
 {% endblock %} 
