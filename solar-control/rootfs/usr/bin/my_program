@@ -56,8 +56,8 @@ logger.info("Ensuring data directory exists...")
 os.makedirs('/data', exist_ok=True)
 
 def create_default_files():
-    """Create default configuration files if they don't exist"""
-    logger.info("Checking and creating default configuration files...")
+    """Create default configuration files only if they don't exist"""
+    logger.info("Checking configuration files...")
     
     # Create solar_config.json if it doesn't exist
     if not os.path.exists(CONFIG_FILE):
@@ -68,6 +68,8 @@ def create_default_files():
             logger.info("Default config file created successfully")
         except Exception as e:
             logger.error(f"Error creating default config file: {e}")
+    else:
+        logger.info(f"Config file already exists: {CONFIG_FILE}")
     
     # Create settings.json if it doesn't exist
     if not os.path.exists(SETTINGS_FILE):
@@ -78,6 +80,8 @@ def create_default_files():
             logger.info("Default settings file created successfully")
         except Exception as e:
             logger.error(f"Error creating default settings file: {e}")
+    else:
+        logger.info(f"Settings file already exists: {SETTINGS_FILE}")
     
     # Create devices.json if it doesn't exist
     if not os.path.exists(DEVICES_FILE):
@@ -88,8 +92,10 @@ def create_default_files():
             logger.info("Empty devices file created successfully")
         except Exception as e:
             logger.error(f"Error creating empty devices file: {e}")
+    else:
+        logger.info(f"Devices file already exists: {DEVICES_FILE}")
 
-# Create default files
+# Create default files only if they don't exist
 create_default_files()
 
 # Create controller instance
@@ -119,11 +125,13 @@ def load_config():
             logger.error(f"Error loading config: {e}")
             # If there's an error loading the config, create a new one
             logger.info("Creating new config file due to error...")
-            create_default_files()
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump(DEFAULT_CONFIG, f, indent=2)
             return DEFAULT_CONFIG
     else:
         logger.info("Config file does not exist, creating default...")
-        create_default_files()
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(DEFAULT_CONFIG, f, indent=2)
         return DEFAULT_CONFIG
 
 def save_config(config):
@@ -148,11 +156,13 @@ def load_settings():
             logger.error(f"Error loading settings: {e}")
             # If there's an error loading the settings, create a new one
             logger.info("Creating new settings file due to error...")
-            create_default_files()
+            with open(SETTINGS_FILE, 'w') as f:
+                json.dump(DEFAULT_SETTINGS, f, indent=2)
             return DEFAULT_SETTINGS
     else:
         logger.info("Settings file does not exist, creating default...")
-        create_default_files()
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(DEFAULT_SETTINGS, f, indent=2)
         return DEFAULT_SETTINGS
 
 def save_settings(settings):
