@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: Solar Control
-version: "1.2.7"
+version: "1.2.8"
 slug: solar-control
 description: Solar Control add-on
 url: "https://github.com/chrismelba/solar-control"
@@ -14,9 +14,10 @@ init: false
 map:
   - share:rw
 options:
-  message: "Hello world..."
+  debug_level: "info"
 schema:
   message: "str?"
+  debug_level: "str?"
 image: "ghcr.io/chrismelba/{arch}-addon-solar-control"
 ports:
   8080/tcp: 8080

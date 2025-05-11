@@ -11,9 +11,24 @@ from dataclasses import dataclass
 from device import Device
 import json
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+# Get debug level from configuration
+try:
+    response = requests.get('http://supervisor/addons/self/options')
+    config = response.json()
+    debug_level = config.get('debug_level', 'info').upper()
+except Exception as e:
+    debug_level = 'INFO'
+
+# Set up logging with configuration-based level
+logging.basicConfig(
+    level=getattr(logging, debug_level),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+
+# Log the current debug level
+logger.info(f"Logging level set to: {debug_level}")
+
 
 @dataclass
 class DeviceState:

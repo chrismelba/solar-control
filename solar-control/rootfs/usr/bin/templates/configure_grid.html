@@ -114,6 +114,24 @@
                 </div>
             </div>
 
+            <div class="form-group">
+                <label for="tariff_rate">Tariff Rate Entity:</label>
+                <div class="searchable-select">
+                    <input type="text" id="tariff_rate_input" placeholder="Search for an entity..." autocomplete="off">
+                    <input type="hidden" name="tariff_rate" id="tariff_rate" value="{{ config.tariff_rate }}">
+                    <div class="options" id="tariff_rate_options">
+                        {% for entity in entities %}
+                            {% if entity.entity_id.startswith('select.') %}
+                                <div class="option" data-value="{{ entity.entity_id }}"
+                                     {% if entity.entity_id == config.tariff_rate %}data-selected="true"{% endif %}>
+                                    {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
             <button type="submit" class="button">Save Configuration</button>
         </div>
     </form>
