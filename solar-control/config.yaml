@@ -17,13 +17,9 @@ map:
   - share:rw
 options:
   message: "Hello world..."
-  hass_url: "http://supervisor/core"
 schema:
   message: "str?"
-  hass_url: "str?"
 image: "ghcr.io/chrismelba/{arch}-addon-solar-control"
-panel_icon: "mdi:solar-power"
-panel_admin: true
 startup: application
 boot: auto
 webui: "http://[HOST]:[PORT:8080]"
@@ -34,7 +30,6 @@ ingress_entry: /
 homeassistant_api: true
 hassio_api: true
 hassio_role: admin
-hassio_dns: true
 services:
   - mqtt:need
   - hassio:need
