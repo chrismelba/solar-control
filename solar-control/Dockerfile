@@ -24,14 +24,18 @@ RUN mkdir -p /data && \
     chown -R root:root /data && \
     chmod -R 755 /data
 
-# Create Nginx configuration directory
+# Create your custom Nginx directories under /data and adjust permissions
+RUN mkdir -p /data/nginx/logs /data/nginx/tmp/client_body && \
+    chmod -R 755 /data/nginx
+
+# Optionally remove default Nginx directories if not needed
+# RUN rm -rf /var/lib/nginx
+
+# Create Nginx configuration directories (keep original if needed)
 RUN mkdir -p /etc/nginx/http.d && \
     chmod -R 755 /etc/nginx
 
-RUN mkdir -p /var/lib/nginx/logs /var/lib/nginx/tmp/client_body && \
-    chown -R 100:100 /var/lib/nginx && \
-    chmod -R 755 /var/lib/nginx
-# Copy root filesystem
+# Copy root filesystem (assumes you provide your nginx config override in rootfs)
 COPY rootfs /
 
 # Make the Python script executable
@@ -39,4 +43,3 @@ RUN chmod +x /usr/bin/my_program && \
     chmod a+x /etc/services.d/solar-control/run && \
     chmod a+x /etc/services.d/solar-control/finish && \
     chmod -R 755 /usr/bin/static
-
