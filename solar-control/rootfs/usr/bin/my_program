@@ -332,9 +332,9 @@ def index():
     }
     return render_template('index.html', sensor_values=sensor_values)
 
-@app.route('/configure/solar', methods=['GET', 'POST'])
-def configure_solar():
-    logger.debug('Received request for solar configuration page')
+@app.route('/configure/grid', methods=['GET', 'POST'])
+def configure_grid():
+    logger.debug('Received request for grid configuration page')
     
     if request.method == 'POST':
         config = {
@@ -345,7 +345,7 @@ def configure_solar():
             'grid_voltage_fixed': request.form.get('grid_voltage_fixed')
         }
         save_config(config)
-        return redirect(url_for('configure_solar'))
+        return redirect(url_for('configure_grid'))
     
     # Get Home Assistant entities
     entities = get_hass_entities()
@@ -358,7 +358,7 @@ def configure_solar():
         'solar_forecast': get_sensor_value(config.get('solar_forecast'))
     }
     
-    return render_template('configure_solar.html', 
+    return render_template('configure_grid.html', 
                          entities=entities,
                          config=config,
                          sensor_values=sensor_values)
@@ -387,7 +387,7 @@ def status():
     }
     return jsonify({
         'status': 'running',
-        'version': '1.2.9',
+        'version': '1.2.10',
         'sensor_values': sensor_values,
         'power_optimization_enabled': settings.get('power_optimization_enabled', True)
     })

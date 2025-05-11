@@ -255,16 +255,31 @@ class SolarController:
                 }
                 logger.info(f"Sending request to Home Assistant: {service_data}")
                 
-                response = requests.post(
-                    f"{self.hass_url}/api/services/input_number/set_value",
-                    headers=self.get_headers(),
-                    json=service_data
-                )
-                response.raise_for_status()
-                logger.info(f"Successfully set amperage for {device.name} to {amperage}A")
-                logger.info(f"Response status: {response.status_code}")
-                logger.info(f"Response content: {response.text}")
-                device_state.current_amperage = amperage
+                # First check the entity type
+                try:
+                    entity_response = requests.get(
+                        f"{self.hass_url}/api/states/{device.variable_amperage_control}",
+                        headers=self.get_headers()
+                    )
+                    entity_response.raise_for_status()
+                    entity_type = entity_response.json().get('entity_id', '').split('.')[0]
+                    
+                    # Use appropriate service based on entity type
+                    service = "input_number/set_value" if entity_type == "input_number" else "number/set_value"
+                    logger.info(f"Using service: {service} for entity type: {entity_type}")
+                    
+                    response = requests.post(
+                        f"{self.hass_url}/api/services/{service}",
+                        headers=self.get_headers(),
+                        json=service_data
+                    )
+                    response.raise_for_status()
+                    logger.info(f"Successfully set amperage for {device.name} to {amperage}A")
+                    logger.info(f"Response status: {response.status_code}")
+                    logger.info(f"Response content: {response.text}")
+                    device_state.current_amperage = amperage
+                except Exception as e:
+                    logger.error(f"Failed to set amperage for {device.name}: {e}")
             else:
                 logger.info(f"No amperage change needed for {device.name} - has_variable_amperage: {device.has_variable_amperage}, amperage: {amperage}")
             
