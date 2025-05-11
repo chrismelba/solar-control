@@ -152,13 +152,14 @@ class SolarController:
         """Initialize or update device states"""
         devices = Device.load_all(self.devices_file)
         current_time = datetime.now(timezone.utc)
+        initial_time = 0 
         
         # Update existing states
         for device in devices:
             if device.name not in self.device_states:
                 self.device_states[device.name] = DeviceState(
                     device=device,
-                    last_state_change=current_time
+                    last_state_change=initial_time
                 )
             else:
                 # Update device reference in case it changed
@@ -229,7 +230,7 @@ class SolarController:
             # For variable load devices, we can always set the amperage
             if device.has_variable_amperage and amperage is not None:
                 service_data = {
-                    "entity_id": device.amperage_entity,  # Use the amperage entity
+                    "entity_id": device.variable_amperage_control,  # Use the variable amperage control entity
                     "value": amperage
                 }
                 response = requests.post(
@@ -358,7 +359,11 @@ class SolarController:
                         # If it's a variable amperage device, set to minimum amperage
                         if device.has_variable_amperage:
                             min_amperage = device.min_amperage
-                            devices_to_turn_on.append((device_state, voltage * min_amperage, min_amperage))
+                            # Use actual power if device has a power sensor and is drawing low power
+                            if device.current_power_sensor and power < 100:
+                                devices_to_turn_on.append((device_state, power, min_amperage))
+                            else:
+                                devices_to_turn_on.append((device_state, voltage * min_amperage, min_amperage))
                         else:
                             devices_to_turn_on.append((device_state, power, device_state.current_amperage))
                         continue

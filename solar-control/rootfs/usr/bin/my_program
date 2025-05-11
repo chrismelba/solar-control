@@ -340,7 +340,9 @@ def configure_solar():
         config = {
             'solar_generation': request.form.get('solar_generation'),
             'grid_power': request.form.get('grid_power'),
-            'solar_forecast': request.form.get('solar_forecast')
+            'solar_forecast': request.form.get('solar_forecast'),
+            'grid_voltage': request.form.get('grid_voltage'),
+            'grid_voltage_fixed': request.form.get('grid_voltage_fixed')
         }
         save_config(config)
         return redirect(url_for('configure_solar'))
@@ -385,7 +387,7 @@ def status():
     }
     return jsonify({
         'status': 'running',
-        'version': '1.2.5',
+        'version': '1.2.6',
         'sensor_values': sensor_values,
         'power_optimization_enabled': settings.get('power_optimization_enabled', True)
     })

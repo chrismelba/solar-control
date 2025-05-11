@@ -339,6 +339,18 @@
             deviceData.has_variable_amperage = deviceData.has_variable_amperage === 'on';
             deviceData.run_once = deviceData.run_once === 'on';
             
+            // Validate variable amperage fields
+            if (deviceData.has_variable_amperage) {
+                if (!deviceData.variable_amperage_control) {
+                    alert('Please select a Variable Amperage Control Entity');
+                    return;
+                }
+                if (!deviceData.min_amperage || !deviceData.max_amperage) {
+                    alert('Please enter both Minimum and Maximum Amperage values');
+                    return;
+                }
+            }
+            
             // Convert numeric values
             deviceData.typical_power_draw = parseFloat(deviceData.typical_power_draw);
             deviceData.min_on_time = parseInt(deviceData.min_on_time) * 60; // Convert to seconds

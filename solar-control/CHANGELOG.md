@@ -1,5 +1,16 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.2.6] - 2024-03-19
+### Changed
+- Added voltage to config
+- more work on variable amperage entities
+
+## [1.2.5] - 2024-03-19
+### Changed
+- Modified amperage control logic to allow amperage changes during minimum on time
+- Separated switch state and amperage control into distinct service calls
+- When a device must stay on due to minimum on time, variable amperage devices will now be set to minimum amperage instead of keeping current amperage
+
 ## 1.2.4
 
 - Fix syntax error in control loop implementation
