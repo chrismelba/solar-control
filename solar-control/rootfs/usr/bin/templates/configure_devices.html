@@ -110,7 +110,8 @@
                 </div>
             </div>
             
-            <button type="submit" class="button">Add Device</button>
+            <button type="submit" class="button" id="submitButton">Add Device</button>
+            <button type="button" class="button" id="cancelButton" style="display: none; margin-left: 10px;">Cancel</button>
         </form>
     </div>
 
@@ -353,6 +354,14 @@
                 const response = await fetch(`/api/devices/${encodeURIComponent(deviceName)}`);
                 const device = await response.json();
                 
+                // Scroll to top
+                window.scrollTo(0, 0);
+                
+                // Change form title and button
+                document.querySelector('.card h2').textContent = 'Edit Device';
+                document.getElementById('submitButton').textContent = 'Save Changes';
+                document.getElementById('cancelButton').style.display = 'inline-block';
+                
                 // Populate form with device data
                 document.getElementById('name').value = device.name;
                 document.getElementById('switch_entity').value = device.switch_entity;
@@ -425,10 +434,25 @@
                         e.target.reset();
                         e.target.onsubmit = null;
                         document.getElementById('amperage-controls').style.display = 'none';
+                        
+                        // Reset form title and button
+                        document.querySelector('.card h2').textContent = 'Add New Device';
+                        document.getElementById('submitButton').textContent = 'Add Device';
+                        document.getElementById('cancelButton').style.display = 'none';
                     } catch (error) {
                         console.error('Error updating device:', error);
                         alert('Failed to update device. Please try again.');
                     }
+                };
+                
+                // Add cancel button handler
+                document.getElementById('cancelButton').onclick = () => {
+                    form.reset();
+                    form.onsubmit = null;
+                    document.getElementById('amperage-controls').style.display = 'none';
+                    document.querySelector('.card h2').textContent = 'Add New Device';
+                    document.getElementById('submitButton').textContent = 'Add Device';
+                    document.getElementById('cancelButton').style.display = 'none';
                 };
             } catch (error) {
                 console.error('Error loading device:', error);
