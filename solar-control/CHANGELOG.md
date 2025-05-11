@@ -1,5 +1,11 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 1.2.4
+
+- Fix syntax error in control loop implementation
+- Improve thread safety for control loop execution
+- Fix duplicate method definition in solar controller
+
 ## 1.2.3
 
 - Fix webserver responsiveness when turning devices on/off

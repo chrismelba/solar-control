@@ -226,19 +226,23 @@ class SolarController:
         current_time = datetime.now(timezone.utc)
         
         try:
-            # For variable load devices, we need to set the amperage when turning on
-            if turn_on and device.has_variable_amperage and amperage is not None:
+            # For variable load devices, we can always set the amperage
+            if device.has_variable_amperage and amperage is not None:
                 service_data = {
-                    "entity_id": device.switch_entity,
-                    "amperage": amperage
+                    "entity_id": device.amperage_entity,  # Use the amperage entity
+                    "value": amperage
                 }
                 response = requests.post(
-                    f"{self.hass_url}/api/services/switch/turn_on",
+                    f"{self.hass_url}/api/services/input_number/set_value",
                     headers=self.get_headers(),
                     json=service_data
                 )
-            else:
-                # For regular devices or turning off, use the standard service
+                response.raise_for_status()
+                device_state.current_amperage = amperage
+            
+            # Only change switch state if we're allowed to
+            if not (device_state.is_on and device_state.last_state_change and 
+                   (current_time - device_state.last_state_change).total_seconds() < device.min_on_time):
                 service = "turn_on" if turn_on else "turn_off"
                 service_data = {"entity_id": device.switch_entity}
                 response = requests.post(
@@ -246,14 +250,9 @@ class SolarController:
                     headers=self.get_headers(),
                     json=service_data
                 )
-            
-            response.raise_for_status()
-            
-            # Update state tracking
-            device_state.is_on = turn_on
-            device_state.last_state_change = current_time
-            if turn_on and device.has_variable_amperage:
-                device_state.current_amperage = amperage
+                response.raise_for_status()
+                device_state.is_on = turn_on
+                device_state.last_state_change = current_time
                 
         except Exception as e:
             logger.error(f"Failed to set state for {device.name}: {e}")
@@ -348,7 +347,7 @@ class SolarController:
                     time_since_change = (current_time - device_state.last_state_change).total_seconds()
                     
                     if device_state.is_on and time_since_change < device.min_on_time:
-                        # Must stay on
+                        # Must stay on, but can adjust amperage
                         power = self.get_device_power(device_state)
                         available_power -= power
                         mandatory_devices.append({
@@ -356,7 +355,12 @@ class SolarController:
                             'power': power,
                             'reason': 'Minimum on time not met'
                         })
-                        devices_to_turn_on.append((device_state, power, device_state.current_amperage))
+                        # If it's a variable amperage device, set to minimum amperage
+                        if device.has_variable_amperage:
+                            min_amperage = device.min_amperage
+                            devices_to_turn_on.append((device_state, voltage * min_amperage, min_amperage))
+                        else:
+                            devices_to_turn_on.append((device_state, power, device_state.current_amperage))
                         continue
                         
                     if not device_state.is_on and time_since_change < device.min_off_time:
@@ -385,9 +389,11 @@ class SolarController:
                 # First, create list of all devices we might want to turn on
                 for device_state in sorted_devices:
                     device = device_state.device
+                    logger.info(f"Processing device {device.name} for optimization")
                     
                     # Skip if device has completed its task
                     if device.run_once and device_state.has_completed:
+                        logger.info(f"Skipping {device.name} - task completed")
                         optional_devices.append({
                             'name': device.name,
                             'power': 0,
@@ -399,6 +405,7 @@ class SolarController:
                     if not device_state.is_on and device_state.last_state_change:
                         time_since_change = (current_time - device_state.last_state_change).total_seconds()
                         if time_since_change < device.min_off_time:
+                            logger.info(f"Skipping {device.name} - in minimum off time")
                             optional_devices.append({
                                 'name': device.name,
                                 'power': 0,
@@ -407,17 +414,21 @@ class SolarController:
                             continue
                     
                     # Add to potential devices list
+                    logger.info(f"Adding {device.name} to potential devices")
                     potential_devices.append(device_state)
                 
                 # Phase 3: Process potential devices in priority order
                 for device_state in potential_devices:
                     device = device_state.device
+                    logger.info(f"Optimizing device {device.name} with {available_power}W available")
                     
                     # Calculate power needed based on current state of devices_to_turn_on
                     if device.has_variable_amperage:
                         # Calculate optimal amperage considering current load
                         optimal_amperage = self.calculate_optimal_amperage(device, available_power)
+                        logger.info(f"Calculated optimal amperage for {device.name}: {optimal_amperage}A")
                         if optimal_amperage is None:
+                            logger.info(f"Cannot calculate optimal amperage for {device.name}")
                             optional_devices.append({
                                 'name': device.name,
                                 'power': 0,
@@ -425,11 +436,14 @@ class SolarController:
                             })
                             continue
                         power_needed = voltage * optimal_amperage
+                        logger.info(f"Power needed for {device.name}: {power_needed}W")
                     else:
                         power_needed = device.typical_power_draw
+                        logger.info(f"Fixed power needed for {device.name}: {power_needed}W")
                     
                     # Check if we have enough power
                     if power_needed <= available_power:
+                        logger.info(f"Turning on {device.name} with {power_needed}W")
                         devices_to_turn_on.append((device_state, power_needed, optimal_amperage if device.has_variable_amperage else None))
                         available_power -= power_needed
                         optional_devices.append({
@@ -438,6 +452,7 @@ class SolarController:
                             'reason': 'Will be turned on'
                         })
                     else:
+                        logger.info(f"Not enough power for {device.name} (needs {power_needed}W, has {available_power}W)")
                         optional_devices.append({
                             'name': device.name,
                             'power': 0,
