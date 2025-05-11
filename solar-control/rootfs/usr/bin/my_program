@@ -34,6 +34,9 @@ for root, dirs, files in os.walk(static_dir):
 CONFIG_FILE = '/data/solar_config.json'
 DEVICES_FILE = '/data/devices.json'
 
+# Ensure data directory exists
+os.makedirs('/data', exist_ok=True)
+
 def load_config():
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, 'r') as f:
@@ -41,7 +44,9 @@ def load_config():
     return {
         'solar_generation': '',
         'grid_power': '',
-        'solar_forecast': ''
+        'solar_forecast': '',
+        'grid_voltage': '',
+        'grid_voltage_fixed': None
     }
 
 def save_config(config):

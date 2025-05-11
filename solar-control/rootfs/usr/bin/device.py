@@ -43,6 +43,9 @@ class Device:
     def save(self, devices_file: str):
         """Save this device to the devices configuration file"""
         try:
+            # Ensure data directory exists
+            os.makedirs(os.path.dirname(devices_file), exist_ok=True)
+            
             # Load existing devices
             devices = []
             if os.path.exists(devices_file):
