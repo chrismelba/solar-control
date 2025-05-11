@@ -28,16 +28,4 @@ homeassistant_api: true
 # Add data persistence configuration
 data: true
 # Add Nginx configuration
-webui: true
-webui_config:
-  server:
-    listen: 8080
-    server_name: localhost
-    location:
-      /:
-        proxy_pass: http://localhost:8080
-        proxy_set_header:
-          Host: $host
-          X-Real-IP: $remote_addr
-          X-Forwarded-For: $proxy_add_x_forwarded_for
-          X-Forwarded-Proto: $scheme
+webui: "http://[HOST]:[PORT:8080]/"
