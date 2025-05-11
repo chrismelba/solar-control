@@ -19,8 +19,20 @@
             </div>
             
             <div class="form-group">
-                <label for="entity_id">Home Assistant Entity ID:</label>
-                <input type="text" id="entity_id" name="entity_id" required>
+                <label for="switch_entity">Switch Entity:</label>
+                <div class="searchable-select">
+                    <input type="text" id="switch_entity_input" placeholder="Search for a switch entity..." autocomplete="off">
+                    <input type="hidden" name="switch_entity" id="switch_entity" required>
+                    <div class="options" id="switch_entity_options">
+                        {% for entity in entities %}
+                            {% if entity.entity_id.startswith('switch.') %}
+                            <div class="option" data-value="{{ entity.entity_id }}">
+                                {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
             
             <div class="form-group">
@@ -29,23 +41,73 @@
             </div>
             
             <div class="form-group">
-                <label for="min_power_draw">Minimum Power Draw (W):</label>
-                <input type="number" id="min_power_draw" name="min_power_draw" required min="0">
+                <label for="current_power_sensor">Current Power Sensor (optional):</label>
+                <div class="searchable-select">
+                    <input type="text" id="current_power_sensor_input" placeholder="Search for a power sensor..." autocomplete="off">
+                    <input type="hidden" name="current_power_sensor" id="current_power_sensor">
+                    <div class="options" id="current_power_sensor_options">
+                        {% for entity in entities %}
+                            {% if 'power' in entity.entity_id.lower() %}
+                            <div class="option" data-value="{{ entity.entity_id }}">
+                                {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
             
             <div class="form-group">
-                <label for="max_power_draw">Maximum Power Draw (W):</label>
-                <input type="number" id="max_power_draw" name="max_power_draw" required min="0">
+                <label>
+                    <input type="checkbox" id="has_variable_amperage" name="has_variable_amperage">
+                    Has Variable Amperage Control
+                </label>
+            </div>
+            
+            <div id="amperage-controls" style="display: none;">
+                <div class="form-group">
+                    <label for="min_amperage">Minimum Amperage (A):</label>
+                    <input type="number" id="min_amperage" name="min_amperage" min="0" step="0.1">
+                </div>
+                
+                <div class="form-group">
+                    <label for="max_amperage">Maximum Amperage (A):</label>
+                    <input type="number" id="max_amperage" name="max_amperage" min="0" step="0.1">
+                </div>
             </div>
             
             <div class="form-group">
-                <label for="power_sensor">Power Sensor Entity ID:</label>
-                <input type="text" id="power_sensor" name="power_sensor" required>
+                <label for="min_on_time">Minimum On Time (minutes):</label>
+                <input type="number" id="min_on_time" name="min_on_time" value="1" min="1">
             </div>
             
             <div class="form-group">
-                <label for="energy_sensor">Energy Sensor Entity ID:</label>
-                <input type="text" id="energy_sensor" name="energy_sensor" required>
+                <label for="min_off_time">Minimum Off Time (minutes):</label>
+                <input type="number" id="min_off_time" name="min_off_time" value="1" min="1">
+            </div>
+            
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="run_once" name="run_once">
+                    Run Once (e.g., washing machine, dishwasher)
+                </label>
+            </div>
+            
+            <div class="form-group">
+                <label for="completion_sensor">Completion Sensor (optional):</label>
+                <div class="searchable-select">
+                    <input type="text" id="completion_sensor_input" placeholder="Search for a completion sensor..." autocomplete="off">
+                    <input type="hidden" name="completion_sensor" id="completion_sensor">
+                    <div class="options" id="completion_sensor_options">
+                        {% for entity in entities %}
+                            {% if entity.entity_id.startswith('binary_sensor.') or entity.entity_id.startswith('input_boolean.') %}
+                            <div class="option" data-value="{{ entity.entity_id }}">
+                                {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
             
             <button type="submit" class="button">Add Device</button>
@@ -72,11 +134,41 @@
             margin-bottom: 0.5rem;
             font-weight: bold;
         }
-        .form-group input {
+        .form-group input[type="text"],
+        .form-group input[type="number"] {
             width: 100%;
             padding: 0.5rem;
             border: 1px solid #ddd;
             border-radius: 4px;
+        }
+        .searchable-select {
+            position: relative;
+        }
+        .searchable-select input[type="text"] {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .options {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            z-index: 1000;
+        }
+        .option {
+            padding: 0.5rem;
+            cursor: pointer;
+        }
+        .option:hover {
+            background: #f5f5f5;
         }
         .device-list {
             margin-top: 1rem;
@@ -89,6 +181,65 @@
     </style>
 
     <script>
+        // Initialize searchable selects
+        function initializeSearchableSelect(inputId, optionsId) {
+            const input = document.getElementById(inputId);
+            const options = document.getElementById(optionsId);
+            const hiddenInput = document.getElementById(inputId.replace('_input', ''));
+            
+            input.addEventListener('focus', () => {
+                options.style.display = 'block';
+            });
+            
+            input.addEventListener('blur', () => {
+                setTimeout(() => {
+                    options.style.display = 'none';
+                }, 200);
+            });
+            
+            input.addEventListener('input', () => {
+                const search = input.value.toLowerCase();
+                const optionElements = options.querySelectorAll('.option');
+                
+                optionElements.forEach(option => {
+                    const text = option.textContent.toLowerCase();
+                    option.style.display = text.includes(search) ? 'block' : 'none';
+                });
+            });
+            
+            options.querySelectorAll('.option').forEach(option => {
+                option.addEventListener('click', () => {
+                    input.value = option.textContent;
+                    hiddenInput.value = option.dataset.value;
+                    options.style.display = 'none';
+                });
+            });
+        }
+        
+        // Initialize all searchable selects
+        initializeSearchableSelect('switch_entity_input', 'switch_entity_options');
+        initializeSearchableSelect('current_power_sensor_input', 'current_power_sensor_options');
+        initializeSearchableSelect('completion_sensor_input', 'completion_sensor_options');
+        
+        // Handle variable amperage checkbox
+        document.getElementById('has_variable_amperage').addEventListener('change', function() {
+            const amperageControls = document.getElementById('amperage-controls');
+            amperageControls.style.display = this.checked ? 'block' : 'none';
+            
+            const minAmperage = document.getElementById('min_amperage');
+            const maxAmperage = document.getElementById('max_amperage');
+            
+            if (this.checked) {
+                minAmperage.required = true;
+                maxAmperage.required = true;
+            } else {
+                minAmperage.required = false;
+                maxAmperage.required = false;
+                minAmperage.value = '';
+                maxAmperage.value = '';
+            }
+        });
+
         // Load and display devices
         async function loadDevices() {
             try {
@@ -100,44 +251,23 @@
                 
                 devices.forEach(device => {
                     const deviceElement = document.createElement('div');
-                    deviceElement.className = 'device-card';
-                    deviceElement.dataset.deviceName = device.name;
-                    
-                    const deviceInfo = document.createElement('div');
-                    deviceInfo.className = 'device-info';
-                    
-                    const nameElement = document.createElement('p');
-                    nameElement.className = 'device-name';
-                    nameElement.textContent = device.name;
-                    
-                    const powerElement = document.createElement('p');
-                    powerElement.className = 'device-power';
-                    powerElement.textContent = device.current_power ? 
-                        `${device.current_power.value.toFixed(1)} ${device.current_power.unit}` :
-                        `${device.typical_power_draw}W`;
-                    
-                    const actionsDiv = document.createElement('div');
-                    actionsDiv.className = 'device-actions';
-                    
-                    const editButton = document.createElement('button');
-                    editButton.className = 'edit-device button';
-                    editButton.textContent = 'Edit';
-                    editButton.addEventListener('click', () => editDevice(device.name));
-                    
-                    const deleteButton = document.createElement('button');
-                    deleteButton.className = 'delete-device button';
-                    deleteButton.textContent = 'Delete';
-                    deleteButton.addEventListener('click', () => deleteDevice(device.name));
-                    
-                    actionsDiv.appendChild(editButton);
-                    actionsDiv.appendChild(deleteButton);
-                    
-                    deviceInfo.appendChild(nameElement);
-                    deviceInfo.appendChild(powerElement);
-                    deviceElement.appendChild(deviceInfo);
-                    deviceElement.appendChild(actionsDiv);
-                    
-                    deviceList.appendChild(deviceElement);
+                    deviceElement.innerHTML = `{{ device_card(device, draggable=false) }}`;
+                    deviceList.appendChild(deviceElement.firstElementChild);
+                });
+                
+                // Add event listeners for edit and delete buttons
+                document.querySelectorAll('.edit-device').forEach(button => {
+                    button.addEventListener('click', () => {
+                        const deviceName = button.closest('.device-card').dataset.deviceName;
+                        editDevice(deviceName);
+                    });
+                });
+                
+                document.querySelectorAll('.delete-device').forEach(button => {
+                    button.addEventListener('click', () => {
+                        const deviceName = button.closest('.device-card').dataset.deviceName;
+                        deleteDevice(deviceName);
+                    });
                 });
             } catch (error) {
                 document.getElementById('deviceList').innerHTML = 
@@ -151,6 +281,23 @@
             
             const formData = new FormData(e.target);
             const deviceData = Object.fromEntries(formData.entries());
+            
+            // Convert checkbox values to boolean
+            deviceData.has_variable_amperage = deviceData.has_variable_amperage === 'on';
+            deviceData.run_once = deviceData.run_once === 'on';
+            
+            // Convert numeric values
+            deviceData.typical_power_draw = parseFloat(deviceData.typical_power_draw);
+            deviceData.min_on_time = parseInt(deviceData.min_on_time) * 60; // Convert to seconds
+            deviceData.min_off_time = parseInt(deviceData.min_off_time) * 60; // Convert to seconds
+            
+            if (deviceData.has_variable_amperage) {
+                deviceData.min_amperage = parseFloat(deviceData.min_amperage);
+                deviceData.max_amperage = parseFloat(deviceData.max_amperage);
+            } else {
+                delete deviceData.min_amperage;
+                delete deviceData.max_amperage;
+            }
             
             try {
                 const response = await fetch('/api/devices', {
@@ -170,6 +317,7 @@
                 
                 // Reset form
                 e.target.reset();
+                document.getElementById('amperage-controls').style.display = 'none';
             } catch (error) {
                 console.error('Error adding device:', error);
                 alert('Failed to add device. Please try again.');
@@ -184,12 +332,30 @@
                 
                 // Populate form with device data
                 document.getElementById('name').value = device.name;
-                document.getElementById('entity_id').value = device.entity_id;
+                document.getElementById('switch_entity').value = device.switch_entity;
+                document.getElementById('switch_entity_input').value = device.switch_entity;
                 document.getElementById('typical_power_draw').value = device.typical_power_draw;
-                document.getElementById('min_power_draw').value = device.min_power_draw;
-                document.getElementById('max_power_draw').value = device.max_power_draw;
-                document.getElementById('power_sensor').value = device.power_sensor;
-                document.getElementById('energy_sensor').value = device.energy_sensor;
+                
+                if (device.current_power_sensor) {
+                    document.getElementById('current_power_sensor').value = device.current_power_sensor;
+                    document.getElementById('current_power_sensor_input').value = device.current_power_sensor;
+                }
+                
+                document.getElementById('has_variable_amperage').checked = device.has_variable_amperage;
+                if (device.has_variable_amperage) {
+                    document.getElementById('amperage-controls').style.display = 'block';
+                    document.getElementById('min_amperage').value = device.min_amperage;
+                    document.getElementById('max_amperage').value = device.max_amperage;
+                }
+                
+                document.getElementById('min_on_time').value = Math.floor(device.min_on_time / 60);
+                document.getElementById('min_off_time').value = Math.floor(device.min_off_time / 60);
+                document.getElementById('run_once').checked = device.run_once;
+                
+                if (device.completion_sensor) {
+                    document.getElementById('completion_sensor').value = device.completion_sensor;
+                    document.getElementById('completion_sensor_input').value = device.completion_sensor;
+                }
                 
                 // Change form submit handler
                 const form = document.getElementById('addDeviceForm');
@@ -198,6 +364,23 @@
                     
                     const formData = new FormData(e.target);
                     const deviceData = Object.fromEntries(formData.entries());
+                    
+                    // Convert checkbox values to boolean
+                    deviceData.has_variable_amperage = deviceData.has_variable_amperage === 'on';
+                    deviceData.run_once = deviceData.run_once === 'on';
+                    
+                    // Convert numeric values
+                    deviceData.typical_power_draw = parseFloat(deviceData.typical_power_draw);
+                    deviceData.min_on_time = parseInt(deviceData.min_on_time) * 60; // Convert to seconds
+                    deviceData.min_off_time = parseInt(deviceData.min_off_time) * 60; // Convert to seconds
+                    
+                    if (deviceData.has_variable_amperage) {
+                        deviceData.min_amperage = parseFloat(deviceData.min_amperage);
+                        deviceData.max_amperage = parseFloat(deviceData.max_amperage);
+                    } else {
+                        delete deviceData.min_amperage;
+                        delete deviceData.max_amperage;
+                    }
                     
                     try {
                         const response = await fetch(`/api/devices/${encodeURIComponent(deviceName)}`, {
@@ -218,6 +401,7 @@
                         // Reset form and handler
                         e.target.reset();
                         e.target.onsubmit = null;
+                        document.getElementById('amperage-controls').style.display = 'none';
                     } catch (error) {
                         console.error('Error updating device:', error);
                         alert('Failed to update device. Please try again.');
