@@ -21,7 +21,7 @@ options:
 schema:
   message: "str?"
   hass_url: "str?"
-image: "ghcr.io/chrismelba/{arch}-addon-solar-optimiser"
+image: "ghcr.io/chrismelba/{arch}-addon-solar-control"
 panel_icon: "mdi:solar-power"
 panel_admin: true
 startup: application
