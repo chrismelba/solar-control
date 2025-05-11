@@ -332,7 +332,7 @@ class SolarController:
 
             # Phase 1: Handle mandatory devices
             mandatory_devices = []
-            devices_to_turn_on = []  # List of (device_state, power_needed, amperage) tuples
+            devices_to_turn_on = []
             
             for device_state in self.device_states.values():
                 device = device_state.device
@@ -417,222 +417,116 @@ class SolarController:
                     if device.has_variable_amperage:
                         # Calculate optimal amperage considering current load
                         optimal_amperage = self.calculate_optimal_amperage(device, available_power)
-        """Main control loop"""
-        while True:
-            try:
-                # Initialize/update device states
-                self.initialize_device_states()
+                        if optimal_amperage is None:
+                            optional_devices.append({
+                                'name': device.name,
+                                'power': 0,
+                                'reason': 'Cannot calculate optimal amperage'
+                            })
+                            continue
+                        power_needed = voltage * optimal_amperage
+                    else:
+                        power_needed = device.typical_power_draw
+                    
+                    # Check if we have enough power
+                    if power_needed <= available_power:
+                        devices_to_turn_on.append((device_state, power_needed, optimal_amperage if device.has_variable_amperage else None))
+                        available_power -= power_needed
+                        optional_devices.append({
+                            'name': device.name,
+                            'power': power_needed,
+                            'reason': 'Will be turned on'
+                        })
+                    else:
+                        optional_devices.append({
+                            'name': device.name,
+                            'power': 0,
+                            'reason': 'Not enough power available'
+                        })
                 
-                # Get current conditions
-                grid_power = self.get_grid_power()
-                available_power = self.get_available_power()
-                voltage = self.get_grid_voltage()
-                current_time = datetime.now(timezone.utc)
+                self.debug_state.optional_devices = optional_devices
                 
-                # Load settings
-                settings = self.load_settings()
-                power_optimization_enabled = settings.get('power_optimization_enabled', True)
-                
-                # Initialize debug state
-                self.debug_state = DebugState(
-                    timestamp=current_time,
-                    available_power=available_power,
-                    grid_voltage=voltage,
-                    grid_power=grid_power,
-                    power_optimization_enabled=power_optimization_enabled,
-                    manual_power_override=self.manual_power_override
-                )
-
-                # Phase 1: Handle mandatory devices
-                mandatory_devices = []
-                devices_to_turn_on = []  # List of (device_state, power_needed, amperage) tuples
-                
+                # Phase 4: Apply all state changes
+                for device_state in self.device_states.values():
+                    # Find if this device should be on
+                    should_be_on = False
+                    power_needed = 0
+                    amperage = None
+                    
+                    for turn_on_device, power, amp in devices_to_turn_on:
+                        if turn_on_device == device_state:
+                            should_be_on = True
+                            power_needed = power
+                            amperage = amp
+                            break
+                    
+                    # Apply state changes
+                    if should_be_on:
+                        if not device_state.is_on or (device_state.device.has_variable_amperage and device_state.current_amperage != amperage):
+                            self.set_device_state(device_state, True, amperage)
+                    else:
+                        if device_state.is_on:
+                            self.set_device_state(device_state, False)
+            else:
+                # If optimization is disabled, turn off all devices that aren't mandatory
+                optional_devices = []
                 for device_state in self.device_states.values():
                     device = device_state.device
                     
-                    # Check if device has completed its task
-                    if device.run_once and device_state.is_on:
-                        if self.check_device_completion(device_state):
-                            device_state.has_completed = True
-                            continue
-                    
-                    # Check minimum on/off times
-                    if device_state.last_state_change:
-                        time_since_change = (current_time - device_state.last_state_change).total_seconds()
+                    # Skip if device is mandatory (run-once and not completed)
+                    if device.run_once and not device_state.has_completed:
+                        optional_devices.append({
+                            'name': device.name,
+                            'power': self.get_device_power(device_state) if device_state.is_on else 0,
+                            'reason': 'Mandatory device'
+                        })
+                        continue
                         
-                        if device_state.is_on and time_since_change < device.min_on_time:
-                            # Must stay on
-                            power = self.get_device_power(device_state)
-                            available_power -= power
-                            mandatory_devices.append({
+                    # Skip if device is in minimum on time
+                    if device_state.is_on and device_state.last_state_change:
+                        time_since_change = (current_time - device_state.last_state_change).total_seconds()
+                        if time_since_change < device.min_on_time:
+                            optional_devices.append({
                                 'name': device.name,
-                                'power': power,
+                                'power': self.get_device_power(device_state),
                                 'reason': 'Minimum on time not met'
                             })
-                            devices_to_turn_on.append((device_state, power, device_state.current_amperage))
                             continue
                             
-                        if not device_state.is_on and time_since_change < device.min_off_time:
-                            # Must stay off
-                            mandatory_devices.append({
-                                'name': device.name,
-                                'power': 0,
-                                'reason': 'Minimum off time not met'
-                            })
-                            continue
+                    # Turn off the device
+                    if device_state.is_on:
+                        self.set_device_state(device_state, False)
+                        optional_devices.append({
+                            'name': device.name,
+                            'power': 0,
+                            'reason': 'Turned off (optimization disabled)'
+                        })
+                    else:
+                        optional_devices.append({
+                            'name': device.name,
+                            'power': 0,
+                            'reason': 'Already off'
+                        })
 
-                self.debug_state.mandatory_devices = mandatory_devices
+                self.debug_state.optional_devices = optional_devices
                 
-                # Only run optimization if enabled
-                if power_optimization_enabled:
-                    # Phase 2: Create list of potential devices to optimize
-                    # Sort devices by their order (priority)
-                    sorted_devices = sorted(
-                        self.device_states.values(),
-                        key=lambda x: x.device.order
-                    )
-                    
-                    optional_devices = []
-                    potential_devices = []
-                    
-                    # First, create list of all devices we might want to turn on
-                    for device_state in sorted_devices:
-                        device = device_state.device
-                        
-                        # Skip if device has completed its task
-                        if device.run_once and device_state.has_completed:
-                            optional_devices.append({
-                                'name': device.name,
-                                'power': 0,
-                                'reason': 'Task completed'
-                            })
-                            continue
-                            
-                        # Skip if device is in minimum off time
-                        if not device_state.is_on and device_state.last_state_change:
-                            time_since_change = (current_time - device_state.last_state_change).total_seconds()
-                            if time_since_change < device.min_off_time:
-                                optional_devices.append({
-                                    'name': device.name,
-                                    'power': 0,
-                                    'reason': 'Minimum off time not met'
-                                })
-                                continue
-                        
-                        # Add to potential devices list
-                        potential_devices.append(device_state)
-                    
-                    # Phase 3: Process potential devices in priority order
-                    for device_state in potential_devices:
-                        device = device_state.device
-                        
-                        # Calculate power needed based on current state of devices_to_turn_on
-                        if device.has_variable_amperage:
-                            # Calculate optimal amperage considering current load
-                            optimal_amperage = self.calculate_optimal_amperage(device, available_power)
-                            if optimal_amperage is None:
-                                optional_devices.append({
-                                    'name': device.name,
-                                    'power': 0,
-                                    'reason': 'Cannot calculate optimal amperage'
-                                })
-                                continue
-                            power_needed = voltage * optimal_amperage
-                        else:
-                            power_needed = device.typical_power_draw
-                        
-                        # Check if we have enough power
-                        if power_needed <= available_power:
-                            devices_to_turn_on.append((device_state, power_needed, optimal_amperage if device.has_variable_amperage else None))
-                            available_power -= power_needed
-                            optional_devices.append({
-                                'name': device.name,
-                                'power': power_needed,
-                                'reason': 'Will be turned on'
-                            })
-                        else:
-                            optional_devices.append({
-                                'name': device.name,
-                                'power': 0,
-                                'reason': 'Not enough power available'
-                            })
-                    
-                    self.debug_state.optional_devices = optional_devices
-                    
-                    # Phase 4: Apply all state changes
-                    for device_state in self.device_states.values():
-                        # Find if this device should be on
-                        should_be_on = False
-                        power_needed = 0
-                        amperage = None
-                        
-                        for turn_on_device, power, amp in devices_to_turn_on:
-                            if turn_on_device == device_state:
-                                should_be_on = True
-                                power_needed = power
-                                amperage = amp
-                                break
-                        
-                        # Apply state changes
-                        if should_be_on:
-                            if not device_state.is_on or (device_state.device.has_variable_amperage and device_state.current_amperage != amperage):
-                                self.set_device_state(device_state, True, amperage)
-                        else:
-                            if device_state.is_on:
-                                self.set_device_state(device_state, False)
-                else:
-                    # If optimization is disabled, turn off all devices that aren't mandatory
-                    optional_devices = []
-                    for device_state in self.device_states.values():
-                        device = device_state.device
-                        
-                        # Skip if device is mandatory (run-once and not completed)
-                        if device.run_once and not device_state.has_completed:
-                            optional_devices.append({
-                                'name': device.name,
-                                'power': self.get_device_power(device_state) if device_state.is_on else 0,
-                                'reason': 'Mandatory device'
-                            })
-                            continue
-                            
-                        # Skip if device is in minimum on time
-                        if device_state.is_on and device_state.last_state_change:
-                            time_since_change = (current_time - device_state.last_state_change).total_seconds()
-                            if time_since_change < device.min_on_time:
-                                optional_devices.append({
-                                    'name': device.name,
-                                    'power': self.get_device_power(device_state),
-                                    'reason': 'Minimum on time not met'
-                                })
-                                continue
-                                
-                        # Turn off the device
-                        if device_state.is_on:
-                            self.set_device_state(device_state, False)
-                            optional_devices.append({
-                                'name': device.name,
-                                'power': 0,
-                                'reason': 'Turned off (optimization disabled)'
-                            })
-                        else:
-                            optional_devices.append({
-                                'name': device.name,
-                                'power': 0,
-                                'reason': 'Already off'
-                            })
+        except Exception as e:
+            logger.error(f"Error in control loop: {e}")
 
-                    self.debug_state.optional_devices = optional_devices
-                        
-                # Sleep for a minute
-                time.sleep(60)
+    def start_control_loop(self):
+        """Start the control loop in a separate thread"""
+        import threading
+        def loop():
+            while True:
+                self.run_control_loop()
+                time.sleep(60)  # Sleep for a minute between iterations
                 
-            except Exception as e:
-                logger.error(f"Error in control loop: {e}")
-                time.sleep(60)  # Sleep on error too
-                
+        thread = threading.Thread(target=loop, daemon=True)
+        thread.start()
+
 if __name__ == "__main__":
     controller = SolarController(
         config_file="/data/solar_config.json",
         devices_file="/data/devices.json"
     )
-    controller.run_control_loop() 
+    controller.start_control_loop() 
