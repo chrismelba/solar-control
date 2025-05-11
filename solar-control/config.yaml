@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: Solar Control
-version: "1.2.10"
+version: "1.2.11"
 slug: solar-control
 description: Solar Control add-on
 url: "https://github.com/chrismelba/solar-control"
@@ -33,10 +33,11 @@ webui_config:
   server:
     listen: 8080
     server_name: localhost
-    location / {
-      proxy_pass http://localhost:8080;
-      proxy_set_header Host $host;
-      proxy_set_header X-Real-IP $remote_addr;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto $scheme;
-    }
+    location:
+      /:
+        proxy_pass: http://localhost:8080
+        proxy_set_header:
+          Host: $host
+          X-Real-IP: $remote_addr
+          X-Forwarded-For: $proxy_add_x_forwarded_for
+          X-Forwarded-Proto: $scheme
