@@ -1,3 +1,24 @@
 #!/usr/bin/with-contenv bashio
+from flask import Flask, render_template
+import os
 
-echo "All done!" > /share/solar_control_output.txt
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/configure-solar')
+def configure_solar():
+    return render_template('configure_solar.html')
+
+@app.route('/configure-battery')
+def configure_battery():
+    return render_template('configure_battery.html')
+
+@app.route('/configure-devices')
+def configure_devices():
+    return render_template('configure_devices.html')
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
