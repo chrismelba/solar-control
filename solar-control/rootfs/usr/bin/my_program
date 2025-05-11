@@ -10,7 +10,14 @@ import requests
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+# Create static directory if it doesn't exist
+static_dir = '/usr/bin/static'
+if not os.path.exists(static_dir):
+    os.makedirs(static_dir)
+
+app = Flask(__name__, 
+           static_folder=static_dir,
+           template_folder='templates')
 
 # Configuration file path
 CONFIG_FILE = '/data/solar_config.json'
