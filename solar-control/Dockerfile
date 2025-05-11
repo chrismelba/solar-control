@@ -18,9 +18,10 @@ RUN \
 # Create static directory
 RUN mkdir -p /usr/bin/static/css /usr/bin/static/js
 
-# Create data directory for persistent storage
+# Create data directory for persistent storage and set permissions
 RUN mkdir -p /data && \
-    chmod 755 /data
+    chown -R root:root /data && \
+    chmod -R 755 /data
 
 # Copy root filesystem
 COPY rootfs /

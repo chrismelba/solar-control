@@ -30,6 +30,29 @@ if [ ! -d /usr/bin/templates ]; then
     exit 1
 fi
 
+# Debug: List contents of /data before operations
+bashio::log.info "Contents of /data before operations:"
+ls -la /data || true
+
+# Ensure data directory exists and has correct permissions
+if [ ! -d /data ]; then
+    bashio::log.info "Creating data directory..."
+    mkdir -p /data
+fi
+
+# Debug: Show directory creation result
+bashio::log.info "Data directory status after creation:"
+ls -la /data || true
+
+# Set permissions
+bashio::log.info "Setting data directory permissions..."
+chown -R root:root /data
+chmod -R 755 /data
+
+# Debug: Show final directory state
+bashio::log.info "Final data directory state:"
+ls -la /data || true
+
 # Get Home Assistant URL from supervisor
 HASS_URL=$(bashio::config 'hass_url')
 if [ -z "${HASS_URL}" ]; then
