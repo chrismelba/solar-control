@@ -119,8 +119,33 @@
                 
                 devices.forEach(device => {
                     const deviceElement = document.createElement('div');
-                    deviceElement.innerHTML = `{{ device_card(device, draggable=true) }}`;
-                    deviceList.appendChild(deviceElement.firstElementChild);
+                    deviceElement.className = 'device-card draggable';
+                    deviceElement.draggable = true;
+                    deviceElement.dataset.deviceName = device.name;
+                    
+                    const deviceInfo = document.createElement('div');
+                    deviceInfo.className = 'device-info';
+                    
+                    const nameElement = document.createElement('p');
+                    nameElement.className = 'device-name';
+                    nameElement.textContent = device.name;
+                    
+                    const powerElement = document.createElement('p');
+                    powerElement.className = 'device-power';
+                    powerElement.textContent = device.current_power ? 
+                        `${device.current_power.value.toFixed(1)} ${device.current_power.unit}` :
+                        `${device.typical_power_draw}W`;
+                    
+                    const statusElement = document.createElement('span');
+                    statusElement.className = 'device-status status-off';
+                    statusElement.textContent = 'Off';
+                    
+                    deviceInfo.appendChild(nameElement);
+                    deviceInfo.appendChild(powerElement);
+                    deviceElement.appendChild(deviceInfo);
+                    deviceElement.appendChild(statusElement);
+                    
+                    deviceList.appendChild(deviceElement);
                 });
                 
                 // Initialize drag and drop
