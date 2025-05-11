@@ -1,9 +1,41 @@
-{% extends "base.html" %}
-
-{% block title %}Configure Devices - Solar Optimiser{% endblock %}
-
-{% block heading %}Configure Devices{% endblock %}
-
-{% block content %}
-<p>Devices configuration page coming soon...</p>
-{% endblock %} 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configure Devices - Solar Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #666;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            color: #333;
+        }
+        .coming-soon {
+            text-align: center;
+            padding: 40px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('index') }}" class="back-link">← Back to Dashboard</a>
+    <h1>Configure Devices</h1>
+    
+    <div class="coming-soon">
+        <h2>Coming Soon</h2>
+        <p>Device configuration features are currently under development.</p>
+    </div>
+</body>
+</html> 
