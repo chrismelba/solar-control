@@ -27,9 +27,10 @@ RUN mkdir -p /data && \
 # Create Nginx configuration directory
 RUN mkdir -p /etc/nginx/http.d && \
     chmod -R 755 /etc/nginx
-RUN mkdir -p /var/lib/nginx/logs /var/lib/nginx/tmp/client_body && \
-    chmod -R 755 /var/lib/nginx
 
+RUN mkdir -p /var/lib/nginx/logs /var/lib/nginx/tmp/client_body && \
+    chown -R 100:100 /var/lib/nginx && \
+    chmod -R 755 /var/lib/nginx
 # Copy root filesystem
 COPY rootfs /
 
