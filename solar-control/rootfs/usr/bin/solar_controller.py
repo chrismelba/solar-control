@@ -23,6 +23,28 @@ class DeviceState:
     current_amperage: Optional[float] = None
     has_completed: bool = False
 
+@dataclass
+class DebugState:
+    """Tracks debug information about the controller's decisions"""
+    timestamp: datetime
+    available_power: float
+    grid_voltage: float
+    mandatory_devices: List[Dict] = None
+    optional_devices: List[Dict] = None
+    power_optimization_enabled: bool = True
+    manual_power_override: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        return {
+            'timestamp': self.timestamp.isoformat(),
+            'available_power': self.available_power,
+            'grid_voltage': self.grid_voltage,
+            'mandatory_devices': self.mandatory_devices or [],
+            'optional_devices': self.optional_devices or [],
+            'power_optimization_enabled': self.power_optimization_enabled,
+            'manual_power_override': self.manual_power_override
+        }
+
 class SolarController:
     def __init__(self, config_file: str, devices_file: str):
         self.config_file = config_file
@@ -31,6 +53,8 @@ class SolarController:
         self.device_states: Dict[str, DeviceState] = {}
         self.supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
         self.hass_url = "http://supervisor/core"
+        self.debug_state: Optional[DebugState] = None
+        self.manual_power_override: Optional[float] = None
         
     def get_headers(self) -> dict:
         """Get headers for Home Assistant API requests"""
@@ -62,6 +86,9 @@ class SolarController:
             
     def get_available_power(self) -> float:
         """Calculate available power by subtracting non-controllable loads from grid power"""
+        if self.manual_power_override is not None:
+            return self.manual_power_override
+
         config = self.load_config()
         if not config.get('grid_power'):
             logger.error("No grid power sensor configured")
@@ -224,6 +251,14 @@ class SolarController:
         
         return max(device.min_amperage, max_amperage)
         
+    def set_manual_power_override(self, power: Optional[float]):
+        """Set a manual override for available power"""
+        self.manual_power_override = power
+
+    def get_debug_state(self) -> Optional[DebugState]:
+        """Get the current debug state"""
+        return self.debug_state
+
     def run_control_loop(self):
         """Main control loop"""
         while True:
@@ -240,7 +275,17 @@ class SolarController:
                 settings = self.load_settings()
                 power_optimization_enabled = settings.get('power_optimization_enabled', True)
                 
+                # Initialize debug state
+                self.debug_state = DebugState(
+                    timestamp=current_time,
+                    available_power=available_power,
+                    grid_voltage=voltage,
+                    power_optimization_enabled=power_optimization_enabled,
+                    manual_power_override=self.manual_power_override
+                )
+                
                 # First pass: Handle mandatory devices
+                mandatory_devices = []
                 for device_state in self.device_states.values():
                     device = device_state.device
                     
@@ -259,11 +304,23 @@ class SolarController:
                             # Must stay on
                             power = self.get_device_power(device_state)
                             available_power -= power
+                            mandatory_devices.append({
+                                'name': device.name,
+                                'power': power,
+                                'reason': 'Minimum on time not met'
+                            })
                             continue
                             
                         if not device_state.is_on and time_since_change < device.min_off_time:
                             # Must stay off
+                            mandatory_devices.append({
+                                'name': device.name,
+                                'power': 0,
+                                'reason': 'Minimum off time not met'
+                            })
                             continue
+
+                self.debug_state.mandatory_devices = mandatory_devices
                 
                 # Only run optimization if enabled
                 if power_optimization_enabled:
@@ -274,21 +331,37 @@ class SolarController:
                         key=lambda x: x.device.order
                     )
                     
+                    optional_devices = []
                     for device_state in sorted_devices:
                         device = device_state.device
                         
                         # Skip if device is already on
                         if device_state.is_on:
+                            optional_devices.append({
+                                'name': device.name,
+                                'power': self.get_device_power(device_state),
+                                'reason': 'Already on'
+                            })
                             continue
                             
                         # Skip if device has completed its task
                         if device.run_once and device_state.has_completed:
+                            optional_devices.append({
+                                'name': device.name,
+                                'power': 0,
+                                'reason': 'Task completed'
+                            })
                             continue
                             
                         # Calculate power needed
                         if device.has_variable_amperage:
                             optimal_amperage = self.calculate_optimal_amperage(device, available_power)
                             if optimal_amperage is None:
+                                optional_devices.append({
+                                    'name': device.name,
+                                    'power': 0,
+                                    'reason': 'Cannot calculate optimal amperage'
+                                })
                                 continue
                             power_needed = voltage * optimal_amperage
                         else:
@@ -301,24 +374,61 @@ class SolarController:
                             else:
                                 self.set_device_state(device_state, True)
                             available_power -= power_needed
+                            optional_devices.append({
+                                'name': device.name,
+                                'power': power_needed,
+                                'reason': 'Turned on'
+                            })
+                        else:
+                            optional_devices.append({
+                                'name': device.name,
+                                'power': 0,
+                                'reason': 'Not enough power available'
+                            })
+
+                    self.debug_state.optional_devices = optional_devices
                 else:
                     # If optimization is disabled, turn off all devices that aren't mandatory
+                    optional_devices = []
                     for device_state in self.device_states.values():
                         device = device_state.device
                         
                         # Skip if device is mandatory (run-once and not completed)
                         if device.run_once and not device_state.has_completed:
+                            optional_devices.append({
+                                'name': device.name,
+                                'power': self.get_device_power(device_state) if device_state.is_on else 0,
+                                'reason': 'Mandatory device'
+                            })
                             continue
                             
                         # Skip if device is in minimum on time
                         if device_state.is_on and device_state.last_state_change:
                             time_since_change = (current_time - device_state.last_state_change).total_seconds()
                             if time_since_change < device.min_on_time:
+                                optional_devices.append({
+                                    'name': device.name,
+                                    'power': self.get_device_power(device_state),
+                                    'reason': 'Minimum on time not met'
+                                })
                                 continue
                                 
                         # Turn off the device
                         if device_state.is_on:
                             self.set_device_state(device_state, False)
+                            optional_devices.append({
+                                'name': device.name,
+                                'power': 0,
+                                'reason': 'Turned off (optimization disabled)'
+                            })
+                        else:
+                            optional_devices.append({
+                                'name': device.name,
+                                'power': 0,
+                                'reason': 'Already off'
+                            })
+
+                    self.debug_state.optional_devices = optional_devices
                         
                 # Sleep for a minute
                 time.sleep(60)

@@ -8,6 +8,7 @@ import requests
 from device import Device
 from datetime import datetime, timezone
 import pytz
+from solar_controller import SolarController
 
 # Set up logging with more detailed format
 logging.basicConfig(
@@ -25,6 +26,12 @@ if not os.path.exists(static_dir):
 app = Flask(__name__, 
            static_folder=static_dir,
            template_folder='templates')
+
+# Create controller instance
+controller = SolarController(
+    config_file="/data/solar_config.json",
+    devices_file="/data/devices.json"
+)
 
 # Log static file configuration
 logger.info('Static folder: %s', app.static_folder)
@@ -417,6 +424,42 @@ def debug_static(filename):
     except Exception as e:
         logger.error('Error serving static file %s: %s', filename, e)
         return str(e), 500
+
+@app.route('/debug')
+def debug():
+    """Debug interface page"""
+    return render_template('debug.html')
+
+@app.route('/api/debug/state')
+def get_debug_state():
+    """Get the current debug state"""
+    debug_state = controller.get_debug_state()
+    if debug_state:
+        return jsonify(debug_state.to_dict())
+    return jsonify({'error': 'No debug state available'})
+
+@app.route('/api/debug/calculate', methods=['POST'])
+def calculate_now():
+    """Force a calculation cycle"""
+    try:
+        # Run one iteration of the control loop
+        controller.run_control_loop()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/debug/power_override', methods=['POST'])
+def set_power_override():
+    """Set manual power override"""
+    try:
+        data = request.json
+        power = data.get('power')
+        if power is not None:
+            power = float(power)
+        controller.set_manual_power_override(power)
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
 
 if __name__ == '__main__':
     logger.info('Starting Flask application...')

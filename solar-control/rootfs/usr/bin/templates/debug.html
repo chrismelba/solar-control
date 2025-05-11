@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Debug Interface{% endblock %}
+
+{% block heading %}Debug Interface{% endblock %}
+
+{% block content %}
+    <div class="nav-menu">
+        <a href="{{ url_for('index') }}" class="button">Back to Dashboard</a>
+    </div>
+
+    <div class="card">
+        <h2>Controls</h2>
+        <div class="form-group">
+            <label for="power_override">Manual Power Override (W):</label>
+            <input type="number" id="power_override" placeholder="Leave empty to use sensor value">
+            <button onclick="setPowerOverride()" class="button">Set Override</button>
+        </div>
+        <button onclick="calculateNow()" class="button">Calculate Now</button>
+    </div>
+
+    <div class="card">
+        <h2>Current State</h2>
+        <div id="debug_state">
+            <p>Loading...</p>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .device-list {
+        margin: 10px 0;
+    }
+    .device-item {
+        padding: 10px;
+        margin: 5px 0;
+        background: #f5f5f5;
+        border-radius: 4px;
+    }
+    .device-name {
+        font-weight: bold;
+    }
+    .device-power {
+        color: #666;
+    }
+    .device-reason {
+        color: #888;
+        font-style: italic;
+    }
+    .timestamp {
+        color: #666;
+        font-size: 0.9em;
+    }
+    .power-value {
+        font-size: 1.2em;
+        font-weight: bold;
+    }
+    .controls {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function updateDebugState() {
+        fetch('/api/debug/state')
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('debug_state').innerHTML = `<p>${data.error}</p>`;
+                    return;
+                }
+
+                const html = `
+                    <div class="timestamp">Last updated: ${new Date(data.timestamp).toLocaleString()}</div>
+                    <div class="power-value">Available Power: ${data.available_power.toFixed(1)}W</div>
+                    <div>Grid Voltage: ${data.grid_voltage.toFixed(1)}V</div>
+                    <div>Power Optimization: ${data.power_optimization_enabled ? 'Enabled' : 'Disabled'}</div>
+                    ${data.manual_power_override !== null ? `<div>Manual Power Override: ${data.manual_power_override.toFixed(1)}W</div>` : ''}
+                    
+                    <h3>Mandatory Devices</h3>
+                    <div class="device-list">
+                        ${data.mandatory_devices.map(device => `
+                            <div class="device-item">
+                                <div class="device-name">${device.name}</div>
+                                <div class="device-power">Power: ${device.power.toFixed(1)}W</div>
+                                <div class="device-reason">${device.reason}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <h3>Optional Devices</h3>
+                    <div class="device-list">
+                        ${data.optional_devices.map(device => `
+                            <div class="device-item">
+                                <div class="device-name">${device.name}</div>
+                                <div class="device-power">Power: ${device.power.toFixed(1)}W</div>
+                                <div class="device-reason">${device.reason}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                document.getElementById('debug_state').innerHTML = html;
+            })
+            .catch(error => {
+                document.getElementById('debug_state').innerHTML = `<p>Error loading debug state: ${error}</p>`;
+            });
+    }
+
+    function calculateNow() {
+        fetch('/api/debug/calculate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                updateDebugState();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error);
+        });
+    }
+
+    function setPowerOverride() {
+        const powerInput = document.getElementById('power_override');
+        const power = powerInput.value === '' ? null : parseFloat(powerInput.value);
+        
+        fetch('/api/debug/power_override', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ power })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                calculateNow();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error);
+        });
+    }
+
+    // Update debug state every 5 seconds
+    updateDebugState();
+    setInterval(updateDebugState, 5000);
+</script>
+{% endblock %} 
