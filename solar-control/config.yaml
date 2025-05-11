@@ -18,3 +18,9 @@ options:
 schema:
   message: "str?"
 image: "ghcr.io/chrismelba/{arch}-addon-solar-control"
+ports:
+  8080/tcp: 8080
+ingress: true
+ingress_port: 8080
+ingress_entry: /
+homeassistant_api: true
