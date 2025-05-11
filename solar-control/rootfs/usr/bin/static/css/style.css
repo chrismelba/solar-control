@@ -2,11 +2,11 @@
     --primary-color: #2196f3;
     --primary-light: #64b5f6;
     --primary-dark: #1976d2;
-    --text-color: #2c3e50;
-    --background-color: #e3f2fd;
-    --card-background: #ffffff;
-    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    --hover-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    --text-color: #e0e0e0;
+    --background-color: #121212;
+    --card-background: #1e1e1e;
+    --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    --hover-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
     --border-radius: 12px;
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -16,7 +16,7 @@ body {
     max-width: 1200px;
     margin: 0 auto;
     padding: 2rem;
-    background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+    background: linear-gradient(135deg, #121212, #1a1a1a);
     min-height: 100vh;
     color: var(--text-color);
     line-height: 1.6;
@@ -97,18 +97,19 @@ select, input {
     width: 100%;
     padding: 0.75rem 1rem;
     margin: 0.5rem 0;
-    border: 2px solid #e0e0e0;
+    border: 2px solid #333;
     border-radius: var(--border-radius);
     font-size: 1rem;
     transition: var(--transition);
-    background-color: #f8f9fa;
+    background-color: #2a2a2a;
+    color: var(--text-color);
 }
 
 select:focus, input:focus {
     border-color: var(--primary-color);
     outline: none;
     box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.2);
-    background-color: white;
+    background-color: #333;
 }
 
 label {
@@ -147,7 +148,7 @@ th {
 }
 
 tr:hover {
-    background-color: #f8f9fa;
+    background-color: #2a2a2a;
 }
 
 /* Alert/Message styles */
@@ -162,15 +163,15 @@ tr:hover {
 }
 
 .alert-success {
-    background-color: #e8f5e9;
-    color: #2e7d32;
-    border: 1px solid #a5d6a7;
+    background-color: #1b5e20;
+    color: #81c784;
+    border: 1px solid #2e7d32;
 }
 
 .alert-error {
-    background-color: #ffebee;
-    color: #c62828;
-    border: 1px solid #ef9a9a;
+    background-color: #b71c1c;
+    color: #ef9a9a;
+    border: 1px solid #c62828;
 }
 
 /* Navigation styles */
@@ -223,7 +224,7 @@ tr:hover {
 
 /* Modal styles */
 .modal {
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(4px);
 }
 
@@ -235,7 +236,7 @@ tr:hover {
     max-width: 500px;
     width: 90%;
     margin: 2rem auto;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid #333;
 }
 
 .modal-header {

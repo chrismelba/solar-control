@@ -1,5 +1,10 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.2.7] - 2024-03-19
+### Changed
+- Modified amperage rounding to always round down to nearest whole number
+- Added detailed debug logging for amperage control operations
+
 ## [1.2.6] - 2024-03-19
 ### Changed
 - Added voltage to config

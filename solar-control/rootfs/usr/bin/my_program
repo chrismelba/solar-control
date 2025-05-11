@@ -387,7 +387,7 @@ def status():
     }
     return jsonify({
         'status': 'running',
-        'version': '1.2.6',
+        'version': '1.2.7',
         'sensor_values': sensor_values,
         'power_optimization_enabled': settings.get('power_optimization_enabled', True)
     })

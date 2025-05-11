@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timezone
 import requests
 import os
+import math
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from device import Device
@@ -229,17 +230,28 @@ class SolarController:
         try:
             # For variable load devices, we can always set the amperage
             if device.has_variable_amperage and amperage is not None:
+                logger.info(f"Setting amperage for {device.name} to {amperage}A")
+                logger.debug(f"Device details - min_amperage: {device.min_amperage}A, max_amperage: {device.max_amperage}A")
+                logger.debug(f"Control entity: {device.variable_amperage_control}")
+                
                 service_data = {
                     "entity_id": device.variable_amperage_control,  # Use the variable amperage control entity
                     "value": amperage
                 }
+                logger.debug(f"Sending request to Home Assistant: {service_data}")
+                
                 response = requests.post(
                     f"{self.hass_url}/api/services/input_number/set_value",
                     headers=self.get_headers(),
                     json=service_data
                 )
                 response.raise_for_status()
+                logger.info(f"Successfully set amperage for {device.name} to {amperage}A")
+                logger.debug(f"Response status: {response.status_code}")
+                logger.debug(f"Response content: {response.text}")
                 device_state.current_amperage = amperage
+            else:
+                logger.debug(f"No amperage change needed for {device.name} - has_variable_amperage: {device.has_variable_amperage}, amperage: {amperage}")
             
             # Only change switch state if we're allowed to
             if not (device_state.is_on and device_state.last_state_change and 
@@ -269,7 +281,9 @@ class SolarController:
             available_power / voltage
         )
         
-        return max(device.min_amperage, max_amperage)
+        # Round down to nearest whole number
+        optimal_amperage = max(device.min_amperage, max_amperage)
+        return math.floor(optimal_amperage)
         
     def set_manual_power_override(self, power: Optional[float]):
         """Set a manual override for available power"""
