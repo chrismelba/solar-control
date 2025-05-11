@@ -90,6 +90,64 @@
         .device-list {
             margin-top: 1rem;
         }
+
+        /* New device card styles */
+        .device-card {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .device-card:hover {
+            border-color: #2196F3;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .device-card.dragging {
+            opacity: 0.5;
+            background: #f5f5f5;
+        }
+
+        .device-info {
+            flex-grow: 1;
+        }
+
+        .device-name {
+            font-weight: bold;
+            margin: 0;
+            color: #333;
+        }
+
+        .device-power {
+            margin: 0.25rem 0 0 0;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .device-status {
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-left: 1rem;
+        }
+
+        .status-off {
+            background: #f44336;
+            color: white;
+        }
+
+        .status-on {
+            background: #4CAF50;
+            color: white;
+        }
     </style>
 
     <script>
