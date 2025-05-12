@@ -66,10 +66,17 @@ if [ -z "${HASS_URL}" ]; then
     HASS_URL="http://supervisor/core"
 fi
 
+# Get ingress path from environment
+INGRESS_PATH=$(bashio::config 'ingress_entry')
+if [ -z "${INGRESS_PATH}" ]; then
+    INGRESS_PATH=""
+fi
+
 # Export required environment variables
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN}"
 export HASS_URL="${HASS_URL}"
 export PORT=5000
+export INGRESS_PATH="${INGRESS_PATH}"
 
 # Create required Nginx directories in /data
 bashio::log.info "Setting up Nginx directories..."
