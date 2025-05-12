@@ -4,20 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Solar Optimiser{% endblock %}</title>
-    <link rel="stylesheet" href="{{ ingress_path }}{{ url_for('static', filename='css/style.css') }}">
-    <link rel="stylesheet" href="{{ ingress_path }}{{ url_for('static', filename='css/searchable-select.css') }}">
-    <link rel="stylesheet" href="{{ ingress_path }}{{ url_for('static', filename='css/sensor-cards.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/searchable-select.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/sensor-cards.css') }}">
     {% block extra_head %}{% endblock %}
 </head>
 <body>
     <div class="card">
-        <a href="{{ ingress_path }}/" class="back-link">← Back to Main</a>
+        <a href="/" class="back-link">← Back to Main</a>
         <h1>{% block heading %}Solar Optimiser{% endblock %}</h1>
         <div class="content">
             {% block content %}{% endblock %}
         </div>
     </div>
-    <script src="{{ ingress_path }}{{ url_for('static', filename='js/searchable-select.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/searchable-select.js') }}"></script>
     {% block extra_scripts %}{% endblock %}
 </body>
 </html> 
