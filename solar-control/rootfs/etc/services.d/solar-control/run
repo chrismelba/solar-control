@@ -69,6 +69,7 @@ fi
 # Export required environment variables
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN}"
 export HASS_URL="${HASS_URL}"
+export PORT=5000
 
 # Create required Nginx directories in /data
 bashio::log.info "Setting up Nginx directories..."
