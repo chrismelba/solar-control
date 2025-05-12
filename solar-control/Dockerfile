@@ -31,7 +31,8 @@ RUN \
     chmod -R 755 /usr/bin/static && \
     chown -R root:root /var/lib/nginx && \
     chmod -R 755 /var/lib/nginx && \
-    chmod -R 755 /var/lib/nginx/logs
+    chmod -R 755 /var/lib/nginx/logs && \
+    chmod -R 755 /run/nginx
 
 # Copy root filesystem
 COPY rootfs /
