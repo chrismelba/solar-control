@@ -1,221 +1,53 @@
 {% extends "base.html" %}
 
-{% block title %}Debug Interface{% endblock %}
+{% block title %}Debug Information{% endblock %}
 
-{% block heading %}Debug Interface{% endblock %}
+{% block heading %}Debug Information{% endblock %}
 
 {% block content %}
-    <div class="nav-menu">
-        <a href="{{ url_for('index') }}" class="button">Back to Dashboard</a>
+    <div class="debug-section">
+        <h2>Environment Variables</h2>
+        <pre>{{ env | tojson(indent=2) }}</pre>
     </div>
 
-    <div class="card">
-        <h2>Controls</h2>
-        <div class="form-group">
-            <label for="power_override">Manual Power Override (W):</label>
-            <input type="number" id="power_override" placeholder="Leave empty to use sensor value">
-            <button onclick="setPowerOverride()" class="button">Set Override</button>
-        </div>
-        <button onclick="calculateNow()" class="button">Calculate Now</button>
+    <div class="debug-section">
+        <h2>Request Headers</h2>
+        <pre>{{ headers | tojson(indent=2) }}</pre>
     </div>
 
-    <div class="card">
-        <h2>Current State</h2>
-        <div id="debug_state">
-            <p>Loading...</p>
-        </div>
+    <div class="debug-section">
+        <h2>Configuration</h2>
+        <pre>{{ config | tojson(indent=2) }}</pre>
     </div>
-{% endblock %}
 
-{% block extra_head %}
-<style>
-    .device-list {
-        margin: 10px 0;
-    }
-    .device-item {
-        padding: 10px;
-        margin: 5px 0;
-        background: #f5f5f5;
-        border-radius: 4px;
-    }
-    .device-name {
-        font-weight: bold;
-    }
-    .device-power {
-        color: #666;
-    }
-    .device-reason {
-        color: #888;
-        font-style: italic;
-    }
-    .timestamp {
-        color: #666;
-        font-size: 0.9em;
-    }
-    .power-value {
-        font-size: 1.2em;
-        font-weight: bold;
-    }
-    .power-exporting {
-        color: #4CAF50;
-    }
-    .power-importing {
-        color: #f44336;
-    }
-    .controls {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-    }
-    .power-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin: 1rem 0;
-    }
-    .power-card {
-        background: #f5f5f5;
-        padding: 1rem;
-        border-radius: 8px;
-        text-align: center;
-    }
-    .power-card h3 {
-        margin: 0 0 0.5rem 0;
-        color: #333;
-    }
-    .power-card .value {
-        font-size: 1.5rem;
-        font-weight: bold;
-        margin: 0.5rem 0;
-    }
-</style>
-{% endblock %}
+    <div class="debug-section">
+        <h2>Nginx Error Log</h2>
+        <pre>{{ nginx_error_log }}</pre>
+    </div>
 
-{% block extra_scripts %}
-<script>
-    function updateDebugState() {
-        fetch('/api/debug/state')
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    document.getElementById('debug_state').innerHTML = `<p>${data.error}</p>`;
-                    return;
-                }
+    <div class="debug-section">
+        <h2>Nginx Access Log</h2>
+        <pre>{{ nginx_access_log }}</pre>
+    </div>
 
-                const html = `
-                    <div class="timestamp">Last updated: ${new Date(data.timestamp).toLocaleString()}</div>
-                    
-                    <div class="power-grid">
-                        <div class="power-card">
-                            <h3>Grid Power</h3>
-                            <div class="value ${data.grid_power < 0 ? 'power-exporting' : 'power-importing'}">
-                                ${data.grid_power.toFixed(1)}W
-                                <div style="font-size: 0.8em; color: #666;">
-                                    ${data.grid_power < 0 ? 'Exporting to grid' : 'Importing from grid'}
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="power-card">
-                            <h3>Available Power</h3>
-                            <div class="value power-exporting">
-                                ${data.available_power.toFixed(1)}W
-                                <div style="font-size: 0.8em; color: #666;">
-                                    For device control
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="power-card">
-                            <h3>Grid Voltage</h3>
-                            <div class="value">
-                                ${data.grid_voltage.toFixed(1)}V
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style="margin: 1rem 0;">
-                        <strong>Power Optimization:</strong> ${data.power_optimization_enabled ? 'Enabled' : 'Disabled'}
-                        ${data.manual_power_override !== null ? 
-                            `<div><strong>Manual Power Override:</strong> ${data.manual_power_override.toFixed(1)}W</div>` : 
-                            ''}
-                    </div>
-                    
-                    <h3>Mandatory Devices</h3>
-                    <div class="device-list">
-                        ${data.mandatory_devices.map(device => `
-                            <div class="device-item">
-                                <div class="device-name">${device.name}</div>
-                                <div class="device-power">Power: ${device.power.toFixed(1)}W</div>
-                                <div class="device-reason">${device.reason}</div>
-                            </div>
-                        `).join('')}
-                    </div>
-
-                    <h3>Optional Devices</h3>
-                    <div class="device-list">
-                        ${data.optional_devices.map(device => `
-                            <div class="device-item">
-                                <div class="device-name">${device.name}</div>
-                                <div class="device-power">Power: ${device.power.toFixed(1)}W</div>
-                                <div class="device-reason">${device.reason}</div>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-                document.getElementById('debug_state').innerHTML = html;
-            })
-            .catch(error => {
-                document.getElementById('debug_state').innerHTML = `<p>Error loading debug state: ${error}</p>`;
-            });
-    }
-
-    function calculateNow() {
-        fetch('/api/debug/calculate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                updateDebugState();
-            } else {
-                alert('Error: ' + data.message);
-            }
-        })
-        .catch(error => {
-            alert('Error: ' + error);
-        });
-    }
-
-    function setPowerOverride() {
-        const powerInput = document.getElementById('power_override');
-        const power = powerInput.value === '' ? null : parseFloat(powerInput.value);
-        
-        fetch('/api/debug/power_override', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ power })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                calculateNow();
-            } else {
-                alert('Error: ' + data.message);
-            }
-        })
-        .catch(error => {
-            alert('Error: ' + error);
-        });
-    }
-
-    // Update debug state every 5 seconds
-    updateDebugState();
-    setInterval(updateDebugState, 5000);
-</script>
+    <style>
+        .debug-section {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        .debug-section h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        pre {
+            background: #fff;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
 {% endblock %} 

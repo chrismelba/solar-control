@@ -134,5 +134,46 @@ def configure_grid():
                          entities=entities,
                          sensor_values=sensor_values)
 
+@app.route('/debug')
+def debug():
+    # Get Nginx logs
+    nginx_error_log = ""
+    nginx_access_log = ""
+    try:
+        with open('/data/nginx/logs/error.log', 'r') as f:
+            nginx_error_log = f.read()
+    except Exception as e:
+        nginx_error_log = f"Error reading Nginx error log: {str(e)}"
+    
+    try:
+        with open('/data/nginx/logs/access.log', 'r') as f:
+            nginx_access_log = f.read()
+    except Exception as e:
+        nginx_access_log = f"Error reading Nginx access log: {str(e)}"
+
+    # Get current configuration
+    try:
+        with open(CONFIG_FILE, 'r') as f:
+            config = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        config = {}
+
+    # Get current environment
+    env = {
+        'PORT': os.environ.get('PORT', 'Not set'),
+        'INGRESS_PATH': os.environ.get('INGRESS_PATH', 'Not set'),
+        'HASS_URL': os.environ.get('HASS_URL', 'Not set'),
+    }
+
+    # Get request headers for debugging
+    headers = dict(request.headers)
+
+    return render_template('debug.html',
+                         config=config,
+                         env=env,
+                         headers=headers,
+                         nginx_error_log=nginx_error_log,
+                         nginx_access_log=nginx_access_log)
+
 # ... existing code ...
  
