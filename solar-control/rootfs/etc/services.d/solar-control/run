@@ -75,7 +75,7 @@ fi
 # Export required environment variables
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN}"
 export HASS_URL="${HASS_URL}"
-export PORT=5000
+export PORT=8099
 export INGRESS_PATH="${INGRESS_PATH}"
 
 # Create required Nginx directories in /data
@@ -109,5 +109,5 @@ chown root:root /data/nginx/logs/access.log
 bashio::log.info "Starting Nginx..."
 nginx -c /etc/nginx/nginx.conf
 
-bashio::log.info "Starting Python web server..."
+bashio::log.info "Starting Python web server on port ${PORT}..."
 exec python3 /usr/bin/my_program

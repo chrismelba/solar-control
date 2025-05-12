@@ -175,5 +175,15 @@ def debug():
                          nginx_error_log=nginx_error_log,
                          nginx_access_log=nginx_access_log)
 
-# ... existing code ...
+# Get port from environment
+port = int(os.environ.get('PORT', 8099))
+logger.info(f"Starting Flask application on port {port}")
+
+if __name__ == '__main__':
+    logger.info("Starting Flask application...")
+    logger.info(f"Static folder: {app.static_folder}")
+    logger.info(f"Static URL path: {app.static_url_path}")
+    logger.info(f"Template folder: {app.template_folder}")
+    logger.info(f"Debug mode: {app.debug}")
+    app.run(host='0.0.0.0', port=port)
  
