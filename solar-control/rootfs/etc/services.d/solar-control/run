@@ -74,12 +74,20 @@ export HASS_URL="${HASS_URL}"
 bashio::log.info "Setting up Nginx directories..."
 mkdir -p /data/nginx/logs
 mkdir -p /data/nginx/tmp/client_body
+mkdir -p /data/nginx/tmp/proxy
+mkdir -p /data/nginx/tmp/fastcgi
+mkdir -p /data/nginx/tmp/uwsgi
+mkdir -p /data/nginx/tmp/scgi
 
 # Set proper permissions for Nginx directories
 chown -R root:root /data/nginx
 chmod -R 755 /data/nginx
 chmod 755 /data/nginx/logs
 chmod 755 /data/nginx/tmp/client_body
+chmod 755 /data/nginx/tmp/proxy
+chmod 755 /data/nginx/tmp/fastcgi
+chmod 755 /data/nginx/tmp/uwsgi
+chmod 755 /data/nginx/tmp/scgi
 
 # Start Nginx with explicit config file
 bashio::log.info "Starting Nginx..."
