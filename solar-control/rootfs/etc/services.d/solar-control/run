@@ -81,9 +81,6 @@ chmod -R 755 /data/nginx
 chmod 755 /data/nginx/logs
 chmod 755 /data/nginx/tmp/client_body
 
-# Ensure Nginx temp directory is owned by UID 100 (nginx user)
-chown -R 100:100 /data/nginx/tmp/client_body
-
 # Start Nginx with explicit config file
 bashio::log.info "Starting Nginx..."
 nginx -c /etc/nginx/nginx.conf
