@@ -70,9 +70,20 @@ fi
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN}"
 export HASS_URL="${HASS_URL}"
 
+# Create required Nginx directories in /data
+bashio::log.info "Setting up Nginx directories..."
+mkdir -p /data/nginx/logs
+mkdir -p /data/nginx/tmp/client_body
+
+# Set proper permissions for Nginx directories
+chown -R root:root /data/nginx
+chmod -R 755 /data/nginx
+chmod 755 /data/nginx/logs
+chmod 755 /data/nginx/tmp/client_body
+
 # Start Nginx
-# bashio::log.info "Starting Nginx..."
-# nginx
+bashio::log.info "Starting Nginx..."
+nginx
 
 bashio::log.info "Starting Python web server..."
 exec python3 /usr/bin/my_program

@@ -484,11 +484,27 @@ class SolarController:
                                 'reason': 'Cannot calculate optimal amperage'
                             })
                             continue
-                        power_needed = voltage * optimal_amperage
-                        logger.info(f"Power needed for {device.name}: {power_needed}W")
+
+                        # If device is already on, scale power based on amperage ratio
+                        if device_state.is_on:
+                            current_power = self.get_device_power(device_state)
+                            if device_state.current_amperage and device_state.current_amperage > 0:
+                                power_needed = current_power * (optimal_amperage / device_state.current_amperage)
+                                logger.info(f"Scaled power needed for {device.name} from {current_power}W to {power_needed}W based on amperage ratio")
+                            else:
+                                power_needed = voltage * optimal_amperage
+                                logger.info(f"Using calculated power for {device.name}: {power_needed}W (no current amperage available)")
+                        else:
+                            power_needed = voltage * optimal_amperage
+                            logger.info(f"Using calculated power for {device.name}: {power_needed}W (device is off)")
                     else:
-                        power_needed = device.typical_power_draw
-                        logger.info(f"Fixed power needed for {device.name}: {power_needed}W")
+                        # For non-variable devices, use actual power if device is on
+                        if device_state.is_on:
+                            power_needed = self.get_device_power(device_state)
+                            logger.info(f"Using actual power for {device.name}: {power_needed}W")
+                        else:
+                            power_needed = device.typical_power_draw
+                            logger.info(f"Using typical power for {device.name}: {power_needed}W")
                     
                     # Check if we have enough power
                     if power_needed <= available_power:
