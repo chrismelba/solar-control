@@ -68,7 +68,7 @@ fi
 
 # Get ingress path from environment
 INGRESS_PATH=$(bashio::config 'ingress_entry')
-if [ -z "${INGRESS_PATH}" ]; then
+if [ -z "${INGRESS_PATH}" ] || [ "${INGRESS_PATH}" = "null" ]; then
     INGRESS_PATH=""
 fi
 

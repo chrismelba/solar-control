@@ -25,13 +25,17 @@ if not os.path.exists(static_dir):
 
 # Get ingress path from environment variable
 ingress_path = os.environ.get('INGRESS_PATH', '')
-if ingress_path:
+if ingress_path and ingress_path.lower() != 'null':
     logger.info(f"Using ingress path: {ingress_path}")
+    static_url_path = f'/{ingress_path}/static' if ingress_path else '/static'
+else:
+    logger.info("No ingress path configured, using default static path")
+    static_url_path = '/static'
 
 app = Flask(__name__, 
            static_folder=static_dir,
            template_folder='templates',
-           static_url_path=f'{ingress_path}/static' if ingress_path else '/static')
+           static_url_path=static_url_path)
 
 # Configuration file paths
 CONFIG_FILE = '/data/solar_config.json'
