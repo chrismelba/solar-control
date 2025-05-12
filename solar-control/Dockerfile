@@ -18,7 +18,9 @@ RUN \
     mkdir -p /usr/bin/static/css /usr/bin/static/js && \
     mkdir -p /data && \
     mkdir -p /data/nginx/logs /data/nginx/tmp/client_body && \
-    mkdir -p /etc/nginx/http.d
+    mkdir -p /etc/nginx/http.d && \
+    mkdir -p /var/lib/nginx && \
+    mkdir -p /var/lib/nginx/logs
 
 # Set permissions
 RUN \
@@ -26,7 +28,10 @@ RUN \
     chmod -R 755 /data && \
     chmod -R 755 /data/nginx && \
     chmod -R 755 /etc/nginx && \
-    chmod -R 755 /usr/bin/static
+    chmod -R 755 /usr/bin/static && \
+    chown -R root:root /var/lib/nginx && \
+    chmod -R 755 /var/lib/nginx && \
+    chmod -R 755 /var/lib/nginx/logs
 
 # Copy root filesystem
 COPY rootfs /

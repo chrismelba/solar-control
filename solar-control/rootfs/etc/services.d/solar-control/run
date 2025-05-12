@@ -12,12 +12,6 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# Check if Nginx is available
-if ! command -v nginx &> /dev/null; then
-    bashio::log.error "Nginx is not installed!"
-    exit 1
-fi
-
 # Check if the program exists
 if [ ! -f /usr/bin/my_program ]; then
     bashio::log.error "my_program not found at /usr/bin/my_program"
@@ -66,48 +60,10 @@ if [ -z "${HASS_URL}" ]; then
     HASS_URL="http://supervisor/core"
 fi
 
-# Get ingress path from environment
-INGRESS_PATH=$(bashio::config 'ingress_entry')
-if [ -z "${INGRESS_PATH}" ] || [ "${INGRESS_PATH}" = "null" ]; then
-    INGRESS_PATH=""
-fi
-
 # Export required environment variables
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN}"
 export HASS_URL="${HASS_URL}"
-export PORT=5000  # Flask will run on port 5000 internally
-export INGRESS_PATH="${INGRESS_PATH}"
-
-# Create required Nginx directories in /data
-bashio::log.info "Setting up Nginx directories..."
-mkdir -p /data/nginx/logs
-mkdir -p /data/nginx/tmp/client_body
-mkdir -p /data/nginx/tmp/proxy
-mkdir -p /data/nginx/tmp/fastcgi
-mkdir -p /data/nginx/tmp/uwsgi
-mkdir -p /data/nginx/tmp/scgi
-
-# Set proper permissions for Nginx directories
-chown -R root:root /data/nginx
-chmod -R 755 /data/nginx
-chmod 755 /data/nginx/logs
-chmod 755 /data/nginx/tmp/client_body
-chmod 755 /data/nginx/tmp/proxy
-chmod 755 /data/nginx/tmp/fastcgi
-chmod 755 /data/nginx/tmp/uwsgi
-chmod 755 /data/nginx/tmp/scgi
-
-# Create and set permissions for Nginx log files
-touch /data/nginx/logs/error.log
-touch /data/nginx/logs/access.log
-chmod 666 /data/nginx/logs/error.log
-chmod 666 /data/nginx/logs/access.log
-chown root:root /data/nginx/logs/error.log
-chown root:root /data/nginx/logs/access.log
-
-# Start Nginx with explicit config file
-bashio::log.info "Starting Nginx..."
-nginx -c /etc/nginx/nginx.conf
+export PORT=5000
 
 # Start Python web server with debug logging
 bashio::log.info "Starting Python web server on port ${PORT}..."
