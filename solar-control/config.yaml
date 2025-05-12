@@ -1,8 +1,8 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
-name: Solar Control
-version: "1.2.33"
-slug: solar-control
-description: Solar Control add-on
+name: "Solar Control"
+version: "1.2.35"
+slug: "solar-control"
+description: "Solar Control add-on"
 url: "https://github.com/chrismelba/solar-control"
 arch:
   - armhf

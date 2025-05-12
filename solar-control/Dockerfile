@@ -40,3 +40,16 @@ RUN chmod +x /usr/bin/my_program && \
     chmod a+x /etc/services.d/solar-control/run && \
     chmod a+x /etc/services.d/solar-control/finish && \
     chmod -R 755 /usr/bin/static
+
+# Add nginx and create the run folder for nginx
+RUN \
+  apk --no-cache add \
+    nginx \
+  \
+  && mkdir -p /run/nginx
+
+# Copy our conf into the nginx http.d folder
+COPY rootfs/etc/nginx/http.d/default.conf /etc/nginx/http.d/
+
+# Launch nginx with debug options
+CMD [ "nginx", "-g", "daemon off;error_log /dev/stdout debug;" ]
