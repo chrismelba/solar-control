@@ -97,6 +97,14 @@ chmod 755 /data/nginx/tmp/fastcgi
 chmod 755 /data/nginx/tmp/uwsgi
 chmod 755 /data/nginx/tmp/scgi
 
+# Create and set permissions for Nginx log files
+touch /data/nginx/logs/error.log
+touch /data/nginx/logs/access.log
+chmod 644 /data/nginx/logs/error.log
+chmod 644 /data/nginx/logs/access.log
+chown root:root /data/nginx/logs/error.log
+chown root:root /data/nginx/logs/access.log
+
 # Start Nginx with explicit config file
 bashio::log.info "Starting Nginx..."
 nginx -c /etc/nginx/nginx.conf
