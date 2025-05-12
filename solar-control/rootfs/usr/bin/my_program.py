@@ -14,7 +14,7 @@ try:
     config = response.json()
     debug_level = config.get('debug_level', 'info').upper()
 except Exception as e:
-    debug_level = 'INFO'
+    debug_level = 'DEBUG'
 
 # Set up logging with configuration-based level
 logging.basicConfig(
@@ -32,9 +32,15 @@ if not os.path.exists(static_dir):
     logger.info(f"Creating static directory: {static_dir}")
     os.makedirs(static_dir)
 
+# Get ingress path from environment
+ingress_path = os.environ.get('INGRESS_PATH', '')
+if ingress_path:
+    logger.info(f"Using ingress path: {ingress_path}")
+
 app = Flask(__name__, 
            static_folder=static_dir,
-           template_folder='templates')
+           template_folder='templates',
+           static_url_path=f'{ingress_path}/static')
 
 # Create controller instance
 controller = SolarController(
@@ -64,6 +70,11 @@ logger.info(f"Data directory owner: {os.stat('/data').st_uid}")
 # Ensure data directory exists
 logger.info("Ensuring data directory exists...")
 os.makedirs('/data', exist_ok=True)
+
+# Add a context processor to make the ingress path available in templates
+@app.context_processor
+def inject_ingress_path():
+    return dict(ingress_path=ingress_path)
 
 @app.route('/api/devices/<name>', methods=['GET'])
 def get_device(name):
