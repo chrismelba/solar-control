@@ -27,15 +27,10 @@ if not os.path.exists(static_dir):
 ingress_path = os.environ.get('INGRESS_PATH', '')
 if ingress_path and ingress_path.lower() != 'null':
     logger.info(f"Using ingress path: {ingress_path}")
-    # Ensure ingress path starts with a slash
-    if not ingress_path.startswith('/'):
-        ingress_path = '/' + ingress_path
-    static_url_path = f'{ingress_path}/static'
+    static_url_path = f'/{ingress_path}/static' if ingress_path else '/static'
 else:
     logger.info("No ingress path configured, using default static path")
     static_url_path = '/static'
-
-logger.info(f"Static URL path configured as: {static_url_path}")
 
 app = Flask(__name__, 
            static_folder=static_dir,
@@ -337,10 +332,6 @@ def get_current_power(entity_id):
         return None
 
 @app.route('/')
-def root():
-    return redirect(url_for('index'))
-
-@app.route('/index')
 def index():
     logger.debug('Received request for index page')
     config = load_config()
