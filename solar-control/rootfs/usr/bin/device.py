@@ -28,6 +28,7 @@ class Device:
     power_delivered_today: float = 0.0  # in watt-hours
     last_power_update: Optional[datetime] = None
     last_dawn_reset: Optional[datetime] = None
+    min_daily_power: Optional[float] = None  # Minimum power required per day in watt-hours
 
     def to_dict(self) -> dict:
         return {
@@ -48,7 +49,8 @@ class Device:
             'order': self.order,
             'power_delivered_today': self.power_delivered_today,
             'last_power_update': self.last_power_update.isoformat() if self.last_power_update else None,
-            'last_dawn_reset': self.last_dawn_reset.isoformat() if self.last_dawn_reset else None
+            'last_dawn_reset': self.last_dawn_reset.isoformat() if self.last_dawn_reset else None,
+            'min_daily_power': self.min_daily_power
         }
 
     @classmethod

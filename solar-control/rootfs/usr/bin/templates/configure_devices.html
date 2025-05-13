@@ -19,131 +19,171 @@
     <div class="card">
         <h2>Add New Device</h2>
         <form id="addDeviceForm" class="form">
-            <div class="form-group">
-                <label for="name">Device Name:</label>
-                <input type="text" id="name" name="name" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="switch_entity">Switch Entity:</label>
-                <div class="searchable-select">
-                    <input type="text" id="switch_entity_input" placeholder="Search for a switch entity..." autocomplete="off">
-                    <input type="hidden" name="switch_entity" id="switch_entity" required>
-                    <div class="options" id="switch_entity_options">
-                        {% if entities %}
-                            {% for entity in entities %}
-                                {% if entity and entity.entity_id and (entity.entity_id.startswith('switch.') or entity.entity_id.startswith('input_boolean.')) %}
-                                <div class="option" data-value="{{ entity.entity_id }}">
-                                    {{ entity.attributes.friendly_name if entity.attributes and entity.attributes.friendly_name else entity.entity_id }} ({{ entity.entity_id }})
-                                </div>
-                                {% endif %}
-                            {% endfor %}
-                        {% else %}
-                            <div class="option">No entities available</div>
-                        {% endif %}
-                    </div>
+            <div class="tabs">
+                <div class="tab-buttons">
+                    <button type="button" class="tab-button active" data-tab="basic">Basic Settings</button>
+                    <button type="button" class="tab-button" data-tab="amperage">Variable Amperage</button>
+                    <button type="button" class="tab-button" data-tab="runtime">Runtime Settings</button>
+                    <button type="button" class="tab-button" data-tab="offpeak">Off-Peak Charging</button>
                 </div>
-            </div>
-            
-            <div class="form-group">
-                <label for="typical_power_draw">Typical Power Draw (W):</label>
-                <input type="number" id="typical_power_draw" name="typical_power_draw" required min="0">
-            </div>
-            
-            <div class="form-group">
-                <label for="order">Priority (1 is highest):</label>
-                <input type="number" id="order" name="order" value="0" min="0">
-            </div>
-            
-            <div class="form-group">
-                <label for="current_power_sensor">Current Power Sensor (optional):</label>
-                <div class="searchable-select">
-                    <input type="text" id="current_power_sensor_input" placeholder="Search for a power sensor..." autocomplete="off">
-                    <input type="hidden" name="current_power_sensor" id="current_power_sensor">
-                    <div class="options" id="current_power_sensor_options">
-                        {% for entity in entities %}
-                            {% if 'power' in entity.entity_id.lower() %}
-                            <div class="option" data-value="{{ entity.entity_id }}">
-                                {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+
+                <div class="tab-content active" id="basic-tab">
+                    <h3>Basic Settings</h3>
+                    <div class="form-group">
+                        <label for="name">Device Name:</label>
+                        <input type="text" id="name" name="name" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="switch_entity">Switch Entity:</label>
+                        <div class="searchable-select">
+                            <input type="text" id="switch_entity_input" placeholder="Search for a switch entity..." autocomplete="off">
+                            <input type="hidden" name="switch_entity" id="switch_entity" required>
+                            <div class="options" id="switch_entity_options">
+                                {% if entities %}
+                                    {% for entity in entities %}
+                                        {% if entity and entity.entity_id and (entity.entity_id.startswith('switch.') or entity.entity_id.startswith('input_boolean.')) %}
+                                        <div class="option" data-value="{{ entity.entity_id }}">
+                                            {{ entity.attributes.friendly_name if entity.attributes and entity.attributes.friendly_name else entity.entity_id }} ({{ entity.entity_id }})
+                                        </div>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="option">No entities available</div>
+                                {% endif %}
                             </div>
-                            {% endif %}
-                        {% endfor %}
+                        </div>
                     </div>
-                </div>
-            </div>
-            
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" id="has_variable_amperage" name="has_variable_amperage">
-                    Has Variable Amperage Control
-                </label>
-            </div>
-            
-            <div id="amperage-controls" style="display: none;">
-                <div class="form-group">
-                    <label for="variable_amperage_control">Variable Amperage Control Entity:</label>
-                    <div class="searchable-select">
-                        <input type="text" id="variable_amperage_control_input" placeholder="Search for a control entity..." autocomplete="off">
-                        <input type="hidden" name="variable_amperage_control" id="variable_amperage_control" required>
-                        <div class="options" id="variable_amperage_control_options">
-                            {% for entity in entities %}
-                                {% if entity.entity_id.startswith('number.') or entity.entity_id.startswith('input_number.') %}
-                                <div class="option" data-value="{{ entity.entity_id }}">
-                                    {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
-                                </div>
-                                {% endif %}
-                            {% endfor %}
+                    
+                    <div class="form-group">
+                        <label for="typical_power_draw">Typical Power Draw (W):</label>
+                        <input type="number" id="typical_power_draw" name="typical_power_draw" required min="0">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="current_power_sensor">Current Power Sensor (optional):</label>
+                        <div class="searchable-select">
+                            <input type="text" id="current_power_sensor_input" placeholder="Search for a power sensor..." autocomplete="off">
+                            <input type="hidden" name="current_power_sensor" id="current_power_sensor">
+                            <div class="options" id="current_power_sensor_options">
+                                {% for entity in entities %}
+                                    {% if 'power' in entity.entity_id.lower() %}
+                                    <div class="option" data-value="{{ entity.entity_id }}">
+                                        {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="power_delivery_sensor">Power Delivery Sensor (optional):</label>
+                        <div class="searchable-select">
+                            <input type="text" id="power_delivery_sensor_input" placeholder="Search for a power delivery sensor..." autocomplete="off">
+                            <input type="hidden" name="power_delivery_sensor" id="power_delivery_sensor">
+                            <div class="options" id="power_delivery_sensor_options">
+                                {% for entity in entities %}
+                                    {% if 'power' in entity.entity_id.lower() %}
+                                    <div class="option" data-value="{{ entity.entity_id }}">
+                                        {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
                         </div>
                     </div>
                 </div>
-                
-                <div class="form-group">
-                    <label for="min_amperage">Minimum Amperage (A):</label>
-                    <input type="number" id="min_amperage" name="min_amperage" min="0" step="0.1">
-                </div>
-                
-                <div class="form-group">
-                    <label for="max_amperage">Maximum Amperage (A):</label>
-                    <input type="number" id="max_amperage" name="max_amperage" min="0" step="0.1">
-                </div>
-            </div>
-            
-            <div class="form-group">
-                <label for="min_on_time">Minimum On Time (minutes):</label>
-                <input type="number" id="min_on_time" name="min_on_time" value="1" min="1">
-            </div>
-            
-            <div class="form-group">
-                <label for="min_off_time">Minimum Off Time (minutes):</label>
-                <input type="number" id="min_off_time" name="min_off_time" value="1" min="1">
-            </div>
-            
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" id="run_once" name="run_once">
-                    Run Once (e.g., washing machine, dishwasher)
-                </label>
-            </div>
-            
-            <div class="form-group">
-                <label for="completion_sensor">Completion Sensor (optional):</label>
-                <div class="searchable-select">
-                    <input type="text" id="completion_sensor_input" placeholder="Search for a completion sensor..." autocomplete="off">
-                    <input type="hidden" name="completion_sensor" id="completion_sensor">
-                    <div class="options" id="completion_sensor_options">
-                        {% for entity in entities %}
-                            {% if entity.entity_id.startswith('binary_sensor.') or entity.entity_id.startswith('input_boolean.') %}
-                            <div class="option" data-value="{{ entity.entity_id }}">
-                                {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+
+                <div class="tab-content" id="amperage-tab">
+                    <h3>Variable Amperage Settings</h3>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="has_variable_amperage" name="has_variable_amperage">
+                            Has Variable Amperage Control
+                        </label>
+                    </div>
+                    
+                    <div id="amperage-controls">
+                        <div class="form-group">
+                            <label for="variable_amperage_control">Variable Amperage Control Entity:</label>
+                            <div class="searchable-select">
+                                <input type="text" id="variable_amperage_control_input" placeholder="Search for a control entity..." autocomplete="off">
+                                <input type="hidden" name="variable_amperage_control" id="variable_amperage_control">
+                                <div class="options" id="variable_amperage_control_options">
+                                    {% for entity in entities %}
+                                        {% if entity.entity_id.startswith('number.') or entity.entity_id.startswith('input_number.') %}
+                                        <div class="option" data-value="{{ entity.entity_id }}">
+                                            {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                                        </div>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
                             </div>
-                            {% endif %}
-                        {% endfor %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="min_amperage">Minimum Amperage (A):</label>
+                            <input type="number" id="min_amperage" name="min_amperage" min="0" step="0.1">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="max_amperage">Maximum Amperage (A):</label>
+                            <input type="number" id="max_amperage" name="max_amperage" min="0" step="0.1">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="runtime-tab">
+                    <h3>Runtime Settings</h3>
+                    <div class="form-group">
+                        <label for="min_on_time">Minimum On Time (minutes):</label>
+                        <input type="number" id="min_on_time" name="min_on_time" value="1" min="1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="min_off_time">Minimum Off Time (minutes):</label>
+                        <input type="number" id="min_off_time" name="min_off_time" value="1" min="1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="run_once" name="run_once">
+                            Run Once (e.g., washing machine, dishwasher)
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="completion_sensor">Completion Sensor (optional):</label>
+                        <div class="searchable-select">
+                            <input type="text" id="completion_sensor_input" placeholder="Search for a completion sensor..." autocomplete="off">
+                            <input type="hidden" name="completion_sensor" id="completion_sensor">
+                            <div class="options" id="completion_sensor_options">
+                                {% for entity in entities %}
+                                    {% if entity.entity_id.startswith('binary_sensor.') or entity.entity_id.startswith('input_boolean.') %}
+                                    <div class="option" data-value="{{ entity.entity_id }}">
+                                        {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="offpeak-tab">
+                    <h3>Off-Peak Charging Settings</h3>
+                    <div class="form-group">
+                        <label for="min_daily_power">Minimum Daily Power Required (Wh):</label>
+                        <input type="number" id="min_daily_power" name="min_daily_power" min="0" step="0.1">
                     </div>
                 </div>
             </div>
-            
-            <button type="submit" class="button" id="submitButton">Add Device</button>
-            <button type="button" class="button" id="cancelButton" style="display: none; margin-left: 10px;">Cancel</button>
+
+            <div class="form-actions">
+                <button type="submit" class="button" id="submitButton">Add Device</button>
+                <button type="button" class="button" id="cancelButton" style="display: none; margin-left: 10px;">Cancel</button>
+            </div>
         </form>
     </div>
 
@@ -156,7 +196,7 @@
 
     <style>
         .form {
-            max-width: 600px;
+            max-width: 800px;
             margin: 1rem 0;
         }
         .form-group {
@@ -211,9 +251,74 @@
             gap: 0.5rem;
             margin-left: 1rem;
         }
+
+        /* Tab Styles */
+        .tabs {
+            margin-bottom: 2rem;
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 0.5rem;
+        }
+        .tab-button {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-weight: bold;
+            color: #666;
+            border-radius: 4px 4px 0 0;
+        }
+        .tab-button:hover {
+            background: #f5f5f5;
+        }
+        .tab-button.active {
+            color: #2196F3;
+            border-bottom: 2px solid #2196F3;
+            margin-bottom: -2px;
+        }
+        .tab-content {
+            display: none;
+            padding: 1rem 0;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .tab-content h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: #333;
+        }
+        .form-actions {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid #ddd;
+        }
     </style>
 
     <script>
+        // Tab functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Remove active class from all buttons and contents
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    tabContents.forEach(content => content.classList.remove('active'));
+
+                    // Add active class to clicked button and corresponding content
+                    button.classList.add('active');
+                    const tabId = button.dataset.tab;
+                    document.getElementById(`${tabId}-tab`).classList.add('active');
+                });
+            });
+        });
+
         // Handle variable amperage checkbox
         document.getElementById('has_variable_amperage').addEventListener('change', function() {
             const amperageControls = document.getElementById('amperage-controls');
