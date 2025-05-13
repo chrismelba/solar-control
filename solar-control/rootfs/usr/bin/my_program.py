@@ -199,6 +199,32 @@ def configure_grid():
                          ingress_path=ingress_path,
                          basename=ingress_path))
 
+@app.route('/configure/battery')
+def configure_battery():
+    ingress_path = request.headers.get('X-Ingress-Path', '')
+    logger.info(f"Serving configure battery page with ingress path: {ingress_path}")
+    return make_response(render_template('configure_battery.html',
+                         ingress_path=ingress_path,
+                         basename=ingress_path))
+
+@app.route('/configure/devices')
+def configure_devices():
+    ingress_path = request.headers.get('X-Ingress-Path', '')
+    logger.info(f"Serving configure devices page with ingress path: {ingress_path}")
+    
+    # Get entities from Home Assistant
+    try:
+        response = requests.get('http://supervisor/core/api/states')
+        entities = response.json()
+    except Exception as e:
+        logger.error(f"Error fetching entities: {e}")
+        entities = []
+    
+    return make_response(render_template('configure_devices.html',
+                         entities=entities,
+                         ingress_path=ingress_path,
+                         basename=ingress_path))
+
 @app.route('/api/devices/<name>', methods=['GET'])
 def get_device(name):
     try:
