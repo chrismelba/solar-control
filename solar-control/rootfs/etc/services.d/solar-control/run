@@ -13,14 +13,14 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 # Check if the program exists
-if [ ! -f /usr/bin/my_program ]; then
-    bashio::log.error "my_program not found at /usr/bin/my_program"
+if [ ! -f /usr/bin/my_program.py ]; then
+    bashio::log.error "my_program.py not found at /usr/bin/my_program.py"
     exit 1
 fi
 
 # Check if the program is executable
-if [ ! -x /usr/bin/my_program ]; then
-    bashio::log.error "my_program is not executable"
+if [ ! -x /usr/bin/my_program.py ]; then
+    bashio::log.error "my_program.py is not executable"
     exit 1
 fi
 
@@ -67,4 +67,4 @@ export PORT=5000
 
 # Start Python web server with debug logging
 bashio::log.info "Starting Python web server on port ${PORT}..."
-exec python3 /usr/bin/my_program
+exec python3 /usr/bin/my_program.py
