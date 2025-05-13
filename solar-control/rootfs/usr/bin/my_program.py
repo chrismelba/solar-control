@@ -117,6 +117,10 @@ def initialize_files():
 initialize_files()
 
 # Static page handler
+@app.route('/')
+def root():
+    return static_page('')
+
 @app.route('/<path:page>')
 def static_page(page):
     ingress_path = request.headers.get('X-Ingress-Path', '')
