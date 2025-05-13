@@ -115,6 +115,17 @@
             </div>
 
             <div class="form-group">
+                <label for="site_export_limit">Site Export Limit:</label>
+                <div class="input-group">
+                    <input type="number" name="site_export_limit" id="site_export_limit" 
+                           placeholder="Enter maximum export limit" step="0.1" min="0"
+                           value="{{ config.site_export_limit if config.site_export_limit else '' }}">
+                    <span class="unit">W</span>
+                </div>
+                <p class="help-text">Maximum power that can be exported to the grid. Leave empty for no limit.</p>
+            </div>
+
+            <div class="form-group">
                 <label for="tariff_rate">Tariff Rate Entity:</label>
                 <div class="searchable-select">
                     <input type="text" id="tariff_rate_input" placeholder="Search for an entity..." autocomplete="off">

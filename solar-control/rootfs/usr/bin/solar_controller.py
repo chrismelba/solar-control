@@ -139,6 +139,13 @@ class SolarController:
             # If result is positive, we're importing that much power
             available_power = -grid_power + controlled_power
             
+            # Apply site export limit if configured
+            site_export_limit = config.get('site_export_limit')
+            if site_export_limit is not None:
+                # If we're exporting more than the limit, reduce available power
+                if grid_power < -site_export_limit:
+                    available_power = max(0, available_power - (abs(grid_power) - site_export_limit))
+            
             # Return available power (must be positive or zero)
             return max(0, available_power)
             

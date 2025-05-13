@@ -233,8 +233,18 @@ def configure_grid():
             'solar_forecast': request.form.get('solar_forecast'),
             'grid_voltage': request.form.get('grid_voltage'),
             'grid_voltage_fixed': request.form.get('grid_voltage_fixed'),
-            'tariff_rate': request.form.get('tariff_rate')
+            'tariff_rate': request.form.get('tariff_rate'),
+            'site_export_limit': request.form.get('site_export_limit')
         }
+        
+        # Convert site_export_limit to float if provided
+        if config['site_export_limit']:
+            try:
+                config['site_export_limit'] = float(config['site_export_limit'])
+            except ValueError:
+                config['site_export_limit'] = None
+        else:
+            config['site_export_limit'] = None
         
         # Save configuration
         with open(CONFIG_FILE, 'w') as f:
