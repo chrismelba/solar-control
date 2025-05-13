@@ -187,11 +187,26 @@ def get_sensor_values():
     except (FileNotFoundError, json.JSONDecodeError):
         config = {}
     
+    # Get supervisor token from environment
+    supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+    if not supervisor_token:
+        logger.error("No supervisor token found in environment")
+        return {}
+    
+    headers = {
+        "Authorization": f"Bearer {supervisor_token}",
+        "Content-Type": "application/json",
+    }
+    
     sensor_values = {}
     for entity_id in ['solar_generation', 'grid_power', 'solar_forecast']:
         if entity_id in config and config[entity_id]:
             try:
-                response = requests.get(f'http://supervisor/core/api/states/{config[entity_id]}')
+                response = requests.get(
+                    f'http://supervisor/core/api/states/{config[entity_id]}',
+                    headers=headers
+                )
+                response.raise_for_status()  # Raise exception for non-200 status codes
                 sensor_values[entity_id] = response.json()
             except Exception as e:
                 logger.error(f"Error fetching {entity_id} value: {e}")
