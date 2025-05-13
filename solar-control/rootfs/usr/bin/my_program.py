@@ -91,6 +91,31 @@ logger.info(f"Data directory owner: {os.stat('/data').st_uid}")
 logger.info("Ensuring data directory exists...")
 os.makedirs('/data', exist_ok=True)
 
+# Initialize files if they don't exist
+def initialize_files():
+    # Initialize devices file
+    if not os.path.exists(DEVICES_FILE):
+        logger.info(f"Creating devices file: {DEVICES_FILE}")
+        with open(DEVICES_FILE, 'w') as f:
+            json.dump([], f)
+    
+    # Initialize settings file
+    if not os.path.exists(SETTINGS_FILE):
+        logger.info(f"Creating settings file: {SETTINGS_FILE}")
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump({
+                'power_optimization_enabled': False
+            }, f)
+    
+    # Initialize config file
+    if not os.path.exists(CONFIG_FILE):
+        logger.info(f"Creating config file: {CONFIG_FILE}")
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump({}, f)
+
+# Initialize files
+initialize_files()
+
 @app.route('/')
 def index():
     ingress_path = request.headers.get('X-Ingress-Path', '')
@@ -241,6 +266,10 @@ def configure_devices():
         logger.error(f"Error fetching entities: {e}")
         entities = []
     
+    # Ensure devices file exists
+    if not os.path.exists(DEVICES_FILE):
+        initialize_files()
+    
     return make_response(render_template('configure_devices.html',
                          entities=entities,
                          ingress_path=ingress_path,
@@ -260,9 +289,12 @@ def get_device(name):
 @app.route('/api/devices', methods=['GET'])
 def get_devices():
     try:
+        if not os.path.exists(DEVICES_FILE):
+            return jsonify([])
         devices = Device.load_all(DEVICES_FILE)
         return jsonify([device.to_dict() for device in devices])
     except Exception as e:
+        logger.error(f"Error loading devices: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/devices', methods=['POST'])
@@ -337,11 +369,15 @@ def reorder_devices():
 def get_status():
     try:
         # Load settings
-        try:
-            with open(SETTINGS_FILE, 'r') as f:
-                settings = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            settings = {}
+        if not os.path.exists(SETTINGS_FILE):
+            settings = {'power_optimization_enabled': False}
+        else:
+            try:
+                with open(SETTINGS_FILE, 'r') as f:
+                    settings = json.load(f)
+            except json.JSONDecodeError:
+                logger.error("Error decoding settings file, using defaults")
+                settings = {'power_optimization_enabled': False}
         
         return jsonify({
             'status': 'running',
@@ -349,6 +385,7 @@ def get_status():
             'power_optimization_enabled': settings.get('power_optimization_enabled', False)
         })
     except Exception as e:
+        logger.error(f"Error getting status: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/settings/power_optimization', methods=['POST'])
