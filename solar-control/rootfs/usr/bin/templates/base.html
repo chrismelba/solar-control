@@ -79,5 +79,14 @@
     </div>
     <script src="{{ ingress_path }}{{ url_for('static', filename='js/searchable-select.js') }}"></script>
     {% block extra_scripts %}{% endblock %}
+    <script>
+        // Add ingress path to all relative links
+        document.addEventListener('DOMContentLoaded', function() {
+            const ingressPath = '{{ ingress_path }}';
+            document.querySelectorAll('a[href^="/"]').forEach(function(link) {
+                link.href = ingressPath + link.getAttribute('href');
+            });
+        });
+    </script>
 </body>
 </html> 
