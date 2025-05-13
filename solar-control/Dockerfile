@@ -39,7 +39,7 @@ COPY rootfs /
 
 # Make scripts executable
 RUN \
-    chmod +x /usr/bin/my_program && \
+    chmod +x /usr/bin/my_program.py && \
     chmod a+x /etc/services.d/solar-control/run && \
     chmod a+x /etc/services.d/solar-control/finish
 
