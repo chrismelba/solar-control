@@ -116,19 +116,73 @@ def initialize_files():
 # Initialize files
 initialize_files()
 
-@app.route('/')
-def index():
+# Static page handler
+@app.route('/<path:page>')
+def static_page(page):
     ingress_path = request.headers.get('X-Ingress-Path', '')
-    logger.info(f"Serving index page with ingress path: {ingress_path}")
+    logger.info(f"Serving static page {page} with ingress path: {ingress_path}")
     
-    # Load current configuration
+    # Map page names to templates and required data
+    page_config = {
+        '': {
+            'template': 'index.html',
+            'data': lambda: {
+                'sensor_values': get_sensor_values()
+            }
+        },
+        'debug': {
+            'template': 'debug.html',
+            'data': lambda: {
+                'config': load_config(),
+                'env': {
+                    'PORT': os.environ.get('PORT', 'Not set'),
+                    'INGRESS_PATH': os.environ.get('INGRESS_PATH', 'Not set'),
+                    'HASS_URL': os.environ.get('HASS_URL', 'Not set'),
+                },
+                'headers': dict(request.headers),
+                'nginx_error_log': get_nginx_log('error'),
+                'nginx_access_log': get_nginx_log('access')
+            }
+        },
+        'configure/battery': {
+            'template': 'configure_battery.html',
+            'data': lambda: {}
+        },
+        'configure/devices': {
+            'template': 'configure_devices.html',
+            'data': lambda: {
+                'entities': get_entities()
+            }
+        }
+    }
+    
+    # Check if page exists in config
+    if page not in page_config:
+        abort(404)
+    
+    # Get page configuration
+    config = page_config[page]
+    
+    # Get template and data
+    template = config['template']
+    data = config['data']()
+    
+    # Add common data
+    data.update({
+        'ingress_path': ingress_path,
+        'basename': ingress_path
+    })
+    
+    return make_response(render_template(template, **data))
+
+# Helper functions for static page data
+def get_sensor_values():
     try:
         with open(CONFIG_FILE, 'r') as f:
             config = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         config = {}
     
-    # Get sensor values
     sensor_values = {}
     for entity_id in ['solar_generation', 'grid_power', 'solar_forecast']:
         if entity_id in config and config[entity_id]:
@@ -138,57 +192,31 @@ def index():
             except Exception as e:
                 logger.error(f"Error fetching {entity_id} value: {e}")
     
-    return make_response(render_template('index.html', 
-                         ingress_path=ingress_path, 
-                         basename=ingress_path,
-                         sensor_values=sensor_values))
+    return sensor_values
 
-@app.route('/debug')
-def debug():
-    ingress_path = request.headers.get('X-Ingress-Path', '')
-    logger.info(f"Serving debug page with ingress path: {ingress_path}")
-    
-    # Get Nginx logs
-    nginx_error_log = ""
-    nginx_access_log = ""
+def get_entities():
     try:
-        with open('/data/nginx/logs/error.log', 'r') as f:
-            nginx_error_log = f.read()
+        response = requests.get('http://supervisor/core/api/states')
+        return response.json()
     except Exception as e:
-        nginx_error_log = f"Error reading Nginx error log: {str(e)}"
-    
-    try:
-        with open('/data/nginx/logs/access.log', 'r') as f:
-            nginx_access_log = f.read()
-    except Exception as e:
-        nginx_access_log = f"Error reading Nginx access log: {str(e)}"
+        logger.error(f"Error fetching entities: {e}")
+        return []
 
-    # Get current configuration
+def get_nginx_log(log_type):
+    try:
+        with open(f'/data/nginx/logs/{log_type}.log', 'r') as f:
+            return f.read()
+    except Exception as e:
+        return f"Error reading Nginx {log_type} log: {str(e)}"
+
+def load_config():
     try:
         with open(CONFIG_FILE, 'r') as f:
-            config = json.load(f)
+            return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        config = {}
+        return {}
 
-    # Get current environment
-    env = {
-        'PORT': os.environ.get('PORT', 'Not set'),
-        'INGRESS_PATH': os.environ.get('INGRESS_PATH', 'Not set'),
-        'HASS_URL': os.environ.get('HASS_URL', 'Not set'),
-    }
-
-    # Get request headers for debugging
-    headers = dict(request.headers)
-
-    return make_response(render_template('debug.html',
-                         config=config,
-                         env=env,
-                         headers=headers,
-                         nginx_error_log=nginx_error_log,
-                         nginx_access_log=nginx_access_log,
-                         ingress_path=ingress_path,
-                         basename=ingress_path))
-
+# Keep the dynamic routes
 @app.route('/configure/grid', methods=['GET', 'POST'])
 def configure_grid():
     ingress_path = request.headers.get('X-Ingress-Path', '')
@@ -211,7 +239,7 @@ def configure_grid():
         # Update controller configuration
         controller.update_config(config)
         
-        return redirect(url_for('index'))
+        return redirect(url_for('static_page', page=''))
     
     # Load current configuration
     try:
@@ -220,58 +248,14 @@ def configure_grid():
     except (FileNotFoundError, json.JSONDecodeError):
         config = {}
     
-    # Get entities from Home Assistant
-    try:
-        response = requests.get('http://supervisor/core/api/states')
-        entities = response.json()
-    except Exception as e:
-        logger.error(f"Error fetching entities: {e}")
-        entities = []
-    
-    # Get sensor values
-    sensor_values = {}
-    for entity_id in ['solar_generation', 'grid_power', 'solar_forecast']:
-        if entity_id in config and config[entity_id]:
-            try:
-                response = requests.get(f'http://supervisor/core/api/states/{config[entity_id]}')
-                sensor_values[entity_id] = response.json()
-            except Exception as e:
-                logger.error(f"Error fetching {entity_id} value: {e}")
+    # Get entities and sensor values
+    entities = get_entities()
+    sensor_values = get_sensor_values()
     
     return make_response(render_template('configure_grid.html', 
                          config=config, 
                          entities=entities,
                          sensor_values=sensor_values,
-                         ingress_path=ingress_path,
-                         basename=ingress_path))
-
-@app.route('/configure/battery')
-def configure_battery():
-    ingress_path = request.headers.get('X-Ingress-Path', '')
-    logger.info(f"Serving configure battery page with ingress path: {ingress_path}")
-    return make_response(render_template('configure_battery.html',
-                         ingress_path=ingress_path,
-                         basename=ingress_path))
-
-@app.route('/configure/devices')
-def configure_devices():
-    ingress_path = request.headers.get('X-Ingress-Path', '')
-    logger.info(f"Serving configure devices page with ingress path: {ingress_path}")
-    
-    # Get entities from Home Assistant
-    try:
-        response = requests.get('http://supervisor/core/api/states')
-        entities = response.json()
-    except Exception as e:
-        logger.error(f"Error fetching entities: {e}")
-        entities = []
-    
-    # Ensure devices file exists
-    if not os.path.exists(DEVICES_FILE):
-        initialize_files()
-    
-    return make_response(render_template('configure_devices.html',
-                         entities=entities,
                          ingress_path=ingress_path,
                          basename=ingress_path))
 
