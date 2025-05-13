@@ -204,47 +204,6 @@
     </style>
 
     <script>
-        // Initialize searchable selects
-        function initializeSearchableSelect(inputId, optionsId) {
-            const input = document.getElementById(inputId);
-            const options = document.getElementById(optionsId);
-            const hiddenInput = document.getElementById(inputId.replace('_input', ''));
-            
-            input.addEventListener('focus', () => {
-                options.style.display = 'block';
-            });
-            
-            input.addEventListener('blur', () => {
-                setTimeout(() => {
-                    options.style.display = 'none';
-                }, 200);
-            });
-            
-            input.addEventListener('input', () => {
-                const search = input.value.toLowerCase();
-                const optionElements = options.querySelectorAll('.option');
-                
-                optionElements.forEach(option => {
-                    const text = option.textContent.toLowerCase();
-                    option.style.display = text.includes(search) ? 'block' : 'none';
-                });
-            });
-            
-            options.querySelectorAll('.option').forEach(option => {
-                option.addEventListener('click', () => {
-                    input.value = option.textContent;
-                    hiddenInput.value = option.dataset.value;
-                    options.style.display = 'none';
-                });
-            });
-        }
-        
-        // Initialize all searchable selects
-        initializeSearchableSelect('switch_entity_input', 'switch_entity_options');
-        initializeSearchableSelect('current_power_sensor_input', 'current_power_sensor_options');
-        initializeSearchableSelect('completion_sensor_input', 'completion_sensor_options');
-        initializeSearchableSelect('variable_amperage_control_input', 'variable_amperage_control_options');
-        
         // Handle variable amperage checkbox
         document.getElementById('has_variable_amperage').addEventListener('change', function() {
             const amperageControls = document.getElementById('amperage-controls');
@@ -267,6 +226,14 @@
                 variableAmperageControl.value = '';
                 document.getElementById('variable_amperage_control_input').value = '';
             }
+        });
+
+        // Initialize searchable selects
+        document.addEventListener('DOMContentLoaded', function() {
+            new SearchableSelect('switch_entity_input', 'switch_entity_options', 'switch_entity');
+            new SearchableSelect('current_power_sensor_input', 'current_power_sensor_options', 'current_power_sensor');
+            new SearchableSelect('completion_sensor_input', 'completion_sensor_options', 'completion_sensor');
+            new SearchableSelect('variable_amperage_control_input', 'variable_amperage_control_options', 'variable_amperage_control');
         });
 
         // Load and display devices

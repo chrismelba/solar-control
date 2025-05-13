@@ -77,7 +77,6 @@
             {% block content %}{% endblock %}
         </div>
     </div>
-    <script src="{{ url_for('static', filename='js/searchable-select.js') }}"></script>
     {% block extra_scripts %}{% endblock %}
     <script>
         // Add ingress path to all relative links and forms
@@ -114,5 +113,6 @@
             console.log('Ingress path:', ingressPath);
         });
     </script>
+    <script src="{{ url_for('static', filename='js/searchable-select.js') }}"></script>
 </body>
 </html> 
