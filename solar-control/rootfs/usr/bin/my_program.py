@@ -351,18 +351,27 @@ def delete_device(name):
 @app.route('/api/devices/reorder', methods=['POST'])
 def reorder_devices():
     try:
-        order_data = request.json
+        order_data = request.get_json()
+        if not order_data or not isinstance(order_data, list):
+            return jsonify({'status': 'error', 'message': 'Invalid order data format'}), 400
+            
         devices = Device.load_all(DEVICES_FILE)
+        device_dict = {d.name: d for d in devices}
         
         # Update order for each device
         for item in order_data:
-            device = next((d for d in devices if d.name == item['name']), None)
+            if not isinstance(item, dict) or 'name' not in item or 'order' not in item:
+                return jsonify({'status': 'error', 'message': 'Invalid device order item format'}), 400
+                
+            device = device_dict.get(item['name'])
             if device:
-                device.order = item['order']
+                device.order = int(item['order'])
         
-        Device.save_all(devices, DEVICES_FILE)
+        # Save updated devices
+        Device.save_all(list(device_dict.values()), DEVICES_FILE)
         return jsonify({'status': 'success'})
     except Exception as e:
+        logger.error(f"Error reordering devices: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/status', methods=['GET'])

@@ -323,6 +323,34 @@
             }
         }
 
+        async function updateDeviceOrder() {
+            const items = document.querySelectorAll('.device-card');
+            const orderData = Array.from(items).map((item, index) => ({
+                name: item.dataset.deviceName,
+                order: index
+            }));
+            
+            try {
+                const result = await apiCall('/api/devices/reorder', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(orderData)
+                });
+                
+                if (result.status === 'error') {
+                    throw new Error(result.message || 'Failed to update device order');
+                }
+                
+                // Reload devices to ensure order is correct
+                await loadDevices();
+            } catch (error) {
+                console.error('Error updating device order:', error);
+                alert('Failed to update device order. Please try again.');
+            }
+        }
+
         function initializeDragAndDrop() {
             const deviceList = document.getElementById('deviceList');
             const items = deviceList.querySelectorAll('.device-card.draggable');
@@ -332,15 +360,17 @@
                     item.classList.add('dragging');
                 });
                 
-                item.addEventListener('dragend', () => {
+                item.addEventListener('dragend', async () => {
                     item.classList.remove('dragging');
-                    updateDeviceOrder();
+                    await updateDeviceOrder();
                 });
             });
             
             deviceList.addEventListener('dragover', e => {
                 e.preventDefault();
                 const draggingItem = deviceList.querySelector('.dragging');
+                if (!draggingItem) return;
+                
                 const siblings = [...deviceList.querySelectorAll('.device-card:not(.dragging)')];
                 
                 const nextSibling = siblings.find(sibling => {
@@ -351,26 +381,6 @@
                 
                 deviceList.insertBefore(draggingItem, nextSibling);
             });
-        }
-
-        async function updateDeviceOrder() {
-            const items = document.querySelectorAll('.device-card');
-            const orderData = Array.from(items).map((item, index) => ({
-                name: item.dataset.deviceName,
-                order: index
-            }));
-            
-            try {
-                await apiCall('/api/devices/reorder', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(orderData)
-                });
-            } catch (error) {
-                console.error('Error updating device order:', error);
-            }
         }
 
         // Load devices when page loads
