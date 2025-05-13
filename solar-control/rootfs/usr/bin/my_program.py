@@ -200,10 +200,35 @@ def get_sensor_values():
 
 def get_entities():
     try:
+        logger.info("Attempting to fetch entities from supervisor API")
         response = requests.get('http://supervisor/core/api/states')
-        return response.json()
+        logger.info(f"Supervisor API response status: {response.status_code}")
+        
+        if response.status_code != 200:
+            logger.error(f"Supervisor API returned non-200 status code: {response.status_code}")
+            return []
+            
+        entities = response.json()
+        
+        # Validate entities structure
+        if not isinstance(entities, list):
+            logger.error(f"Expected list of entities, got {type(entities)}")
+            return []
+            
+        # Log some sample entities for debugging
+        if entities:
+            logger.info(f"Sample entity structure: {entities[0]}")
+            
+        logger.info(f"Successfully fetched {len(entities)} entities")
+        return entities
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error fetching entities: {e}")
+        return []
+    except json.JSONDecodeError as e:
+        logger.error(f"Error decoding JSON response: {e}")
+        return []
     except Exception as e:
-        logger.error(f"Error fetching entities: {e}")
+        logger.error(f"Unexpected error fetching entities: {e}")
         return []
 
 def get_nginx_log(log_type):
@@ -296,7 +321,9 @@ def configure_devices():
     logger.info(f"Serving configure devices page with ingress path: {ingress_path}")
     
     # Get entities for the device configuration form
+    logger.info("Fetching entities for device configuration form")
     entities = get_entities()
+    logger.info(f"Retrieved {len(entities)} entities for device configuration")
     
     return make_response(render_template('configure_devices.html',
                          entities=entities,
