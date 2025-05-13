@@ -86,15 +86,17 @@
             
             // Update all relative links
             document.querySelectorAll('a[href^="/"]').forEach(function(link) {
-                if (!link.href.includes(ingressPath)) {
-                    link.href = ingressPath + link.getAttribute('href');
+                const href = link.getAttribute('href');
+                if (!href.startsWith(ingressPath)) {
+                    link.href = ingressPath + href;
                 }
             });
             
             // Update all relative form actions
             document.querySelectorAll('form[action^="/"]').forEach(function(form) {
-                if (!form.action.includes(ingressPath)) {
-                    form.action = ingressPath + form.getAttribute('action');
+                const action = form.getAttribute('action');
+                if (!action.startsWith(ingressPath)) {
+                    form.action = ingressPath + action;
                 }
             });
             
@@ -107,6 +109,9 @@
                     );
                 }
             });
+
+            // Log the ingress path for debugging
+            console.log('Ingress path:', ingressPath);
         });
     </script>
 </body>
