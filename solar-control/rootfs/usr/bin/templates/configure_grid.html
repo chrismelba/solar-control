@@ -141,6 +141,14 @@
                         {% endfor %}
                     </div>
                 </div>
+                <div id="tariff_order_container" class="tariff-order-container" style="display: none; margin-top: 1rem;">
+                    <h4>Order Tariff Rates (drag to reorder)</h4>
+                    <p class="help-text">Drag and drop to order from cheapest (top) to most expensive (bottom)</p>
+                    <div id="tariff_order_list" class="tariff-order-list">
+                        <!-- Options will be populated by JavaScript -->
+                    </div>
+                    <input type="hidden" name="tariff_order" id="tariff_order" value="{{ config.tariff_order|default('[]') }}">
+                </div>
             </div>
 
             <button type="submit" class="button">Save Configuration</button>
@@ -181,7 +189,147 @@
             new SearchableSelect('grid_power_input', 'grid_power_options', 'grid_power');
             new SearchableSelect('solar_forecast_input', 'solar_forecast_options', 'solar_forecast');
             new SearchableSelect('grid_voltage_input', 'grid_voltage_options', 'grid_voltage');
-            new SearchableSelect('tariff_rate_input', 'tariff_rate_options', 'tariff_rate');
+            new SearchableSelect('tariff_rate_input', 'tariff_rate_options', 'tariff_rate', onTariffRateSelect);
         });
+
+        function onTariffRateSelect(selectedValue, selectedText) {
+            const container = document.getElementById('tariff_order_container');
+            const list = document.getElementById('tariff_order_list');
+            
+            if (selectedValue) {
+                // Show the container
+                container.style.display = 'block';
+                
+                // Fetch options for the selected entity
+                fetch(`/api/states/${selectedValue}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.attributes && data.attributes.options) {
+                            // Clear existing options
+                            list.innerHTML = '';
+                            
+                            // Create draggable items for each option
+                            data.attributes.options.forEach(option => {
+                                const item = document.createElement('div');
+                                item.className = 'tariff-order-item';
+                                item.draggable = true;
+                                item.dataset.value = option;
+                                item.textContent = option;
+                                
+                                // Add drag event listeners
+                                item.addEventListener('dragstart', handleDragStart);
+                                item.addEventListener('dragover', handleDragOver);
+                                item.addEventListener('drop', handleDrop);
+                                item.addEventListener('dragend', handleDragEnd);
+                                
+                                list.appendChild(item);
+                            });
+                            
+                            // Restore saved order if exists
+                            const savedOrder = JSON.parse(document.getElementById('tariff_order').value || '[]');
+                            if (savedOrder.length > 0) {
+                                savedOrder.forEach(value => {
+                                    const item = list.querySelector(`[data-value="${value}"]`);
+                                    if (item) {
+                                        list.appendChild(item);
+                                    }
+                                });
+                            }
+                        }
+                    });
+            } else {
+                container.style.display = 'none';
+            }
+        }
+
+        let draggedItem = null;
+
+        function handleDragStart(e) {
+            draggedItem = this;
+            this.classList.add('dragging');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            const rect = this.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            
+            if (e.clientY < midY) {
+                this.classList.add('drag-over-top');
+                this.classList.remove('drag-over-bottom');
+            } else {
+                this.classList.add('drag-over-bottom');
+                this.classList.remove('drag-over-top');
+            }
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const rect = this.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            
+            if (e.clientY < midY) {
+                this.parentNode.insertBefore(draggedItem, this);
+            } else {
+                this.parentNode.insertBefore(draggedItem, this.nextSibling);
+            }
+            
+            updateTariffOrder();
+        }
+
+        function handleDragEnd() {
+            this.classList.remove('dragging');
+            document.querySelectorAll('.tariff-order-item').forEach(item => {
+                item.classList.remove('drag-over-top', 'drag-over-bottom');
+            });
+        }
+
+        function updateTariffOrder() {
+            const items = document.querySelectorAll('.tariff-order-item');
+            const order = Array.from(items).map(item => item.dataset.value);
+            document.getElementById('tariff_order').value = JSON.stringify(order);
+        }
     </script>
+
+    <style>
+        .tariff-order-container {
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-top: 1rem;
+        }
+
+        .tariff-order-list {
+            min-height: 100px;
+            margin-top: 0.5rem;
+        }
+
+        .tariff-order-item {
+            background: white;
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: move;
+            user-select: none;
+        }
+
+        .tariff-order-item.dragging {
+            opacity: 0.5;
+        }
+
+        .tariff-order-item.drag-over-top {
+            border-top: 2px solid #2196F3;
+        }
+
+        .tariff-order-item.drag-over-bottom {
+            border-bottom: 2px solid #2196F3;
+        }
+
+        .help-text {
+            color: #666;
+            font-size: 0.9em;
+            margin: 0.5rem 0;
+        }
+    </style>
 {% endblock %} 
