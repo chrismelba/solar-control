@@ -25,7 +25,7 @@
                     <input type="hidden" name="switch_entity" id="switch_entity" required>
                     <div class="options" id="switch_entity_options">
                         {% for entity in entities %}
-                            {% if entity.entity_id.startswith('switch.') %}
+                            {% if entity.entity_id.startswith('switch.') or entity.entity_id.startswith('input_boolean.') %}
                             <div class="option" data-value="{{ entity.entity_id }}">
                                 {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
                             </div>

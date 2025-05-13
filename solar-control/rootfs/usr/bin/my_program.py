@@ -263,6 +263,23 @@ def configure_grid():
                          ingress_path=ingress_path,
                          basename=ingress_path))
 
+@app.route('/configure/battery', methods=['GET', 'POST'])
+def configure_battery():
+    ingress_path = request.headers.get('X-Ingress-Path', '')
+    logger.info(f"Serving configure battery page with ingress path: {ingress_path}")
+    
+    # Load current configuration
+    try:
+        with open(CONFIG_FILE, 'r') as f:
+            config = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        config = {}
+    
+    return make_response(render_template('configure_battery.html',
+                         config=config,
+                         ingress_path=ingress_path,
+                         basename=ingress_path))
+
 @app.route('/api/devices/<name>', methods=['GET'])
 def get_device(name):
     try:
