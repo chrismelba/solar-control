@@ -49,11 +49,11 @@ def inject_ingress_path():
 def url_for(endpoint, **values):
     if endpoint == 'static':
         ingress_path = request.headers.get('X-Ingress-Path', '')
-        return ingress_path + Flask.url_for(endpoint, **values)
+        return ingress_path + app.url_for(endpoint, **values)
     elif endpoint.startswith('/'):
         ingress_path = request.headers.get('X-Ingress-Path', '')
         return ingress_path + endpoint
-    return Flask.url_for(endpoint, **values)
+    return app.url_for(endpoint, **values)
 
 # Add a before_request handler to set the static URL path for each request
 @app.before_request
