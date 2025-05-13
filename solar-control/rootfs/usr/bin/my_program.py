@@ -280,6 +280,19 @@ def configure_battery():
                          ingress_path=ingress_path,
                          basename=ingress_path))
 
+@app.route('/configure/devices', methods=['GET'])
+def configure_devices():
+    ingress_path = request.headers.get('X-Ingress-Path', '')
+    logger.info(f"Serving configure devices page with ingress path: {ingress_path}")
+    
+    # Get entities for the device configuration form
+    entities = get_entities()
+    
+    return make_response(render_template('configure_devices.html',
+                         entities=entities,
+                         ingress_path=ingress_path,
+                         basename=ingress_path))
+
 @app.route('/api/devices/<name>', methods=['GET'])
 def get_device(name):
     try:
