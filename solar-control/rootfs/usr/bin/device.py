@@ -4,6 +4,7 @@ import json
 import os
 import requests
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,7 @@ class Device:
     typical_power_draw: float  # in watts
     current_power_sensor: Optional[str] = None  # Home Assistant entity ID
     energy_sensor: Optional[str] = None  # Home Assistant entity ID for energy consumption
+    power_delivery_sensor: Optional[str] = None  # Home Assistant entity ID for power delivery
     has_variable_amperage: bool = False
     min_amperage: Optional[float] = None  # in amps
     max_amperage: Optional[float] = None  # in amps
@@ -23,6 +25,9 @@ class Device:
     run_once: bool = False
     completion_sensor: Optional[str] = None  # Home Assistant entity ID for completion status
     order: int = 0  # For drag-and-drop ordering
+    power_delivered_today: float = 0.0  # in watt-hours
+    last_power_update: Optional[datetime] = None
+    last_dawn_reset: Optional[datetime] = None
 
     def to_dict(self) -> dict:
         return {
@@ -31,6 +36,7 @@ class Device:
             'typical_power_draw': self.typical_power_draw,
             'current_power_sensor': self.current_power_sensor,
             'energy_sensor': self.energy_sensor,
+            'power_delivery_sensor': self.power_delivery_sensor,
             'has_variable_amperage': self.has_variable_amperage,
             'min_amperage': self.min_amperage,
             'max_amperage': self.max_amperage,
@@ -39,12 +45,76 @@ class Device:
             'min_off_time': self.min_off_time,
             'run_once': self.run_once,
             'completion_sensor': self.completion_sensor,
-            'order': self.order
+            'order': self.order,
+            'power_delivered_today': self.power_delivered_today,
+            'last_power_update': self.last_power_update.isoformat() if self.last_power_update else None,
+            'last_dawn_reset': self.last_dawn_reset.isoformat() if self.last_dawn_reset else None
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> 'Device':
+        # Convert the ISO format strings back to datetime if they exist
+        if 'last_power_update' in data and data['last_power_update']:
+            data['last_power_update'] = datetime.fromisoformat(data['last_power_update'])
+        if 'last_dawn_reset' in data and data['last_dawn_reset']:
+            data['last_dawn_reset'] = datetime.fromisoformat(data['last_dawn_reset'])
         return cls(**data)
+
+    def update_power_delivered(self, current_power: float) -> None:
+        """Update the power delivered tracking"""
+        now = datetime.now()
+        
+        # Check if we need to reset (dawn condition)
+        if self.should_reset_power_tracking():
+            self.power_delivered_today = 0.0
+            self.last_power_update = now
+            self.last_dawn_reset = now
+            return
+
+        # Calculate power delivered since last update
+        if self.last_power_update:
+            time_diff = (now - self.last_power_update).total_seconds() / 3600  # Convert to hours
+            self.power_delivered_today += current_power * time_diff
+
+        self.last_power_update = now
+
+    def should_reset_power_tracking(self) -> bool:
+        """Check if power tracking should be reset based on dawn condition"""
+        try:
+            supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+            if not supervisor_token:
+                return False
+
+            headers = {
+                "Authorization": f"Bearer {supervisor_token}",
+                "Content-Type": "application/json",
+            }
+            
+            hass_url = "http://supervisor/core"
+            
+            # Get the sun.sun entity state
+            response = requests.get(
+                f"{hass_url}/api/states/sun.sun",
+                headers=headers
+            )
+            response.raise_for_status()
+            sun_state = response.json()
+            
+            # Check if the sun has risen since our last reset
+            if sun_state['state'] == 'above_horizon':
+                if not self.last_dawn_reset:
+                    return True
+                
+                # Get the last time the sun rose
+                last_rise = datetime.fromisoformat(sun_state['attributes'].get('next_rising', '').replace('Z', '+00:00'))
+                if last_rise > self.last_dawn_reset:
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Failed to check dawn condition: {e}")
+            return False
 
     def save(self, devices_file: str):
         """Save this device to the devices configuration file"""

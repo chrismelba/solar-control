@@ -14,6 +14,11 @@
             Today: {{ device.energy_consumption.today|round(2) }} {{ device.energy_consumption.unit }}
         </p>
         {% endif %}
+        {% if device.power_delivered_today %}
+        <p class="device-power-delivered">
+            Power Delivered: {{ device.power_delivered_today|round(2) }} Wh
+        </p>
+        {% endif %}
     </div>
     {% if not draggable %}
     <div class="device-actions">
@@ -72,6 +77,13 @@
         color: #666;
         margin: 0.25rem 0 0 0;
         font-size: 0.9rem;
+    }
+
+    .device-power-delivered {
+        color: #4caf50;
+        margin: 0.25rem 0 0 0;
+        font-size: 0.9rem;
+        font-weight: 500;
     }
 
     .device-actions {
