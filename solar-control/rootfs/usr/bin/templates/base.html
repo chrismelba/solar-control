@@ -86,12 +86,16 @@
             
             // Update all relative links
             document.querySelectorAll('a[href^="/"]').forEach(function(link) {
-                link.href = ingressPath + link.getAttribute('href');
+                if (!link.href.includes(ingressPath)) {
+                    link.href = ingressPath + link.getAttribute('href');
+                }
             });
             
             // Update all relative form actions
             document.querySelectorAll('form[action^="/"]').forEach(function(form) {
-                form.action = ingressPath + form.getAttribute('action');
+                if (!form.action.includes(ingressPath)) {
+                    form.action = ingressPath + form.getAttribute('action');
+                }
             });
             
             // Update all relative fetch URLs in scripts
