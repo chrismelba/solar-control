@@ -218,11 +218,23 @@
     </style>
 
     <script>
+        // Get ingress path from the page
+        const ingressPath = "{{ ingress_path }}";
+        
+        // Helper function to make API calls with ingress path
+        async function apiCall(endpoint, options = {}) {
+            const url = `${ingressPath}${endpoint}`;
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                throw new Error(`API call failed: ${response.statusText}`);
+            }
+            return response.json();
+        }
+
         // Fetch status from API
         async function updateStatus() {
             try {
-                const response = await fetch('/api/status');
-                const data = await response.json();
+                const data = await apiCall('/api/status');
                 
                 document.querySelector('#status .status-content p').textContent = 
                     `Status: ${data.status}, Version: ${data.version}`;
@@ -231,6 +243,7 @@
                 const toggle = document.getElementById('powerOptimizationToggle');
                 toggle.checked = data.power_optimization_enabled;
             } catch (error) {
+                console.error('Error updating status:', error);
                 document.querySelector('#status .status-content p').textContent = 
                     'Error loading status';
             }
@@ -243,7 +256,7 @@
         // Handle toggle changes
         document.getElementById('powerOptimizationToggle').addEventListener('change', async function(e) {
             try {
-                const response = await fetch('/api/settings/power_optimization', {
+                await apiCall('/api/settings/power_optimization', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -252,10 +265,6 @@
                         enabled: e.target.checked
                     })
                 });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to update power optimization setting');
-                }
             } catch (error) {
                 console.error('Error updating power optimization:', error);
                 // Revert toggle state on error
@@ -266,8 +275,7 @@
         // Load and display devices
         async function loadDevices() {
             try {
-                const response = await fetch('/api/devices');
-                const devices = await response.json();
+                const devices = await apiCall('/api/devices');
                 
                 const deviceList = document.getElementById('deviceList');
                 deviceList.innerHTML = '';
@@ -309,6 +317,7 @@
                 // Initialize drag and drop
                 initializeDragAndDrop();
             } catch (error) {
+                console.error('Error loading devices:', error);
                 document.getElementById('deviceList').innerHTML = 
                     '<p>Error loading devices</p>';
             }
@@ -352,17 +361,13 @@
             }));
             
             try {
-                const response = await fetch('/api/devices/reorder', {
+                await apiCall('/api/devices/reorder', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(orderData)
                 });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to update device order');
-                }
             } catch (error) {
                 console.error('Error updating device order:', error);
             }
