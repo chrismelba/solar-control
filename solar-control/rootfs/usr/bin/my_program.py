@@ -49,11 +49,11 @@ def inject_ingress_path():
 def url_for(endpoint, **values):
     if endpoint == 'static':
         ingress_path = request.headers.get('X-Ingress-Path', '')
-        return ingress_path + super().url_for(endpoint, **values)
+        return ingress_path + Flask.url_for(endpoint, **values)
     elif endpoint.startswith('/'):
         ingress_path = request.headers.get('X-Ingress-Path', '')
         return ingress_path + endpoint
-    return super().url_for(endpoint, **values)
+    return Flask.url_for(endpoint, **values)
 
 # Add a before_request handler to set the static URL path for each request
 @app.before_request
@@ -211,7 +211,7 @@ def get_device(name):
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 # Get port from environment
-port = int(os.environ.get('PORT', 8099))
+port = int(os.environ.get('PORT', 5000))
 logger.info(f"Starting Flask application on port {port}")
 
 if __name__ == '__main__':
