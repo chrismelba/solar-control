@@ -348,6 +348,24 @@ class SolarController:
             logger.error(f"Failed to get grid power: {e}")
             return 0.0
 
+    def get_tariff_rate(self) -> float:
+        """Get the current tariff rate from the configured entity"""
+        config = self.load_config()
+        if not config.get('tariff_rate'):
+            logger.error("No tariff rate configured")
+            return 0.0
+            
+        try:
+            response = requests.get(
+                f"{self.hass_url}/api/states/{config['tariff_rate']}", 
+                headers=self.get_headers()
+            )
+            response.raise_for_status()
+            return float(response.json().get('state', 0.0))
+        except Exception as e:
+            logger.error(f"Failed to get tariff rate: {e}")
+            return 0.0
+
     def run_control_loop(self):
         """Main control loop - runs one iteration"""
         try:
@@ -603,6 +621,25 @@ class SolarController:
                 
         thread = threading.Thread(target=loop, daemon=True)
         thread.start()
+
+    def update_config(self, new_config: dict):
+        """Update configuration with new values"""
+        try:
+            # Load existing config
+            current_config = self.load_config()
+            
+            # Update with new values
+            current_config.update(new_config)
+            
+            # Save updated config
+            with open(self.config_file, 'w') as f:
+                json.dump(current_config, f, indent=4)
+                
+            logger.info(f"Configuration updated: {current_config}")
+            
+        except Exception as e:
+            logger.error(f"Failed to update config: {e}")
+            raise
 
 if __name__ == "__main__":
     controller = SolarController(

@@ -32,9 +32,14 @@ if not os.path.exists(static_dir):
     logger.info(f"Creating static directory: {static_dir}")
     os.makedirs(static_dir)
 
+# Get ingress path from environment
+ingress_path = os.environ.get('INGRESS_PATH', '')
+logger.info(f"Using ingress path from environment: {ingress_path}")
+
 app = Flask(__name__, 
            static_folder=static_dir,
-           template_folder='templates')
+           template_folder='templates',
+           static_url_path=f'{ingress_path}/static')
 
 # Create controller instance
 controller = SolarController(
@@ -68,16 +73,20 @@ os.makedirs('/data', exist_ok=True)
 # Add a context processor to make the ingress path available in templates
 @app.context_processor
 def inject_ingress_path():
-    ingress_path = request.headers.get('X-Ingress-Path', '')
+    # Get ingress path from header first, fall back to environment variable
+    ingress_path = request.headers.get('X-Ingress-Path', os.environ.get('INGRESS_PATH', ''))
     logger.info(f"Using ingress path from header: {ingress_path}")
-    return dict(ingress_path=ingress_path)
+    return dict(ingress_path=ingress_path, basename=ingress_path)  # Add basename for compatibility
 
-# Override url_for to include ingress path for static files
+# Override url_for to include ingress path for all URLs
 @app.template_global()
 def url_for(endpoint, **values):
     if endpoint == 'static':
-        ingress_path = request.headers.get('X-Ingress-Path', '')
+        ingress_path = request.headers.get('X-Ingress-Path', os.environ.get('INGRESS_PATH', ''))
         return ingress_path + super().url_for(endpoint, **values)
+    elif endpoint.startswith('/'):
+        ingress_path = request.headers.get('X-Ingress-Path', os.environ.get('INGRESS_PATH', ''))
+        return ingress_path + endpoint
     return super().url_for(endpoint, **values)
 
 @app.route('/api/devices/<name>', methods=['GET'])

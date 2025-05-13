@@ -80,11 +80,28 @@
     <script src="{{ url_for('static', filename='js/searchable-select.js') }}"></script>
     {% block extra_scripts %}{% endblock %}
     <script>
-        // Add ingress path to all relative links
+        // Add ingress path to all relative links and forms
         document.addEventListener('DOMContentLoaded', function() {
             const ingressPath = '{{ ingress_path }}';
+            
+            // Update all relative links
             document.querySelectorAll('a[href^="/"]').forEach(function(link) {
                 link.href = ingressPath + link.getAttribute('href');
+            });
+            
+            // Update all relative form actions
+            document.querySelectorAll('form[action^="/"]').forEach(function(form) {
+                form.action = ingressPath + form.getAttribute('action');
+            });
+            
+            // Update all relative fetch URLs in scripts
+            document.querySelectorAll('script').forEach(function(script) {
+                if (script.textContent) {
+                    script.textContent = script.textContent.replace(
+                        /fetch\(['"]\/([^'"]+)['"]/g,
+                        `fetch('${ingressPath}/$1'`
+                    );
+                }
             });
         });
     </script>
