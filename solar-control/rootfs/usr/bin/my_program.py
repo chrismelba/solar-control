@@ -95,7 +95,28 @@ os.makedirs('/data', exist_ok=True)
 def index():
     ingress_path = request.headers.get('X-Ingress-Path', '')
     logger.info(f"Serving index page with ingress path: {ingress_path}")
-    return make_response(render_template('index.html', ingress_path=ingress_path, basename=ingress_path))
+    
+    # Load current configuration
+    try:
+        with open(CONFIG_FILE, 'r') as f:
+            config = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        config = {}
+    
+    # Get sensor values
+    sensor_values = {}
+    for entity_id in ['solar_generation', 'grid_power', 'solar_forecast']:
+        if entity_id in config and config[entity_id]:
+            try:
+                response = requests.get(f'http://supervisor/core/api/states/{config[entity_id]}')
+                sensor_values[entity_id] = response.json()
+            except Exception as e:
+                logger.error(f"Error fetching {entity_id} value: {e}")
+    
+    return make_response(render_template('index.html', 
+                         ingress_path=ingress_path, 
+                         basename=ingress_path,
+                         sensor_values=sensor_values))
 
 @app.route('/debug')
 def debug():
@@ -233,6 +254,124 @@ def get_device(name):
         if device is None:
             return jsonify({'status': 'error', 'message': 'Device not found'}), 404
         return jsonify(device.to_dict())
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/devices', methods=['GET'])
+def get_devices():
+    try:
+        devices = Device.load_all(DEVICES_FILE)
+        return jsonify([device.to_dict() for device in devices])
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/devices', methods=['POST'])
+def add_device():
+    try:
+        device_data = request.json
+        devices = Device.load_all(DEVICES_FILE)
+        
+        # Check if device with same name exists
+        if any(d.name == device_data['name'] for d in devices):
+            return jsonify({'status': 'error', 'message': 'Device with this name already exists'}), 400
+        
+        # Create new device
+        device = Device(**device_data)
+        devices.append(device)
+        Device.save_all(devices, DEVICES_FILE)
+        
+        return jsonify(device.to_dict())
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/devices/<name>', methods=['PUT'])
+def update_device(name):
+    try:
+        device_data = request.json
+        devices = Device.load_all(DEVICES_FILE)
+        
+        # Find device
+        device_index = next((i for i, d in enumerate(devices) if d.name == name), None)
+        if device_index is None:
+            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+        
+        # Update device
+        devices[device_index] = Device(**device_data)
+        Device.save_all(devices, DEVICES_FILE)
+        
+        return jsonify(devices[device_index].to_dict())
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/devices/<name>', methods=['DELETE'])
+def delete_device(name):
+    try:
+        devices = Device.load_all(DEVICES_FILE)
+        
+        # Find and remove device
+        devices = [d for d in devices if d.name != name]
+        Device.save_all(devices, DEVICES_FILE)
+        
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/devices/reorder', methods=['POST'])
+def reorder_devices():
+    try:
+        order_data = request.json
+        devices = Device.load_all(DEVICES_FILE)
+        
+        # Update order for each device
+        for item in order_data:
+            device = next((d for d in devices if d.name == item['name']), None)
+            if device:
+                device.order = item['order']
+        
+        Device.save_all(devices, DEVICES_FILE)
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/status', methods=['GET'])
+def get_status():
+    try:
+        # Load settings
+        try:
+            with open(SETTINGS_FILE, 'r') as f:
+                settings = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            settings = {}
+        
+        return jsonify({
+            'status': 'running',
+            'version': '1.0.0',  # TODO: Get actual version
+            'power_optimization_enabled': settings.get('power_optimization_enabled', False)
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/settings/power_optimization', methods=['POST'])
+def update_power_optimization():
+    try:
+        data = request.json
+        enabled = data.get('enabled', False)
+        
+        # Load current settings
+        try:
+            with open(SETTINGS_FILE, 'r') as f:
+                settings = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            settings = {}
+        
+        # Update settings
+        settings['power_optimization_enabled'] = enabled
+        
+        # Save settings
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(settings, f, indent=4)
+        
+        return jsonify({'status': 'success'})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
