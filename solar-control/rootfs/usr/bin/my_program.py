@@ -72,6 +72,14 @@ def inject_ingress_path():
     logger.info(f"Using ingress path from header: {ingress_path}")
     return dict(ingress_path=ingress_path)
 
+# Override url_for to include ingress path for static files
+@app.template_global()
+def url_for(endpoint, **values):
+    if endpoint == 'static':
+        ingress_path = request.headers.get('X-Ingress-Path', '')
+        return ingress_path + super().url_for(endpoint, **values)
+    return super().url_for(endpoint, **values)
+
 @app.route('/api/devices/<name>', methods=['GET'])
 def get_device(name):
     try:
