@@ -240,10 +240,13 @@
 
         // Initialize searchable selects
         document.addEventListener('DOMContentLoaded', function() {
-            new SearchableSelect('switch_entity_input', 'switch_entity_options', 'switch_entity');
-            new SearchableSelect('current_power_sensor_input', 'current_power_sensor_options', 'current_power_sensor');
-            new SearchableSelect('completion_sensor_input', 'completion_sensor_options', 'completion_sensor');
-            new SearchableSelect('variable_amperage_control_input', 'variable_amperage_control_options', 'variable_amperage_control');
+            const searchableSelects = document.querySelectorAll('.searchable-select');
+            searchableSelects.forEach(select => {
+                const inputId = select.querySelector('input[type="text"]').id;
+                const optionsId = select.querySelector('.options').id;
+                const hiddenInputId = select.querySelector('input[type="hidden"]').id;
+                new SearchableSelect(inputId, optionsId, hiddenInputId);
+            });
         });
 
         // Load and display devices
