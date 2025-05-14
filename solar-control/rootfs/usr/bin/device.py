@@ -214,4 +214,17 @@ class Device:
             return True
         except Exception as e:
             logger.error(f"Failed to set state for {self.name}: {e}")
-            return False 
+            return False
+
+    @staticmethod
+    def save_all(devices: list, devices_file: str):
+        """Save all devices to the configuration file"""
+        try:
+            # Ensure data directory exists
+            os.makedirs(os.path.dirname(devices_file), exist_ok=True)
+            # Convert devices to list of dicts
+            devices_data = [d.to_dict() for d in devices]
+            with open(devices_file, 'w') as f:
+                json.dump(devices_data, f, indent=2)
+        except Exception as e:
+            raise Exception(f"Failed to save all devices: {str(e)}") 
