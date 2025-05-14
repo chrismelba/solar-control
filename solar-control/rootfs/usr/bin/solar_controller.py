@@ -13,7 +13,9 @@ import json
 
 # Get debug level from configuration
 try:
-    response = requests.get('http://supervisor/addons/self/options')
+    supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+    headers = {"Authorization": f"Bearer {supervisor_token}", "Content-Type": "application/json"} if supervisor_token else {}
+    response = requests.get('http://supervisor/addons/self/options', headers=headers)
     config = response.json()
     debug_level = config.get('debug_level', 'info').upper()
 except Exception as e:
