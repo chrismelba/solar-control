@@ -93,6 +93,10 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="form-group">
+                        <input type="hidden" id="order" name="order" value="0">
+                    </div>
                 </div>
 
                 <div class="tab-content" id="amperage-tab">
@@ -450,8 +454,8 @@
             
             // Convert numeric values
             deviceData.typical_power_draw = parseFloat(deviceData.typical_power_draw);
-            deviceData.min_on_time = parseInt(deviceData.min_on_time) * 60; // Convert to seconds
-            deviceData.min_off_time = parseInt(deviceData.min_off_time) * 60; // Convert to seconds
+            deviceData.min_on_time = parseInt(deviceData.min_on_time) * 60; // seconds
+            deviceData.min_off_time = parseInt(deviceData.min_off_time) * 60; // seconds
             deviceData.order = parseInt(deviceData.order); // Add order field
             
             if (deviceData.has_variable_amperage) {
@@ -545,8 +549,8 @@
                     
                     // Convert numeric values
                     deviceData.typical_power_draw = parseFloat(deviceData.typical_power_draw);
-                    deviceData.min_on_time = parseInt(deviceData.min_on_time) * 60; // Convert to seconds
-                    deviceData.min_off_time = parseInt(deviceData.min_off_time) * 60; // Convert to seconds
+                    deviceData.min_on_time = parseInt(deviceData.min_on_time) * 60; // seconds
+                    deviceData.min_off_time = parseInt(deviceData.min_off_time) * 60; // seconds
                     deviceData.order = parseInt(deviceData.order); // Add order field
                     
                     if (deviceData.has_variable_amperage) {
