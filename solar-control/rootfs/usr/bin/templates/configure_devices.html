@@ -84,7 +84,7 @@
                             <input type="hidden" name="power_delivery_sensor" id="power_delivery_sensor">
                             <div class="options" id="power_delivery_sensor_options">
                                 {% for entity in entities %}
-                                    {% if entity.attributes and entity.attributes.unit_of_measurement and entity.attributes.unit_of_measurement|lower in ['wh', 'kwh'] %}
+                                    {% if 'power' in entity.entity_id.lower() %}
                                     <div class="option" data-value="{{ entity.entity_id }}">
                                         {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
                                     </div>
@@ -453,12 +453,7 @@
             deviceData.min_on_time = parseInt(deviceData.min_on_time) * 60; // Convert to seconds
             deviceData.min_off_time = parseInt(deviceData.min_off_time) * 60; // Convert to seconds
             deviceData.order = parseInt(deviceData.order); // Add order field
-
-            // Ensure order is a number
-            if (!deviceData.order || isNaN(deviceData.order)) {
-                deviceData.order = 0;
-            }
-
+            
             if (deviceData.has_variable_amperage) {
                 deviceData.min_amperage = parseFloat(deviceData.min_amperage);
                 deviceData.max_amperage = parseFloat(deviceData.max_amperage);
@@ -466,13 +461,6 @@
                 delete deviceData.min_amperage;
                 delete deviceData.max_amperage;
             }
-
-            // Remove empty string fields
-            Object.keys(deviceData).forEach(key => {
-                if (deviceData[key] === "") {
-                    delete deviceData[key];
-                }
-            });
             
             try {
                 const response = await apiCall('/api/devices', {
@@ -560,12 +548,7 @@
                     deviceData.min_on_time = parseInt(deviceData.min_on_time) * 60; // Convert to seconds
                     deviceData.min_off_time = parseInt(deviceData.min_off_time) * 60; // Convert to seconds
                     deviceData.order = parseInt(deviceData.order); // Add order field
-
-                    // Ensure order is a number
-                    if (!deviceData.order || isNaN(deviceData.order)) {
-                        deviceData.order = 0;
-                    }
-
+                    
                     if (deviceData.has_variable_amperage) {
                         deviceData.min_amperage = parseFloat(deviceData.min_amperage);
                         deviceData.max_amperage = parseFloat(deviceData.max_amperage);
@@ -573,13 +556,6 @@
                         delete deviceData.min_amperage;
                         delete deviceData.max_amperage;
                     }
-
-                    // Remove empty string fields
-                    Object.keys(deviceData).forEach(key => {
-                        if (deviceData[key] === "") {
-                            delete deviceData[key];
-                        }
-                    });
                     
                     try {
                         const response = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}`, {
@@ -611,14 +587,28 @@
                         alert('Failed to update device. Please try again.');
                     }
                 };
+                
+                // Add cancel button handler
+                document.getElementById('cancelButton').onclick = () => {
+                    form.reset();
+                    form.onsubmit = null;
+                    document.getElementById('amperage-controls').style.display = 'none';
+                    document.querySelector('.card h2').textContent = 'Add New Device';
+                    document.getElementById('submitButton').textContent = 'Add Device';
+                    document.getElementById('cancelButton').style.display = 'none';
+                };
             } catch (error) {
-                console.error('Error editing device:', error);
-                alert('Failed to edit device. Please try again.');
+                console.error('Error loading device:', error);
+                alert('Failed to load device data. Please try again.');
             }
         }
 
         // Delete device
         async function deleteDevice(deviceName) {
+            if (!confirm(`Are you sure you want to delete ${deviceName}?`)) {
+                return;
+            }
+            
             try {
                 const response = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}`, {
                     method: 'DELETE'
@@ -635,5 +625,8 @@
                 alert('Failed to delete device. Please try again.');
             }
         }
+
+        // Load devices when page loads
+        document.addEventListener('DOMContentLoaded', loadDevices);
     </script>
-{% endblock %}
+{% endblock %} 
