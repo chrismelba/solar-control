@@ -142,12 +142,12 @@
                     <h3>Runtime Settings</h3>
                     <div class="form-group">
                         <label for="min_on_time">Minimum On Time (minutes):</label>
-                        <input type="number" id="min_on_time" name="min_on_time" value="1" min="1">
+                        <input type="number" id="min_on_time" name="min_on_time" value="0" min="0">
                     </div>
                     
                     <div class="form-group">
                         <label for="min_off_time">Minimum Off Time (minutes):</label>
-                        <input type="number" id="min_off_time" name="min_off_time" value="1" min="1">
+                        <input type="number" id="min_off_time" name="min_off_time" value="0" min="0">
                     </div>
                     
                     <div class="form-group">
@@ -311,10 +311,8 @@
         async function apiCall(endpoint, options = {}) {
             const url = `${ingressPath}${endpoint}`;
             const response = await fetch(url, options);
-            if (!response.ok) {
-                throw new Error(`API call failed: ${response.statusText}`);
-            }
-            return response.json();
+            const data = await response.json();
+            return { ok: response.ok, data };
         }
 
         // Tab functionality
@@ -467,16 +465,14 @@
             }
             
             try {
-                const response = await apiCall('/api/devices', {
+                const result = await apiCall('/api/devices', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(deviceData)
                 });
                 
-                if (!response.ok) {
-                    throw new Error('Failed to add device');
+                if (!result.ok) {
+                    throw new Error(result.data.message || 'Failed to add device');
                 }
                 
                 // Reload devices
