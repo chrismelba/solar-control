@@ -297,8 +297,8 @@ def configure_grid():
         # Update controller configuration
         controller.update_config(config)
         
-        return redirect(url_for('static_page', page=''))
-    
+        ingress_path = request.headers.get('X-Ingress-Path', '')
+        return redirect(ingress_path + '/')    
     # Load current configuration
     try:
         with open(CONFIG_FILE, 'r') as f:
