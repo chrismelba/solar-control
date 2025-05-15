@@ -143,10 +143,12 @@ class SolarController:
             
             # Apply site export limit if configured
             site_export_limit = config.get('site_export_limit')
-            if site_export_limit is not None:
+            if site_export_limit is not None and isinstance(site_export_limit, (int, float)):
                 # If we're exporting more than the limit, reduce available power
                 if grid_power < -site_export_limit:
                     available_power = max(0, available_power - (abs(grid_power) - site_export_limit))
+            else:
+                logger.debug("No valid site export limit configured, proceeding without export limit")
             
             # Return available power (must be positive or zero)
             return max(0, available_power)

@@ -70,6 +70,10 @@ controller = SolarController(
     devices_file="/data/devices.json"
 )
 
+# Start the control loop
+logger.info("Starting solar controller control loop...")
+controller.start_control_loop()
+
 # Log static file configuration
 logger.info('Static folder: %s', app.static_folder)
 logger.info('Static URL path: %s', app.static_url_path)
