@@ -83,7 +83,6 @@
         const ingressPath = '{{ ingress_path }}';
 
         document.addEventListener('DOMContentLoaded', function() {
-            
             // Update all relative links
             document.querySelectorAll('a[href^="/"]').forEach(function(link) {
                 const href = link.getAttribute('href');
@@ -99,16 +98,6 @@
                     form.action = ingressPath + action;
                 }
             });
-            
-            // Update all relative fetch URLs in scripts
-            document.querySelectorAll('script').forEach(function(script) {
-                if (script.textContent) {
-                    script.textContent = script.textContent.replace(
-                        /fetch\(['"]\/([^'"]+)['"]/g,
-                        `fetch('${ingressPath}/$1'`
-                    );
-                }
-            });
 
             // Log the ingress path for debugging
             console.log('Ingress path:', ingressPath);
@@ -116,7 +105,16 @@
 
         // Helper function to make API calls with ingress path
         async function apiCall(endpoint, options = {}) {
-            const url = `${ingressPath}${endpoint}`;
+            // Ensure endpoint starts with a forward slash
+            if (!endpoint.startsWith('/')) {
+                endpoint = '/' + endpoint;
+            }
+            
+            // Remove any duplicate forward slashes between ingressPath and endpoint
+            const url = `${ingressPath}${endpoint}`.replace(/([^:]\/)\/+/g, "$1");
+            
+            console.log('Making API call to:', url); // Debug log
+            
             const response = await fetch(url, options);
             const data = await response.json();
             if (!response.ok) {
