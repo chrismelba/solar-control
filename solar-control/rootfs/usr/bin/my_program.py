@@ -125,7 +125,13 @@ initialize_files()
 # Static page handler
 @app.route('/')
 def root():
-    return static_page('')
+    ingress_path = request.headers.get('X-Ingress-Path', '')
+    logger.info(f"Serving root page with ingress path: {ingress_path}")
+    devices = Device.load_all(DEVICES_FILE)  # Load devices using the constant
+    return make_response(render_template('index.html', 
+                         devices=devices,
+                         ingress_path=ingress_path,
+                         basename=ingress_path))
 
 @app.route('/<path:page>')
 def static_page(page):
