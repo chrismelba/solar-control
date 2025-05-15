@@ -155,21 +155,24 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.device-toggle').forEach(toggle => {
         // Fetch initial state
         const deviceName = toggle.dataset.deviceName;
+        console.log(`Fetching initial state for device: ${deviceName}`);
+        
         fetch(`/api/devices/${encodeURIComponent(deviceName)}`)
             .then(response => response.json())
             .then(device => {
+                console.log(`Device info received for ${deviceName}:`, device);
                 // Get the current state from Home Assistant
-                fetch(`/api/devices/${encodeURIComponent(deviceName)}/state`)
-                    .then(response => response.json())
-                    .then(data => {
-                        toggle.checked = data.state === 'on';
-                    })
-                    .catch(error => {
-                        console.error('Error fetching device state:', error);
-                    });
+                console.log(`Fetching Home Assistant state for ${deviceName}`);
+                return fetch(`/api/devices/${encodeURIComponent(deviceName)}/state`);
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(`State received for ${deviceName}:`, data);
+                toggle.checked = data.state === 'on';
+                console.log(`Toggle set to ${data.state === 'on' ? 'on' : 'off'} for ${deviceName}`);
             })
             .catch(error => {
-                console.error('Error fetching device:', error);
+                console.error(`Error fetching device state for ${deviceName}:`, error);
             });
 
         // Add toggle event listener

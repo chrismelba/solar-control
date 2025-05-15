@@ -521,14 +521,21 @@ def update_power_optimization():
 @app.route('/api/devices/<name>/state', methods=['GET'])
 def get_device_state(name):
     try:
+        logger.debug(f"Getting state for device: {name}")
         devices = Device.load_all(DEVICES_FILE)
+        logger.debug(f"Loaded {len(devices)} devices from file")
+        
         device = next((d for d in devices if d.name == name), None)
         if device is None:
+            logger.error(f"Device not found: {name}")
             return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+
+        logger.debug(f"Found device: {device.name}, switch_entity: {device.switch_entity}")
 
         # Get the current state from Home Assistant
         supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
         if not supervisor_token:
+            logger.error("No supervisor token available in environment")
             return jsonify({'status': 'error', 'message': 'No supervisor token available'}), 500
 
         headers = {
@@ -536,16 +543,23 @@ def get_device_state(name):
             "Content-Type": "application/json",
         }
 
+        logger.debug(f"Making request to Home Assistant API for entity: {device.switch_entity}")
         response = requests.get(
             f"http://supervisor/core/api/states/{device.switch_entity}",
             headers=headers
         )
+        logger.debug(f"Home Assistant API response status: {response.status_code}")
+        
         response.raise_for_status()
         state = response.json().get('state', 'off')
+        logger.debug(f"Retrieved state for device {name}: {state}")
         
         return jsonify({'state': state})
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error getting device state for {name}: {e}")
+        return jsonify({'status': 'error', 'message': f'Network error: {str(e)}'}), 400
     except Exception as e:
-        logger.error(f"Error getting device state: {e}")
+        logger.error(f"Error getting device state for {name}: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/devices/<name>/set_state', methods=['POST'])
