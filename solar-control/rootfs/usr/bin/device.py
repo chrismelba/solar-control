@@ -189,26 +189,14 @@ class Device:
             
             hass_url = "http://supervisor/core"
             
-            # For variable load devices, we need to set the amperage when turning on
-            if state and self.has_variable_amperage and self.min_amperage is not None:
-                service_data = {
-                    "entity_id": self.switch_entity,
-                    "amperage": self.min_amperage
-                }
-                response = requests.post(
-                    f"{hass_url}/api/services/homeassistant/turn_on",
-                    headers=headers,
-                    json=service_data
-                )
-            else:
                 # For regular devices or turning off, use the standard service
-                service = "turn_on" if state else "turn_off"
-                service_data = {"entity_id": self.switch_entity}
-                response = requests.post(
-                    f"{hass_url}/api/services/homeassistant/{service}",
-                    headers=headers,
-                    json=service_data
-                )
+            service = "turn_on" if state else "turn_off"
+            service_data = {"entity_id": self.switch_entity}
+            response = requests.post(
+                f"{hass_url}/api/services/homeassistant/{service}",
+                headers=headers,
+                json=service_data
+            )
             
             response.raise_for_status()
             return True
