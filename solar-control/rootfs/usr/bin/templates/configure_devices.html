@@ -307,21 +307,6 @@
         // Get ingress path from the page
         const ingressPath = "{{ ingress_path }}";
         
-        // Helper function to make API calls with ingress path
-        async function apiCall(endpoint, options = {}) {
-            const url = `${ingressPath}${endpoint}`;
-            const response = await fetch(url, options);
-            
-            // Check if there's content to parse
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-                const data = await response.json();
-                return { ok: response.ok, data };
-            } else {
-                // If no JSON content, return just the status
-                return { ok: response.ok, data: null };
-            }
-        }
 
         // Tab functionality
         document.addEventListener('DOMContentLoaded', function() {

@@ -223,17 +223,6 @@
         // Get ingress path from the page
         const ingressPath = "{{ ingress_path }}";
         
-        // Helper function to make API calls with ingress path
-        async function apiCall(endpoint, options = {}) {
-            const url = `${ingressPath}${endpoint}`;
-            const response = await fetch(url, options);
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.message || `API call failed: ${response.statusText}`);
-            }
-            return data;
-        }
-
         // Fetch status from API
         async function updateStatus() {
             try {

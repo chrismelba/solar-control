@@ -112,6 +112,18 @@
             // Log the ingress path for debugging
             console.log('Ingress path:', ingressPath);
         });
+
+        // Helper function to make API calls with ingress path
+        async function apiCall(endpoint, options = {}) {
+            const ingressPath = '{{ ingress_path }}';
+            const url = `${ingressPath}${endpoint}`;
+            const response = await fetch(url, options);
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || `API call failed: ${response.statusText}`);
+            }
+            return data;
+        }
     </script>
     <script src="{{ url_for('static', filename='js/searchable-select.js') }}"></script>
 </body>

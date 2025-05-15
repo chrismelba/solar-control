@@ -157,15 +157,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const deviceName = toggle.dataset.deviceName;
         console.log(`Fetching initial state for device: ${deviceName}`);
         
-        fetch(`/api/devices/${encodeURIComponent(deviceName)}`)
-            .then(response => response.json())
+        apiCall(`/api/devices/${encodeURIComponent(deviceName)}`)
             .then(device => {
                 console.log(`Device info received for ${deviceName}:`, device);
                 // Get the current state from Home Assistant
                 console.log(`Fetching Home Assistant state for ${deviceName}`);
-                return fetch(`/api/devices/${encodeURIComponent(deviceName)}/state`);
+                return apiCall(`/api/devices/${encodeURIComponent(deviceName)}/state`);
             })
-            .then(response => response.json())
             .then(data => {
                 console.log(`State received for ${deviceName}:`, data);
                 toggle.checked = data.state === 'on';
@@ -181,7 +179,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const isOn = this.checked;
             
             try {
-                const response = await fetch(`/api/devices/${encodeURIComponent(deviceName)}/set_state`, {
+                const result = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}/set_state`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -191,11 +189,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     })
                 });
 
-                if (!response.ok) {
-                    throw new Error('Failed to set device state');
-                }
-
-                const result = await response.json();
                 if (result.status === 'error') {
                     throw new Error(result.message || 'Failed to set device state');
                 }
