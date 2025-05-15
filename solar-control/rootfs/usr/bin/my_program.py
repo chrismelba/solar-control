@@ -128,6 +128,8 @@ def root():
     ingress_path = request.headers.get('X-Ingress-Path', '')
     logger.info(f"Serving root page with ingress path: {ingress_path}")
     devices = Device.load_all(DEVICES_FILE)  # Load devices using the constant
+    # Sort devices by their order property
+    devices.sort(key=lambda x: x.order)
     sensor_values = get_sensor_values()  # Get sensor values
     return make_response(render_template('index.html', 
                          devices=devices,
@@ -378,6 +380,8 @@ def get_devices():
         if not os.path.exists(DEVICES_FILE):
             return jsonify([])
         devices = Device.load_all(DEVICES_FILE)
+        # Sort devices by their order property
+        devices.sort(key=lambda x: x.order)
         return jsonify([device.to_dict() for device in devices])
     except Exception as e:
         logger.error(f"Error loading devices: {e}")
@@ -392,6 +396,9 @@ def add_device():
         # Check if device with same name exists
         if any(d.name == device_data['name'] for d in devices):
             return jsonify({'status': 'error', 'message': 'Device with this name already exists'}), 400
+        
+        # Set order to be the next available index
+        device_data['order'] = len(devices)
         
         # Create new device
         device = Device(**device_data)
@@ -412,6 +419,10 @@ def update_device(name):
         device_index = next((i for i, d in enumerate(devices) if d.name == name), None)
         if device_index is None:
             return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+        
+        # Preserve the existing order if not provided in the update
+        if 'order' not in device_data:
+            device_data['order'] = devices[device_index].order
         
         # Update device
         devices[device_index] = Device(**device_data)

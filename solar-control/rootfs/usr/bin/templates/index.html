@@ -227,10 +227,11 @@
         async function apiCall(endpoint, options = {}) {
             const url = `${ingressPath}${endpoint}`;
             const response = await fetch(url, options);
+            const data = await response.json();
             if (!response.ok) {
-                throw new Error(`API call failed: ${response.statusText}`);
+                throw new Error(data.message || `API call failed: ${response.statusText}`);
             }
-            return response.json();
+            return data;
         }
 
         // Fetch status from API
@@ -280,17 +281,42 @@
             const items = deviceList.querySelectorAll('.device-card.draggable');
             
             items.forEach(item => {
-                item.addEventListener('dragstart', () => {
+                item.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.effectAllowed = 'move';
                     item.classList.add('dragging');
                 });
                 
                 item.addEventListener('dragend', async () => {
                     item.classList.remove('dragging');
-                    await updateDeviceOrder();
+                    try {
+                        await updateDeviceOrder();
+                    } catch (error) {
+                        console.error('Error updating device order:', error);
+                        // Optionally revert the drag if it failed
+                        window.location.reload();
+                    }
                 });
             });
             
             deviceList.addEventListener('dragover', e => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const draggingItem = deviceList.querySelector('.dragging');
+                if (!draggingItem) return;
+                
+                const siblings = [...deviceList.querySelectorAll('.device-card:not(.dragging)')];
+                
+                const nextSibling = siblings.find(sibling => {
+                    const box = sibling.getBoundingClientRect();
+                    const offset = e.clientY - box.top - box.height / 2;
+                    return offset < 0;
+                });
+                
+                deviceList.insertBefore(draggingItem, nextSibling);
+            });
+
+            // Add drop event handler
+            deviceList.addEventListener('drop', e => {
                 e.preventDefault();
                 const draggingItem = deviceList.querySelector('.dragging');
                 if (!draggingItem) return;
@@ -332,6 +358,7 @@
             } catch (error) {
                 console.error('Error updating device order:', error);
                 alert('Failed to update device order. Please try again.');
+                throw error; // Re-throw to be caught by the dragend handler
             }
         }
 
