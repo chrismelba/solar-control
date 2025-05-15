@@ -81,6 +81,7 @@ class SolarController:
         return {
             "Authorization": f"Bearer {self.supervisor_token}",
             "Content-Type": "application/json",
+            "X-Solar-Controller": "solar-control-addon"  # Add custom header to identify our addon
         }
         
     def get_grid_voltage(self) -> float:
@@ -175,6 +176,19 @@ class SolarController:
             logger.error(f"Failed to load settings: {e}")
             return {'power_optimization_enabled': True}  # Default to enabled
             
+    def get_device_state_from_hass(self, device: Device) -> bool:
+        """Get the current state of a device from Home Assistant"""
+        try:
+            response = requests.get(
+                f"{self.hass_url}/api/states/{device.switch_entity}",
+                headers=self.get_headers()
+            )
+            response.raise_for_status()
+            return response.json().get('state', 'off').lower() == 'on'
+        except Exception as e:
+            logger.error(f"Failed to get state for {device.name}: {e}")
+            return False
+
     def initialize_device_states(self):
         """Initialize or update device states"""
         devices = Device.load_all(self.devices_file)
@@ -184,13 +198,18 @@ class SolarController:
         # Update existing states
         for device in devices:
             if device.name not in self.device_states:
+                # Get current state from Home Assistant
+                is_on = self.get_device_state_from_hass(device)
                 self.device_states[device.name] = DeviceState(
                     device=device,
+                    is_on=is_on,
                     last_state_change=initial_time
                 )
             else:
                 # Update device reference in case it changed
                 self.device_states[device.name].device = device
+                # Update current state from Home Assistant
+                self.device_states[device.name].is_on = self.get_device_state_from_hass(device)
                 
         # Remove states for devices that no longer exist
         self.device_states = {
@@ -297,10 +316,10 @@ class SolarController:
             # Only change switch state if we're allowed to
             if not (device_state.is_on and device_state.last_state_change and 
                    (current_time - device_state.last_state_change).total_seconds() < device.min_on_time):
-                service = "turn_on" if turn_on else "turn_off"
+                service = "homeassistant.turn_on" if turn_on else "homeassistant.turn_off"
                 service_data = {"entity_id": device.switch_entity}
                 response = requests.post(
-                    f"{self.hass_url}/api/services/switch/{service}",
+                    f"{self.hass_url}/api/services/{service}",
                     headers=self.get_headers(),
                     json=service_data
                 )
