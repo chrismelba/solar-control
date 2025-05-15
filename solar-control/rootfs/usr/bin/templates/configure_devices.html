@@ -311,8 +311,16 @@
         async function apiCall(endpoint, options = {}) {
             const url = `${ingressPath}${endpoint}`;
             const response = await fetch(url, options);
-            const data = await response.json();
-            return { ok: response.ok, data };
+            
+            // Check if there's content to parse
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                const data = await response.json();
+                return { ok: response.ok, data };
+            } else {
+                // If no JSON content, return just the status
+                return { ok: response.ok, data: null };
+            }
         }
 
         // Tab functionality
@@ -372,7 +380,11 @@
         // Load and display devices
         async function loadDevices() {
             try {
-                const devices = await apiCall('/api/devices');
+                const result = await apiCall('/api/devices');
+                if (!result.ok) {
+                    throw new Error('Failed to load devices');
+                }
+                const devices = result.data;
                 
                 const deviceList = document.getElementById('deviceList');
                 deviceList.innerHTML = '';
@@ -490,7 +502,11 @@
         // Edit device
         async function editDevice(deviceName) {
             try {
-                const device = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}`);
+                const result = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}`);
+                if (!result.ok) {
+                    throw new Error('Failed to load device');
+                }
+                const device = result.data;
                 
                 // Scroll to top
                 window.scrollTo(0, 0);
