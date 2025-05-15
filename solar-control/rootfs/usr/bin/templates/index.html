@@ -232,22 +232,30 @@
                     throw new Error(data.message || 'Failed to get status');
                 }
                 
-                document.querySelector('#status .status-content p').textContent = 
-                    `Status: ${data.status}, Version: ${data.version}`;
+                const statusContent = document.querySelector('#status .status-content p');
+                if (statusContent) {
+                    statusContent.textContent = `Status: ${data.status}, Version: ${data.version}`;
+                }
                     
                 // Update toggle state
                 const toggle = document.getElementById('powerOptimizationToggle');
-                toggle.checked = data.power_optimization_enabled;
+                if (toggle) {
+                    toggle.checked = data.power_optimization_enabled;
+                }
             } catch (error) {
                 console.error('Error updating status:', error);
-                document.querySelector('#status .status-content p').textContent = 
-                    'Error loading status';
+                const statusContent = document.querySelector('#status .status-content p');
+                if (statusContent) {
+                    statusContent.textContent = 'Error loading status';
+                }
             }
         }
 
-        // Update status periodically
-        updateStatus();
-        setInterval(updateStatus, 30000);  // Update every 30 seconds
+        // Update status immediately and then periodically
+        document.addEventListener('DOMContentLoaded', () => {
+            updateStatus();
+            setInterval(updateStatus, 30000);  // Update every 30 seconds
+        });
 
         // Handle toggle changes
         document.getElementById('powerOptimizationToggle').addEventListener('change', async function(e) {
