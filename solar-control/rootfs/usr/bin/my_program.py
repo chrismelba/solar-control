@@ -128,8 +128,10 @@ def root():
     ingress_path = request.headers.get('X-Ingress-Path', '')
     logger.info(f"Serving root page with ingress path: {ingress_path}")
     devices = Device.load_all(DEVICES_FILE)  # Load devices using the constant
+    sensor_values = get_sensor_values()  # Get sensor values
     return make_response(render_template('index.html', 
                          devices=devices,
+                         sensor_values=sensor_values,
                          ingress_path=ingress_path,
                          basename=ingress_path))
 
@@ -526,6 +528,36 @@ def toggle_device(name):
         return jsonify({'status': 'success'})
     except Exception as e:
         logger.error(f"Error toggling device {name}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/devices/<name>/state', methods=['GET'])
+def get_device_state(name):
+    try:
+        devices = Device.load_all(DEVICES_FILE)
+        device = next((d for d in devices if d.name == name), None)
+        if device is None:
+            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+
+        # Get the current state from Home Assistant
+        supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+        if not supervisor_token:
+            return jsonify({'status': 'error', 'message': 'No supervisor token available'}), 500
+
+        headers = {
+            "Authorization": f"Bearer {supervisor_token}",
+            "Content-Type": "application/json",
+        }
+
+        response = requests.get(
+            f"http://supervisor/core/api/states/{device.switch_entity}",
+            headers=headers
+        )
+        response.raise_for_status()
+        state = response.json().get('state', 'off')
+        
+        return jsonify({'state': state})
+    except Exception as e:
+        logger.error(f"Error getting device state: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 # Get port from environment

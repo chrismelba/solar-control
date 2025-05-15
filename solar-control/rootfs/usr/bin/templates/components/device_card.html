@@ -3,8 +3,8 @@
     <div class="device-info">
         <p class="device-name">{{ device.name }}</p>
         <p class="device-power">
-            {% if device.current_power %}
-                {{ device.current_power.value|round(1) }} {{ device.current_power.unit }}
+            {% if device.current_power_sensor %}
+                {{ device.typical_power_draw }}W (sensor: {{ device.current_power_sensor }})
             {% else %}
                 {{ device.typical_power_draw }}W
             {% endif %}
@@ -27,7 +27,7 @@
     </div>
     {% else %}
     <label class="switch">
-        <input type="checkbox" class="device-toggle" data-device-name="{{ device.name }}" {% if device.state %}checked{% endif %}>
+        <input type="checkbox" class="device-toggle" data-device-name="{{ device.name }}">
         <span class="slider round"></span>
     </label>
     {% endif %}
@@ -153,6 +153,26 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Add event listeners to all device toggles
     document.querySelectorAll('.device-toggle').forEach(toggle => {
+        // Fetch initial state
+        const deviceName = toggle.dataset.deviceName;
+        fetch(`/api/devices/${encodeURIComponent(deviceName)}`)
+            .then(response => response.json())
+            .then(device => {
+                // Get the current state from Home Assistant
+                fetch(`/api/devices/${encodeURIComponent(deviceName)}/state`)
+                    .then(response => response.json())
+                    .then(data => {
+                        toggle.checked = data.state === 'on';
+                    })
+                    .catch(error => {
+                        console.error('Error fetching device state:', error);
+                    });
+            })
+            .catch(error => {
+                console.error('Error fetching device:', error);
+            });
+
+        // Add toggle event listener
         toggle.addEventListener('change', async function(e) {
             const deviceName = this.dataset.deviceName;
             const isOn = this.checked;
