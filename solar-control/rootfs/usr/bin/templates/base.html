@@ -82,7 +82,7 @@
         // Add ingress path to all relative links and forms            
         const ingressPath = '{{ ingress_path }}';
 
-        document.addEventListener('DOMContentLoaded', function() {
+        function fixRelativeUrls() {
             // Update all relative links
             document.querySelectorAll('a[href^="/"]').forEach(function(link) {
                 const href = link.getAttribute('href');
@@ -101,6 +101,13 @@
 
             // Log the ingress path for debugging
             console.log('Ingress path:', ingressPath);
+        }
+
+        // Run immediately and also after a small delay to catch any dynamically added content
+        document.addEventListener('DOMContentLoaded', function() {
+            fixRelativeUrls();
+            // Run again after a small delay to ensure all content is loaded
+            setTimeout(fixRelativeUrls, 100);
         });
 
         // Helper function to make API calls with ingress path
