@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const isOn = this.checked;
             
             try {
-                const response = await fetch(`/api/devices/${encodeURIComponent(deviceName)}/toggle`, {
+                const response = await fetch(`/api/devices/${encodeURIComponent(deviceName)}/set_state`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -189,18 +189,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to toggle device');
+                    throw new Error('Failed to set device state');
                 }
 
                 const result = await response.json();
                 if (result.status === 'error') {
-                    throw new Error(result.message || 'Failed to toggle device');
+                    throw new Error(result.message || 'Failed to set device state');
                 }
             } catch (error) {
-                console.error('Error toggling device:', error);
+                console.error('Error setting device state:', error);
                 // Revert toggle state on error
                 this.checked = !isOn;
-                alert('Failed to toggle device. Please try again.');
+                alert('Failed to set device state. Please try again.');
             }
         });
     });

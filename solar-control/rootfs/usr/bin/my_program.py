@@ -518,28 +518,7 @@ def update_power_optimization():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
-@app.route('/api/devices/<name>/toggle', methods=['POST'])
-def toggle_device(name):
-    try:
-        data = request.get_json()
-        if not data or 'state' not in data:
-            return jsonify({'status': 'error', 'message': 'Invalid request data'}), 400
 
-        devices = Device.load_all(DEVICES_FILE)
-        device = next((d for d in devices if d.name == name), None)
-        
-        if device is None:
-            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
-
-        # Set the device state
-        success = device.set_state(data['state'])
-        if not success:
-            return jsonify({'status': 'error', 'message': 'Failed to set device state'}), 500
-
-        return jsonify({'status': 'success'})
-    except Exception as e:
-        logger.error(f"Error toggling device {name}: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/devices/<name>/state', methods=['GET'])
 def get_device_state(name):
@@ -569,6 +548,29 @@ def get_device_state(name):
         return jsonify({'state': state})
     except Exception as e:
         logger.error(f"Error getting device state: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/devices/<name>/set_state', methods=['POST'])
+def set_device_state(name):
+    try:
+        data = request.get_json()
+        if not data or 'state' not in data:
+            return jsonify({'status': 'error', 'message': 'Invalid request data'}), 400
+
+        devices = Device.load_all(DEVICES_FILE)
+        device = next((d for d in devices if d.name == name), None)
+        
+        if device is None:
+            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+
+        # Set the device state using the explicit set_state method
+        success = device.set_state(data['state'])
+        if not success:
+            return jsonify({'status': 'error', 'message': 'Failed to set device state'}), 500
+
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Error setting device state for {name}: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 # Get port from environment
