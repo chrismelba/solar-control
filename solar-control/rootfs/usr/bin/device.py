@@ -175,10 +175,12 @@ class Device:
     def set_state(self, state: bool) -> bool:
         """Set the state of the device in Home Assistant"""
         if not self.switch_entity:
+            logger.debug(f"No switch entity defined for {self.name}")
             return False
             
         supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
         if not supervisor_token:
+            logger.debug("No supervisor token found in environment")
             return False
             
         try:
@@ -189,16 +191,37 @@ class Device:
             
             hass_url = "http://supervisor/core"
             
-                # For regular devices or turning off, use the standard service
+            # First, get the entity state to determine its type
+            logger.debug(f"Fetching entity state for {self.switch_entity}")
+            response = requests.get(
+                f"{hass_url}/api/states/{self.switch_entity}",
+                headers=headers
+            )
+            response.raise_for_status()
+            entity_data = response.json()
+            logger.debug(f"Entity state response: {entity_data}")
+            
+            # Determine the domain and service based on entity type
+            domain = entity_data['entity_id'].split('.')[0]
             service = "turn_on" if state else "turn_off"
-            service_data = {"entity_id": self.switch_entity}
+            logger.debug(f"Detected domain: {domain}, using service: {service}")
+            
+            # Use the appropriate service based on the domain
+            if domain == "input_boolean":
+                service = "set_value"
+                service_data = {"entity_id": self.switch_entity, "value": state}
+            else:
+                service_data = {"entity_id": self.switch_entity}
+            
+            logger.debug(f"Sending service call to {domain}.{service} with data: {service_data}")
             response = requests.post(
-                f"{hass_url}/api/services/homeassistant/{service}",
+                f"{hass_url}/api/services/{domain}/{service}",
                 headers=headers,
                 json=service_data
             )
             
             response.raise_for_status()
+            logger.debug(f"Service call response: {response.status_code} - {response.text}")
             return True
         except Exception as e:
             logger.error(f"Failed to set state for {self.name}: {e}")
