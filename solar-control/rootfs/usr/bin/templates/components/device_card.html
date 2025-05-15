@@ -26,7 +26,10 @@
         <button class="delete-device button">Delete</button>
     </div>
     {% else %}
-    <span class="device-status status-off">Off</span>
+    <label class="switch">
+        <input type="checkbox" class="device-toggle" data-device-name="{{ device.name }}" {% if device.state %}checked{% endif %}>
+        <span class="slider round"></span>
+    </label>
     {% endif %}
 </div>
 {% endmacro %}
@@ -92,20 +95,94 @@
         margin-left: 1rem;
     }
 
-    .device-status {
+    /* Switch styles */
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 60px;
+        height: 34px;
         margin-left: 1rem;
-        padding: 0.25rem 0.5rem;
-        border-radius: 4px;
-        font-size: 0.9rem;
     }
 
-    .status-on {
-        background: #4caf50;
-        color: white;
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
     }
 
-    .status-off {
-        background: #f44336;
-        color: white;
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #f44336;
+        transition: .4s;
     }
-</style> 
+
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 26px;
+        width: 26px;
+        left: 4px;
+        bottom: 4px;
+        background-color: white;
+        transition: .4s;
+    }
+
+    input:checked + .slider {
+        background-color: #4caf50;
+    }
+
+    input:checked + .slider:before {
+        transform: translateX(26px);
+    }
+
+    .slider.round {
+        border-radius: 34px;
+    }
+
+    .slider.round:before {
+        border-radius: 50%;
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add event listeners to all device toggles
+    document.querySelectorAll('.device-toggle').forEach(toggle => {
+        toggle.addEventListener('change', async function(e) {
+            const deviceName = this.dataset.deviceName;
+            const isOn = this.checked;
+            
+            try {
+                const response = await fetch(`/api/devices/${encodeURIComponent(deviceName)}/toggle`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        state: isOn
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to toggle device');
+                }
+
+                const result = await response.json();
+                if (result.status === 'error') {
+                    throw new Error(result.message || 'Failed to toggle device');
+                }
+            } catch (error) {
+                console.error('Error toggling device:', error);
+                // Revert toggle state on error
+                this.checked = !isOn;
+                alert('Failed to toggle device. Please try again.');
+            }
+        });
+    });
+});
+</script> 

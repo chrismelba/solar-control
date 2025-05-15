@@ -316,17 +316,13 @@ class SolarController:
             # Only change switch state if we're allowed to
             if not (device_state.is_on and device_state.last_state_change and 
                    (current_time - device_state.last_state_change).total_seconds() < device.min_on_time):
-                service = "homeassistant.turn_on" if turn_on else "homeassistant.turn_off"
-                service_data = {"entity_id": device.switch_entity}
-                response = requests.post(
-                    f"{self.hass_url}/api/services/{service}",
-                    headers=self.get_headers(),
-                    json=service_data
-                )
-                response.raise_for_status()
-                device_state.is_on = turn_on
-                device_state.last_state_change = current_time
-                
+                success = device.set_state(turn_on)
+                if success:
+                    device_state.is_on = turn_on
+                    device_state.last_state_change = current_time
+                else:
+                    logger.error(f"Failed to set state for {device.name}")
+            
         except Exception as e:
             logger.error(f"Failed to set state for {device.name}: {e}")
             

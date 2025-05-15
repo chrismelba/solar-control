@@ -196,7 +196,7 @@ class Device:
                     "amperage": self.min_amperage
                 }
                 response = requests.post(
-                    f"{hass_url}/api/services/switch/turn_on",
+                    f"{hass_url}/api/services/homeassistant/turn_on",
                     headers=headers,
                     json=service_data
                 )
@@ -205,7 +205,7 @@ class Device:
                 service = "turn_on" if state else "turn_off"
                 service_data = {"entity_id": self.switch_entity}
                 response = requests.post(
-                    f"{hass_url}/api/services/switch/{service}",
+                    f"{hass_url}/api/services/homeassistant/{service}",
                     headers=headers,
                     json=service_data
                 )

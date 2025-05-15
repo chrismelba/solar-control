@@ -499,6 +499,29 @@ def update_power_optimization():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
+@app.route('/api/devices/<name>/toggle', methods=['POST'])
+def toggle_device(name):
+    try:
+        data = request.get_json()
+        if not data or 'state' not in data:
+            return jsonify({'status': 'error', 'message': 'Invalid request data'}), 400
+
+        devices = Device.load_all(DEVICES_FILE)
+        device = next((d for d in devices if d.name == name), None)
+        
+        if device is None:
+            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+
+        # Set the device state
+        success = device.set_state(data['state'])
+        if not success:
+            return jsonify({'status': 'error', 'message': 'Failed to set device state'}), 500
+
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Error toggling device {name}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
 # Get port from environment
 port = int(os.environ.get('PORT', 5000))
 logger.info(f"Starting Flask application on port {port}")
