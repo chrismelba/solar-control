@@ -44,6 +44,7 @@ def inject_ingress_path():
     # Get ingress path from header
     ingress_path = request.headers.get('X-Ingress-Path', '')
     logger.info(f"Using ingress path from header: {ingress_path}")
+    logger.info(f"All request headers: {dict(request.headers)}")
     return dict(ingress_path=ingress_path, basename=ingress_path)
 
 # Override url_for to include ingress path for all URLs

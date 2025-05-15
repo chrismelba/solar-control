@@ -228,6 +228,10 @@
             try {
                 const data = await apiCall('/api/status');
                 
+                if (data.status === 'error') {
+                    throw new Error(data.message || 'Failed to get status');
+                }
+                
                 document.querySelector('#status .status-content p').textContent = 
                     `Status: ${data.status}, Version: ${data.version}`;
                     

@@ -79,9 +79,10 @@
     </div>
     {% block extra_scripts %}{% endblock %}
     <script>
-        // Add ingress path to all relative links and forms
+        // Add ingress path to all relative links and forms            
+        const ingressPath = '{{ ingress_path }}';
+
         document.addEventListener('DOMContentLoaded', function() {
-            const ingressPath = '{{ ingress_path }}';
             
             // Update all relative links
             document.querySelectorAll('a[href^="/"]').forEach(function(link) {
@@ -115,7 +116,6 @@
 
         // Helper function to make API calls with ingress path
         async function apiCall(endpoint, options = {}) {
-            const ingressPath = '{{ ingress_path }}';
             const url = `${ingressPath}${endpoint}`;
             const response = await fetch(url, options);
             const data = await response.json();
