@@ -365,11 +365,7 @@
         // Load and display devices
         async function loadDevices() {
             try {
-                const result = await apiCall('/api/devices');
-                if (!result.ok) {
-                    throw new Error('Failed to load devices');
-                }
-                const devices = result.data;
+                const devices = await apiCall('/api/devices');
                 
                 const deviceList = document.getElementById('deviceList');
                 deviceList.innerHTML = '';
@@ -419,8 +415,9 @@
                     });
                 });
             } catch (error) {
+                console.error('Error loading devices:', error);
                 document.getElementById('deviceList').innerHTML = 
-                    '<p>Error loading devices</p>';
+                    '<p>Error loading devices: ' + error.message + '</p>';
             }
         }
 
