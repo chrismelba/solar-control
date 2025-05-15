@@ -440,7 +440,9 @@
         }
 
         // Add new device
-        document.getElementById('addDeviceForm').addEventListener('submit', async (e) => {
+        const addDeviceForm = document.getElementById('addDeviceForm');
+        const originalSubmitHandler = addDeviceForm.onsubmit;
+        addDeviceForm.onsubmit = async (e) => {
             e.preventDefault();
             
             const formData = new FormData(e.target);
@@ -497,7 +499,7 @@
                 console.error('Error adding device:', error);
                 alert('Failed to add device. Please try again.');
             }
-        });
+        };
 
         // Edit device
         async function editDevice(deviceName) {
@@ -549,7 +551,6 @@
                 
                 // Remove the old submit handler and add the new one
                 const form = document.getElementById('addDeviceForm');
-                const oldSubmitHandler = form.onsubmit;
                 form.onsubmit = async (e) => {
                     e.preventDefault();
                     
@@ -587,21 +588,21 @@
                             throw new Error('Failed to update device');
                         }
                         
+                        // Show success message
+                        alert('Device updated successfully!');
+                        
                         // Reload devices
                         loadDevices();
                         
                         // Reset form and handler
                         e.target.reset();
-                        e.target.onsubmit = oldSubmitHandler;  // Restore the original add device handler
+                        e.target.onsubmit = originalSubmitHandler;  // Restore the original add device handler
                         document.getElementById('amperage-controls').style.display = 'none';
                         
                         // Reset form title and button
                         document.querySelector('.card h2').textContent = 'Add New Device';
                         document.getElementById('submitButton').textContent = 'Add Device';
                         document.getElementById('cancelButton').style.display = 'none';
-
-                        // Show success message
-                        alert('Device updated successfully!');
                     } catch (error) {
                         console.error('Error updating device:', error);
                         alert('Failed to update device. Please try again.');
@@ -611,7 +612,7 @@
                 // Add cancel button handler
                 document.getElementById('cancelButton').onclick = () => {
                     form.reset();
-                    form.onsubmit = oldSubmitHandler;  // Restore the original add device handler
+                    form.onsubmit = originalSubmitHandler;  // Restore the original add device handler
                     document.getElementById('amperage-controls').style.display = 'none';
                     document.querySelector('.card h2').textContent = 'Add New Device';
                     document.getElementById('submitButton').textContent = 'Add Device';
