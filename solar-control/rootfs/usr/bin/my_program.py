@@ -518,8 +518,6 @@ def update_power_optimization():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
-
-
 @app.route('/api/devices/<name>/state', methods=['GET'])
 def get_device_state(name):
     try:
@@ -553,21 +551,32 @@ def get_device_state(name):
 @app.route('/api/devices/<name>/set_state', methods=['POST'])
 def set_device_state(name):
     try:
+        logger.debug(f"Received set_state request for device: {name}")
         data = request.get_json()
+        logger.debug(f"Request data: {data}")
+        
         if not data or 'state' not in data:
+            logger.error(f"Invalid request data: {data}")
             return jsonify({'status': 'error', 'message': 'Invalid request data'}), 400
 
         devices = Device.load_all(DEVICES_FILE)
+        logger.debug(f"Loaded {len(devices)} devices from file")
         device = next((d for d in devices if d.name == name), None)
         
         if device is None:
+            logger.error(f"Device not found: {name}")
             return jsonify({'status': 'error', 'message': 'Device not found'}), 404
 
+        logger.debug(f"Found device: {device.name}, switch_entity: {device.switch_entity}")
+        logger.debug(f"Attempting to set state to: {data['state']}")
+        
         # Set the device state using the explicit set_state method
         success = device.set_state(data['state'])
         if not success:
+            logger.error(f"Failed to set state for device {name}")
             return jsonify({'status': 'error', 'message': 'Failed to set device state'}), 500
 
+        logger.debug(f"Successfully set state for device {name}")
         return jsonify({'status': 'success'})
     except Exception as e:
         logger.error(f"Error setting device state for {name}: {e}")
