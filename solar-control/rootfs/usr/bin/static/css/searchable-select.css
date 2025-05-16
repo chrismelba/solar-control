@@ -28,11 +28,11 @@
     right: 0;
     max-height: 200px;
     overflow-y: auto;
-    background: white;
-    border: 1px solid #ccc;
+    background: #424242;
+    border: 1px solid #666;
     border-radius: 4px;
     z-index: 1000;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     margin-top: 4px;
 }
 
@@ -46,15 +46,16 @@
     font-size: 14px;
     line-height: 1.5;
     transition: background-color 0.2s ease;
+    color: #ffffff;
 }
 
 .searchable-select .option:hover {
-    background: #f5f5f5;
+    background: #616161;
 }
 
 .searchable-select .option.selected {
-    background: #e3f2fd;
-    color: #1976d2;
+    background: #03a9f4;
+    color: #ffffff;
 }
 
 /* Add styles for the search input */

@@ -39,18 +39,25 @@ class SearchableSelect {
             
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
+                e.stopPropagation();
                 this.currentFocus++;
                 this.addActive(optionElements);
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
+                e.stopPropagation();
                 this.currentFocus--;
                 this.addActive(optionElements);
-            } else if (e.key === 'Enter' || e.key === 'Tab') {
+            } else if (e.key === 'Enter') {
                 e.preventDefault();
+                e.stopPropagation();
                 const activeOption = this.options.querySelector('.option.active');
                 if (activeOption) {
                     this.selectOption(activeOption);
                 }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.options.classList.remove('active');
             }
         });
 
@@ -79,8 +86,21 @@ class SearchableSelect {
         if (this.currentFocus < 0) this.currentFocus = optionElements.length - 1;
         
         // Add active class to current option
-        optionElements[this.currentFocus].classList.add('active');
-        optionElements[this.currentFocus].scrollIntoView({ block: 'nearest' });
+        const activeOption = optionElements[this.currentFocus];
+        activeOption.classList.add('active');
+        
+        // Ensure the active option is visible
+        const optionsContainer = this.options;
+        const optionTop = activeOption.offsetTop;
+        const optionBottom = optionTop + activeOption.offsetHeight;
+        const containerTop = optionsContainer.scrollTop;
+        const containerBottom = containerTop + optionsContainer.offsetHeight;
+
+        if (optionTop < containerTop) {
+            optionsContainer.scrollTop = optionTop;
+        } else if (optionBottom > containerBottom) {
+            optionsContainer.scrollTop = optionBottom - optionsContainer.offsetHeight;
+        }
     }
 
     selectOption(option) {
