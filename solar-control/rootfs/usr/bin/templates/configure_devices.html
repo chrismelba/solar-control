@@ -302,12 +302,10 @@
             border-top: 1px solid #ddd;
         }
     </style>
+{% endblock %}
 
+{% block extra_scripts %}
     <script>
-        // Get ingress path from the page
-        // const ingressPath = "{{ ingress_path }}";
-        
-
         // Tab functionality
         document.addEventListener('DOMContentLoaded', function() {
             const tabButtons = document.querySelectorAll('.tab-button');
