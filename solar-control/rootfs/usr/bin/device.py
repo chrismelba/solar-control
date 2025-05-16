@@ -207,11 +207,8 @@ class Device:
             logger.debug(f"Detected domain: {domain}, using service: {service}")
             
             # Use the appropriate service based on the domain
-            if domain == "input_boolean":
-                service = "set_value"
-                service_data = {"entity_id": self.switch_entity, "value": state}
-            else:
-                service_data = {"entity_id": self.switch_entity}
+
+            service_data = {"entity_id": self.switch_entity}
             
             logger.debug(f"Sending service call to {domain}.{service} with data: {service_data}")
             response = requests.post(
