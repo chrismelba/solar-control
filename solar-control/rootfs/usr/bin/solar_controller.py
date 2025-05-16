@@ -402,19 +402,12 @@ class SolarController:
             response.raise_for_status()
             sun_data = response.json()
             
-            # Get current time in UTC
-            current_time = datetime.now(timezone.utc)
-            
-            # Get dawn and dusk times from attributes
-            dawn_time = datetime.fromisoformat(sun_data['attributes']['next_dawn'].replace('Z', '+00:00'))
-            dusk_time = datetime.fromisoformat(sun_data['attributes']['next_dusk'].replace('Z', '+00:00'))
-            
-            # Check if current time is between dawn and dusk
-            return dawn_time <= current_time <= dusk_time
+            # Check if sun is above horizon
+            return sun_data['state'] == 'above_horizon'
             
         except Exception as e:
-            logger.error(f"Failed to check dawn/dusk times: {e}")
-            return True  # Default to True if we can't determine times
+            logger.error(f"Failed to check sun state: {e}")
+            return True  # Default to True if we can't determine state
 
     def run_control_loop(self):
         """Main control loop - runs one iteration"""
