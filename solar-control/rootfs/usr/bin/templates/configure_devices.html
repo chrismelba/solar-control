@@ -306,21 +306,7 @@
 
 {% block extra_scripts %}
     <script>
-        // Helper function to make API calls with ingress path
-        async function apiCall(endpoint, options = {}) {
-            // Ensure endpoint starts with a forward slash
-            const url = `${ingressPath}${endpoint}`;
-            
-            console.log('Making API call to:', url); // Debug log
-            
-            const response = await fetch(url, options);
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.message || `API call failed: ${response.statusText}`);
-            }
-            return data;
-        }
-
+    
         // Tab functionality
         document.addEventListener('DOMContentLoaded', function() {
             const tabButtons = document.querySelectorAll('.tab-button');
@@ -496,10 +482,7 @@
         async function editDevice(deviceName) {
             try {
                 const result = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}`);
-                if (!result.ok) {
-                    throw new Error('Failed to load device');
-                }
-                const device = result.data;
+                const device = result;
                 
                 // Scroll to top
                 window.scrollTo(0, 0);
@@ -575,10 +558,6 @@
                             body: JSON.stringify(deviceData)
                         });
                         
-                        if (!response.ok) {
-                            throw new Error('Failed to update device');
-                        }
-                        
                         // Show success message
                         alert('Device updated successfully!');
                         
@@ -625,10 +604,6 @@
                 const response = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}`, {
                     method: 'DELETE'
                 });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to delete device');
-                }
                 
                 // Reload devices
                 loadDevices();

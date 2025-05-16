@@ -187,10 +187,6 @@ function attachToggleListeners(toggle) {
                     state: isOn
                 })
             });
-
-            if (result.status === 'error') {
-                throw new Error(result.message || 'Failed to set device state');
-            }
         } catch (error) {
             console.error('Error setting device state:', error);
             // Revert toggle state on error
