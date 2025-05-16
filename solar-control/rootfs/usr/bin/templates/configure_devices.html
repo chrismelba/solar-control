@@ -309,12 +309,7 @@
         // Helper function to make API calls with ingress path
         async function apiCall(endpoint, options = {}) {
             // Ensure endpoint starts with a forward slash
-            if (!endpoint.startsWith('/')) {
-                endpoint = '/' + endpoint;
-            }
-            
-            // Remove any duplicate forward slashes between ingressPath and endpoint
-            const url = `${ingressPath}${endpoint}`.replace(/([^:]\/)\/+/g, "$1");
+            const url = `${ingressPath}${endpoint}`;
             
             console.log('Making API call to:', url); // Debug log
             
@@ -485,10 +480,6 @@
                     body: JSON.stringify(deviceData)
                 });
                 
-                if (!result.ok) {
-                    throw new Error(result.data.message || 'Failed to add device');
-                }
-                
                 // Reload devices
                 loadDevices();
                 
@@ -497,7 +488,7 @@
                 document.getElementById('amperage-controls').style.display = 'none';
             } catch (error) {
                 console.error('Error adding device:', error);
-                alert('Failed to add device. Please try again.');
+                alert('Failed to add device: ' + error.message);
             }
         };
 
