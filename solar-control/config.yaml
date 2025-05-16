@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: "Solar Control"
-version: "1.3.60"
+version: "1.3.61"
 slug: "solar-control"
 description: "Solar Control add-on"
 url: "https://github.com/chrismelba/solar-control"

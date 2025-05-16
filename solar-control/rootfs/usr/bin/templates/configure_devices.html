@@ -306,6 +306,26 @@
 
 {% block extra_scripts %}
     <script>
+        // Helper function to make API calls with ingress path
+        async function apiCall(endpoint, options = {}) {
+            // Ensure endpoint starts with a forward slash
+            if (!endpoint.startsWith('/')) {
+                endpoint = '/' + endpoint;
+            }
+            
+            // Remove any duplicate forward slashes between ingressPath and endpoint
+            const url = `${ingressPath}${endpoint}`.replace(/([^:]\/)\/+/g, "$1");
+            
+            console.log('Making API call to:', url); // Debug log
+            
+            const response = await fetch(url, options);
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || `API call failed: ${response.statusText}`);
+            }
+            return data;
+        }
+
         // Tab functionality
         document.addEventListener('DOMContentLoaded', function() {
             const tabButtons = document.querySelectorAll('.tab-button');
