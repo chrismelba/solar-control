@@ -8,15 +8,13 @@ This add-on provides intelligent solar control functionality for Home Assistant,
 
 ### Features
 - Control of static loads (e.g., water heaters, pool pumps)
-- Management of variable loads based on solar generation
+- Management of variable loads (e.g car charger) based on solar generation
 - Real-time monitoring of solar production and consumption
-- Integration with Home Assistant's energy dashboard
 
 ### Future Enhancements
 - Battery control and optimization
 - Time-of-use tariff integration
 - Advanced load scheduling based on tariff structures
-- Predictive control using weather forecasts
 
 ## Installation
 
@@ -26,7 +24,7 @@ The installation of this add-on is pretty straightforward and not unlike most ot
    - Go to the Home Assistant add-on store
    - Click on the three dots in the top right
    - Select "Repositories"
-   - Add `https://github.com/yourusername/solar-control`
+   - Add `https://github.com/chrismelba/solar-control`
 
 2. Install the "Solar Control" add-on:
    - Search for "Solar Control" in the add-on store
@@ -44,21 +42,7 @@ The installation of this add-on is pretty straightforward and not unlike most ot
 
 ## Configuration
 
-Example configuration:
-
-```yaml
-# Example configuration.yaml entry
-solar_control:
-  static_loads:
-    - entity_id: switch.water_heater
-      power_consumption: 2000
-      priority: 1
-  variable_loads:
-    - entity_id: switch.pool_pump
-      min_power: 500
-      max_power: 2000
-      priority: 2
-```
+Configuration is all done within the WebApp. 
 
 ## Support
 
