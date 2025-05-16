@@ -12,6 +12,12 @@
     font-size: 14px;
     line-height: 1.5;
     box-sizing: border-box;
+    background-color: #424242;
+    color: #ffffff;
+}
+
+.searchable-select input::placeholder {
+    color: #bdbdbd;
 }
 
 .searchable-select .options {

@@ -3,6 +3,7 @@ class SearchableSelect {
         this.input = document.getElementById(inputId);
         this.options = document.getElementById(optionsId);
         this.hiddenInput = document.getElementById(hiddenInputId);
+        this.currentFocus = -1;
         
         this.setupEventListeners();
         this.setInitialValue();
@@ -30,20 +31,33 @@ class SearchableSelect {
             });
             
             this.options.classList.add('active');
+            this.currentFocus = -1;
+        });
+
+        this.input.addEventListener('keydown', (e) => {
+            const optionElements = Array.from(this.options.querySelectorAll('.option:not([style*="display: none"])'));
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.currentFocus++;
+                this.addActive(optionElements);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                this.currentFocus--;
+                this.addActive(optionElements);
+            } else if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                const activeOption = this.options.querySelector('.option.active');
+                if (activeOption) {
+                    this.selectOption(activeOption);
+                }
+            }
         });
 
         this.options.addEventListener('click', (e) => {
             const option = e.target.closest('.option');
             if (option) {
-                this.input.value = option.textContent;
-                this.hiddenInput.value = option.dataset.value;
-                this.options.classList.remove('active');
-                
-                // Update selected state
-                this.options.querySelectorAll('.option').forEach(opt => {
-                    opt.classList.remove('selected');
-                });
-                option.classList.add('selected');
+                this.selectOption(option);
             }
         });
 
@@ -52,6 +66,33 @@ class SearchableSelect {
                 this.options.classList.remove('active');
             }
         });
+    }
+
+    addActive(optionElements) {
+        if (!optionElements.length) return;
+        
+        // Remove active class from all options
+        optionElements.forEach(opt => opt.classList.remove('active'));
+        
+        // Handle wrapping around
+        if (this.currentFocus >= optionElements.length) this.currentFocus = 0;
+        if (this.currentFocus < 0) this.currentFocus = optionElements.length - 1;
+        
+        // Add active class to current option
+        optionElements[this.currentFocus].classList.add('active');
+        optionElements[this.currentFocus].scrollIntoView({ block: 'nearest' });
+    }
+
+    selectOption(option) {
+        this.input.value = option.textContent;
+        this.hiddenInput.value = option.dataset.value;
+        this.options.classList.remove('active');
+        
+        // Update selected state
+        this.options.querySelectorAll('.option').forEach(opt => {
+            opt.classList.remove('selected');
+        });
+        option.classList.add('selected');
     }
 }
 
