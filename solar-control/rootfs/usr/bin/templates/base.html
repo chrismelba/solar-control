@@ -129,6 +129,87 @@
             }
             return data;
         }
+
+        // Function to attach event listeners to a toggle
+        function attachToggleListeners(toggle) {
+            // Fetch initial state
+            const deviceName = toggle.dataset.deviceName;
+            console.log(`Fetching initial state for device: ${deviceName}`);
+            
+            apiCall(`/api/devices/${encodeURIComponent(deviceName)}`)
+                .then(device => {
+                    console.log(`Device info received for ${deviceName}:`, device);
+                    // Get the current state from Home Assistant
+                    console.log(`Fetching Home Assistant state for ${deviceName}`);
+                    return apiCall(`/api/devices/${encodeURIComponent(deviceName)}/state`);
+                })
+                .then(data => {
+                    console.log(`State received for ${deviceName}:`, data);
+                    toggle.checked = data.state === 'on';
+                    console.log(`Toggle set to ${data.state === 'on' ? 'on' : 'off'} for ${deviceName}`);
+                })
+                .catch(error => {
+                    console.error(`Error fetching device state for ${deviceName}:`, error);
+                });
+
+            // Add toggle event listener
+            toggle.addEventListener('change', async function(e) {
+                const deviceName = this.dataset.deviceName;
+                const isOn = this.checked;
+                
+                try {
+                    const result = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}/set_state`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            state: isOn
+                        })
+                    });
+                } catch (error) {
+                    console.error('Error setting device state:', error);
+                    // Revert toggle state on error
+                    this.checked = !isOn;
+                    alert('Failed to set device state. Please try again.');
+                }
+            });
+        }
+
+        // Function to initialize all toggles
+        function initializeToggles() {
+            document.querySelectorAll('.device-toggle').forEach(toggle => {
+                attachToggleListeners(toggle);
+            });
+        }
+
+        // Initialize toggles on DOMContentLoaded
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeToggles();
+            // Create a MutationObserver to watch for new device toggles
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node.nodeType === 1) { // Element node
+                            // Check if the added node is a device toggle
+                            if (node.classList && node.classList.contains('device-toggle')) {
+                                attachToggleListeners(node);
+                            }
+                            // Check children of added node for device toggles
+                            node.querySelectorAll('.device-toggle').forEach(toggle => {
+                                attachToggleListeners(toggle);
+                            });
+                        }
+                    });
+                });
+            });
+
+            // Start observing the document with the configured parameters
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+        });
     </script>
     <script src="{{ url_for('static', filename='js/searchable-select.js') }}"></script>
 </body>
