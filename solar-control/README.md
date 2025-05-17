@@ -47,7 +47,11 @@ Configuration is all done within the WebApp.
 ## Support
 
 This app made with help from Curson. If you have any issues or questions, please open an issue in the GitHub repository.
+
+
 [![Buy Me A Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png?w=150)](https://www.buymeacoffee.com/chrismelba)
+
+
 
 ![Supports aarch64 Architecture][aarch64-shield]
 ![Supports amd64 Architecture][amd64-shield]
