@@ -25,7 +25,7 @@ class Device:
     run_once: bool = False
     completion_sensor: Optional[str] = None  # Home Assistant entity ID for completion status
     order: int = 0  # For drag-and-drop ordering
-    power_delivered_today: float = 0.0  # in watt-hours
+    energy_delivered_today: float = 0.0  # in watt-hours
     last_power_update: Optional[datetime] = None
     last_dawn_reset: Optional[datetime] = None
     min_daily_power: Optional[float] = None  # Minimum power required per day in watt-hours
@@ -47,7 +47,7 @@ class Device:
             'run_once': self.run_once,
             'completion_sensor': self.completion_sensor,
             'order': self.order,
-            'power_delivered_today': self.power_delivered_today,
+            'energy_delivered_today': self.energy_delivered_today,
             'last_power_update': self.last_power_update.isoformat() if self.last_power_update else None,
             'last_dawn_reset': self.last_dawn_reset.isoformat() if self.last_dawn_reset else None,
             'min_daily_power': self.min_daily_power
@@ -63,20 +63,20 @@ class Device:
         return cls(**data)
 
     def update_power_delivered(self, current_power: float) -> None:
-        """Update the power delivered tracking"""
+        """Update the energy delivered tracking"""
         now = datetime.now()
         
         # Check if we need to reset (dawn condition)
         if self.should_reset_power_tracking():
-            self.power_delivered_today = 0.0
+            self.energy_delivered_today = 0.0
             self.last_power_update = now
             self.last_dawn_reset = now
             return
 
-        # Calculate power delivered since last update
+        # Calculate energy delivered since last update
         if self.last_power_update:
             time_diff = (now - self.last_power_update).total_seconds() / 3600  # Convert to hours
-            self.power_delivered_today += current_power * time_diff
+            self.energy_delivered_today += current_power * time_diff
 
         self.last_power_update = now
 
