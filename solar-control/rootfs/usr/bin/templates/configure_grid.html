@@ -44,7 +44,7 @@
         <div class="card">
             <h2>Configure Sensors</h2>
             <div class="form-group">
-                <label for="solar_generation">Solar Generation Entity:</label>
+                <label for="solar_generation">Solar Generation Entity: <span class="tooltip">ⓘ<span class="tooltiptext">Select the sensor that measures your solar panel's power generation. This should be a power sensor that shows how much power your solar panels are currently producing.</span></span></label>
                 <div class="searchable-select">
                     <input type="text" id="solar_generation_input" placeholder="Search for an entity..." autocomplete="off">
                     <input type="hidden" name="solar_generation" id="solar_generation" value="{{ config.solar_generation }}">
@@ -60,7 +60,7 @@
             </div>
 
             <div class="form-group">
-                <label for="grid_power">Grid Power Entity:</label>
+                <label for="grid_power">Grid Power Entity: <span class="tooltip">ⓘ<span class="tooltiptext">Select the sensor that measures power flow to/from the grid. Negative values indicate power being exported to the grid, positive values indicate power being imported from the grid.</span></span></label>
                 <div class="searchable-select">
                     <input type="text" id="grid_power_input" placeholder="Search for an entity..." autocomplete="off">
                     <input type="hidden" name="grid_power" id="grid_power" value="{{ config.grid_power }}">
@@ -76,7 +76,7 @@
             </div>
 
             <div class="form-group">
-                <label for="solar_forecast">Solar Forecast Entity:</label>
+                <label for="solar_forecast">Solar Forecast Entity: <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that provides solar generation forecast remaining today. Currently this does nothing, but will be used in the future to optimize battery usage.</span></span></label>
                 <div class="searchable-select">
                     <input type="text" id="solar_forecast_input" placeholder="Search for an entity..." autocomplete="off">
                     <input type="hidden" name="solar_forecast" id="solar_forecast" value="{{ config.solar_forecast }}">
@@ -92,7 +92,7 @@
             </div>
 
             <div class="form-group">
-                <label for="grid_voltage">Grid Voltage:</label>
+                <label for="grid_voltage">Grid Voltage: <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that measures grid voltage, or enter a fixed value. This is used to calculate power for variable amperage devices.</span></span></label>
                 <div class="input-group">
                     <div class="searchable-select">
                         <input type="text" id="grid_voltage_input" placeholder="Search for an entity..." autocomplete="off">
@@ -115,7 +115,7 @@
             </div>
 
             <div class="form-group">
-                <label for="site_export_limit">Site Export Limit:</label>
+                <label for="site_export_limit">Site Export Limit: <span class="tooltip">ⓘ<span class="tooltiptext">Set the maximum amount of power that can be exported to the grid. This is currently unused, but will be used in future to best utilize export limited power</span></span></label>
                 <div class="input-group">
                     <input type="number" name="site_export_limit" id="site_export_limit" 
                            placeholder="Enter maximum export limit" step="0.1" min="0"
@@ -126,7 +126,7 @@
             </div>
 
             <div class="form-group">
-                <label for="tariff_rate">Tariff Rate Entity:</label>
+                <label for="tariff_rate">Tariff Rate Entity: <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that provides your current electricity tariff rate. This is not currently used, but will be used in future to manage off-peak power when solar is insufficient.</span></span></label>
                 <div class="searchable-select">
                     <input type="text" id="tariff_rate_input" placeholder="Search for an entity..." autocomplete="off">
                     <input type="hidden" name="tariff_rate" id="tariff_rate" value="{{ config.tariff_rate }}">
@@ -142,7 +142,7 @@
                     </div>
                 </div>
                 <div id="tariff_order_container" class="tariff-order-container" style="display: none; margin-top: 1rem;">
-                    <h4>Order Tariff Rates (drag to reorder)</h4>
+                    <h4>Order Tariff Rates (drag to reorder) <span class="tooltip">ⓘ<span class="tooltiptext">Drag and drop to order your tariff rates from cheapest to most expensive. This will be used in future to manage off-peak power when solar is insufficient.</span></span></h4>
                     <p class="help-text">Drag and drop to order from cheapest (top) to most expensive (bottom)</p>
                     <div id="tariff_order_list" class="tariff-order-list">
                         <!-- Options will be populated by JavaScript -->
@@ -330,6 +330,50 @@
             color: #666;
             font-size: 0.9em;
             margin: 0.5rem 0;
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+            color: #666;
+            font-size: 0.9em;
+            margin-left: 4px;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 10px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
         }
     </style>
 {% endblock %} 

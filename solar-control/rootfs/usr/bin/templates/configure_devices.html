@@ -30,12 +30,12 @@
                 <div class="tab-content active" id="basic-tab">
                     <h3>Basic Settings</h3>
                     <div class="form-group">
-                        <label for="name">Device Name:</label>
+                        <label for="name">Device Name: <span class="tooltip">ⓘ<span class="tooltiptext">A friendly name for your device that will be displayed in the dashboard.</span></span></label>
                         <input type="text" id="name" name="name" required>
                     </div>
                     
                     <div class="form-group">
-                        <label for="switch_entity">Switch Entity:</label>
+                        <label for="switch_entity">Switch Entity: <span class="tooltip">ⓘ<span class="tooltiptext">Select the switch or input_boolean entity that controls this device. This is what the system will use to turn the device on and off.</span></span></label>
                         <div class="searchable-select">
                             <input type="text" id="switch_entity_input" placeholder="Search for a switch entity..." autocomplete="off">
                             <input type="hidden" name="switch_entity" id="switch_entity" required>
@@ -56,12 +56,12 @@
                     </div>
                     
                     <div class="form-group">
-                        <label for="typical_power_draw">Typical Power Draw (W):</label>
+                        <label for="typical_power_draw">Typical Power Draw (W): <span class="tooltip">ⓘ<span class="tooltiptext">The average power consumption of the device in watts. This is used to estimate energy usage when no power sensor is available.</span></span></label>
                         <input type="number" id="typical_power_draw" name="typical_power_draw" required min="0">
                     </div>
                     
                     <div class="form-group">
-                        <label for="current_power_sensor">Current Power Sensor (optional):</label>
+                        <label for="current_power_sensor">Current Power Sensor (optional): <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that measures the actual power consumption of the device. This provides more accurate power readings than the typical power draw.</span></span></label>
                         <div class="searchable-select">
                             <input type="text" id="current_power_sensor_input" placeholder="Search for a power sensor..." autocomplete="off">
                             <input type="hidden" name="current_power_sensor" id="current_power_sensor">
@@ -78,7 +78,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="power_delivery_sensor">Power Delivery Sensor (optional):</label>
+                        <label for="power_delivery_sensor">Power Delivery Sensor (optional): <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that measures how much power the device is actually receiving. This is useful for devices that may not receive their full requested power.</span></span></label>
                         <div class="searchable-select">
                             <input type="text" id="power_delivery_sensor_input" placeholder="Search for a power delivery sensor..." autocomplete="off">
                             <input type="hidden" name="power_delivery_sensor" id="power_delivery_sensor">
@@ -104,13 +104,13 @@
                     <div class="form-group">
                         <label>
                             <input type="checkbox" id="has_variable_amperage" name="has_variable_amperage">
-                            Has Variable Amperage Control
+                            Has Variable Amperage Control <span class="tooltip">ⓘ<span class="tooltiptext">Enable this if your device can adjust its power consumption by changing its amperage (e.g., EV chargers).</span></span>
                         </label>
                     </div>
                     
                     <div id="amperage-controls">
                         <div class="form-group">
-                            <label for="variable_amperage_control">Variable Amperage Control Entity:</label>
+                            <label for="variable_amperage_control">Variable Amperage Control Entity: <span class="tooltip">ⓘ<span class="tooltiptext">Select the entity that controls the amperage of your device. This should be a number or input_number entity.</span></span></label>
                             <div class="searchable-select">
                                 <input type="text" id="variable_amperage_control_input" placeholder="Search for a control entity..." autocomplete="off">
                                 <input type="hidden" name="variable_amperage_control" id="variable_amperage_control">
@@ -127,12 +127,12 @@
                         </div>
                         
                         <div class="form-group">
-                            <label for="min_amperage">Minimum Amperage (A):</label>
+                            <label for="min_amperage">Minimum Amperage (A): <span class="tooltip">ⓘ<span class="tooltiptext">The minimum amperage your device can operate at. The system will never set the amperage below this value.</span></span></label>
                             <input type="number" id="min_amperage" name="min_amperage" min="0" step="0.1">
                         </div>
                         
                         <div class="form-group">
-                            <label for="max_amperage">Maximum Amperage (A):</label>
+                            <label for="max_amperage">Maximum Amperage (A): <span class="tooltip">ⓘ<span class="tooltiptext">The maximum amperage your device can operate at. The system will never set the amperage above this value.</span></span></label>
                             <input type="number" id="max_amperage" name="max_amperage" min="0" step="0.1">
                         </div>
                     </div>
@@ -141,24 +141,24 @@
                 <div class="tab-content" id="runtime-tab">
                     <h3>Runtime Settings</h3>
                     <div class="form-group">
-                        <label for="min_on_time">Minimum On Time (minutes):</label>
+                        <label for="min_on_time">Minimum On Time (minutes): <span class="tooltip">ⓘ<span class="tooltiptext">The minimum amount of time the device must stay on once started. This prevents rapid cycling of the device.</span></span></label>
                         <input type="number" id="min_on_time" name="min_on_time" value="0" min="0">
                     </div>
                     
                     <div class="form-group">
-                        <label for="min_off_time">Minimum Off Time (minutes):</label>
+                        <label for="min_off_time">Minimum Off Time (minutes): <span class="tooltip">ⓘ<span class="tooltiptext">The minimum amount of time the device must stay off after being turned off. This prevents rapid cycling of the device.</span></span></label>
                         <input type="number" id="min_off_time" name="min_off_time" value="0" min="0">
                     </div>
                     
                     <div class="form-group">
                         <label>
                             <input type="checkbox" id="run_once" name="run_once">
-                            Run Once (e.g., washing machine, dishwasher)
+                            Run Once (e.g., washing machine, dishwasher) <span class="tooltip">ⓘ<span class="tooltiptext">Enable this for devices that complete a single task and then stop (like washing machines). The system will ensure they complete their cycle.</span></span>
                         </label>
                     </div>
                     
                     <div class="form-group">
-                        <label for="completion_sensor">Completion Sensor (optional):</label>
+                        <label for="completion_sensor">Completion Sensor (optional): <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that indicates when the device has completed its task. In future patches the system will use this to run the device off-peak if not completed.</span></span></label>
                         <div class="searchable-select">
                             <input type="text" id="completion_sensor_input" placeholder="Search for a completion sensor..." autocomplete="off">
                             <input type="hidden" name="completion_sensor" id="completion_sensor">
@@ -178,7 +178,7 @@
                 <div class="tab-content" id="offpeak-tab">
                     <h3>Off-Peak Charging Settings</h3>
                     <div class="form-group">
-                        <label for="min_daily_power">Minimum Daily Power Required (Wh):</label>
+                        <label for="min_daily_power">Minimum Daily Power Required (Wh): <span class="tooltip">ⓘ<span class="tooltiptext">The minimum amount of energy the device needs to receive each day. In future patches the system will use this to run the device off-peak if not completed.</span></span></label>
                         <input type="number" id="min_daily_power" name="min_daily_power" min="0" step="0.1">
                     </div>
                 </div>
@@ -300,6 +300,51 @@
             margin-top: 2rem;
             padding-top: 1rem;
             border-top: 1px solid #ddd;
+        }
+
+        /* Tooltip Styles */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+            color: #666;
+            font-size: 0.9em;
+            margin-left: 4px;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 10px;
+            position: absolute;
+            z-index: 1000;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
         }
     </style>
 {% endblock %}

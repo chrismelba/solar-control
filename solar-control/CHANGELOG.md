@@ -1,6 +1,10 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
-## [1.2.11] - 2024-03-19
+## [1.3.70] - 2025-05-25
+### Changed
+Added tooltips
+
+- Added nginx## [1.2.11] - 2024-03-19
 ### Changed
 - Added nginx
 
