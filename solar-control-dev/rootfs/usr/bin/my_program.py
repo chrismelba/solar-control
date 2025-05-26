@@ -132,9 +132,11 @@ def root():
     # Sort devices by their order property
     devices.sort(key=lambda x: x.order)
     sensor_values = get_sensor_values()  # Get sensor values
+    sunrise_time = get_sunrise_time()  # Get sunrise time
     return make_response(render_template('index.html', 
                          devices=devices,
                          sensor_values=sensor_values,
+                         sunrise_time=sunrise_time,
                          ingress_path=ingress_path,
                          basename=ingress_path))
 
@@ -229,6 +231,43 @@ def get_sensor_values():
                 logger.error(f"Error fetching {entity_id} value: {e}")
     
     return sensor_values
+
+def get_sunrise_time():
+    try:
+        supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+        if not supervisor_token:
+            logger.error("No supervisor token found in environment")
+            return None
+
+        headers = {
+            "Authorization": f"Bearer {supervisor_token}",
+            "Content-Type": "application/json",
+        }
+
+        # Get history for the past 24 hours
+        response = requests.get(
+            'http://supervisor/core/api/history/period',
+            params={
+                'filter_entity_id': 'sun.sun',
+                'minimal_response': 'true'
+            },
+            headers=headers
+        )
+        response.raise_for_status()
+        
+        history = response.json()
+        if not history or not history[0]:
+            return None
+
+        # Find the most recent transition from below_horizon to above_horizon
+        for state in reversed(history[0]):
+            if state.get('state') == 'above_horizon':
+                return state.get('last_changed')
+        
+        return None
+    except Exception as e:
+        logger.error(f"Error fetching sunrise time: {e}")
+        return None
 
 def get_entities():
     try:

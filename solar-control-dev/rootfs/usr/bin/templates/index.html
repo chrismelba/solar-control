@@ -45,6 +45,16 @@
                     <p class="value">Not configured</p>
                 {% endif %}
             </div>
+
+            <div class="sensor-card">
+                <h3>Last Sunrise</h3>
+                {% if sunrise_time %}
+                    <p class="value">{{ sunrise_time.split('T')[1].split('+')[0] }}</p>
+                    <p class="name">Today's Sunrise</p>
+                {% else %}
+                    <p class="value">Not available</p>
+                {% endif %}
+            </div>
         </div>
     </div>
 
