@@ -262,7 +262,11 @@ def get_sunrise_time():
         # Find the most recent transition from below_horizon to above_horizon
         for state in reversed(history[0]):
             if state.get('state') == 'above_horizon':
-                return state.get('last_changed')
+                # Parse the UTC time string
+                utc_time = datetime.fromisoformat(state.get('last_changed').replace('Z', '+00:00'))
+                # Convert to local time
+                local_time = utc_time.astimezone()
+                return local_time.isoformat()
         
         return None
     except Exception as e:
