@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+
+{% block title %}Configure Grid - Solar Control{% endblock %}
+
+{% block heading %}Configure Grid Settings{% endblock %}
+
+{% block content %}
+    <div class="card">
+        <h2>Current Sensor Values</h2>
+        <div class="sensor-grid">
+            <div class="sensor-card">
+                <h3>Solar Generation</h3>
+                {% if sensor_values.solar_generation %}
+                    <p class="value" data-original-value="{{ sensor_values.solar_generation.state }}" data-original-unit="{{ sensor_values.solar_generation.unit }}"></p>
+                    <p class="name">{{ sensor_values.solar_generation.friendly_name }}</p>
+                {% else %}
+                    <p class="value">Not configured</p>
+                {% endif %}
+            </div>
+            
+            <div class="sensor-card">
+                <h3>Grid Power</h3>
+                {% if sensor_values.grid_power %}
+                    <p class="value" data-original-value="{{ sensor_values.grid_power.state }}" data-original-unit="{{ sensor_values.grid_power.unit }}"></p>
+                    <p class="name">{{ sensor_values.grid_power.friendly_name }}</p>
+                {% else %}
+                    <p class="value">Not configured</p>
+                {% endif %}
+            </div>
+            
+            <div class="sensor-card">
+                <h3>Solar Forecast</h3>
+                {% if sensor_values.solar_forecast %}
+                    <p class="value" data-original-value="{{ sensor_values.solar_forecast.state }}" data-original-unit="{{ sensor_values.solar_forecast.unit }}"></p>
+                    <p class="name">{{ sensor_values.solar_forecast.friendly_name }}</p>
+                {% else %}
+                    <p class="value">Not configured</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <form method="POST">
+        <div class="card">
+            <h2>Configure Sensors</h2>
+            <div class="form-group">
+                <label for="solar_generation">Solar Generation Entity: <span class="tooltip">ⓘ<span class="tooltiptext">Select the sensor that measures your solar panel's power generation. This should be a power sensor that shows how much power your solar panels are currently producing.</span></span></label>
+                <div class="searchable-select">
+                    <input type="text" id="solar_generation_input" placeholder="Search for an entity..." autocomplete="off">
+                    <input type="hidden" name="solar_generation" id="solar_generation" value="{{ config.solar_generation }}">
+                    <div class="options" id="solar_generation_options">
+                        {% for entity in entities %}
+                            <div class="option" data-value="{{ entity.entity_id }}" 
+                                 {% if entity.entity_id == config.solar_generation %}data-selected="true"{% endif %}>
+                                {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="grid_power">Grid Power Entity: <span class="tooltip">ⓘ<span class="tooltiptext">Select the sensor that measures power flow to/from the grid. Negative values indicate power being exported to the grid, positive values indicate power being imported from the grid.</span></span></label>
+                <div class="searchable-select">
+                    <input type="text" id="grid_power_input" placeholder="Search for an entity..." autocomplete="off">
+                    <input type="hidden" name="grid_power" id="grid_power" value="{{ config.grid_power }}">
+                    <div class="options" id="grid_power_options">
+                        {% for entity in entities %}
+                            <div class="option" data-value="{{ entity.entity_id }}"
+                                 {% if entity.entity_id == config.grid_power %}data-selected="true"{% endif %}>
+                                {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="solar_forecast">Solar Forecast Entity: <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that provides solar generation forecast remaining today. Currently this does nothing, but will be used in the future to optimize battery usage.</span></span></label>
+                <div class="searchable-select">
+                    <input type="text" id="solar_forecast_input" placeholder="Search for an entity..." autocomplete="off">
+                    <input type="hidden" name="solar_forecast" id="solar_forecast" value="{{ config.solar_forecast }}">
+                    <div class="options" id="solar_forecast_options">
+                        {% for entity in entities %}
+                            <div class="option" data-value="{{ entity.entity_id }}"
+                                 {% if entity.entity_id == config.solar_forecast %}data-selected="true"{% endif %}>
+                                {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="grid_voltage">Grid Voltage: <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that measures grid voltage, or enter a fixed value. This is used to calculate power for variable amperage devices.</span></span></label>
+                <div class="input-group">
+                    <div class="searchable-select">
+                        <input type="text" id="grid_voltage_input" placeholder="Search for an entity..." autocomplete="off">
+                        <input type="hidden" name="grid_voltage" id="grid_voltage" value="{{ config.grid_voltage }}">
+                        <div class="options" id="grid_voltage_options">
+                            {% for entity in entities %}
+                                <div class="option" data-value="{{ entity.entity_id }}"
+                                     {% if entity.entity_id == config.grid_voltage %}data-selected="true"{% endif %}>
+                                    {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <span class="or-divider">or</span>
+                    <input type="number" name="grid_voltage_fixed" id="grid_voltage_fixed" 
+                           placeholder="Enter fixed voltage value" step="0.1" min="0"
+                           value="{{ config.grid_voltage_fixed if config.grid_voltage_fixed else '' }}">
+                    <span class="unit">V</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="site_export_limit">Site Export Limit: <span class="tooltip">ⓘ<span class="tooltiptext">Set the maximum amount of power that can be exported to the grid. This is currently unused, but will be used in future to best utilize export limited power</span></span></label>
+                <div class="input-group">
+                    <input type="number" name="site_export_limit" id="site_export_limit" 
+                           placeholder="Enter maximum export limit" step="0.1" min="0"
+                           value="{{ config.site_export_limit if config.site_export_limit else '' }}">
+                    <span class="unit">W</span>
+                </div>
+                <p class="help-text">Maximum power that can be exported to the grid. Leave empty for no limit.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="tariff_rate">Tariff Rate Entity: <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that provides your current electricity tariff rate. This is not currently used, but will be used in future to manage off-peak power when solar is insufficient.</span></span></label>
+                <div class="searchable-select">
+                    <input type="text" id="tariff_rate_input" placeholder="Search for an entity..." autocomplete="off">
+                    <input type="hidden" name="tariff_rate" id="tariff_rate" value="{{ config.tariff_rate }}">
+                    <div class="options" id="tariff_rate_options">
+                        {% for entity in entities %}
+                            {% if entity.entity_id.startswith('select.') %}
+                                <div class="option" data-value="{{ entity.entity_id }}"
+                                     {% if entity.entity_id == config.tariff_rate %}data-selected="true"{% endif %}>
+                                    {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                <div id="tariff_order_container" class="tariff-order-container" style="display: none; margin-top: 1rem;">
+                    <h4>Order Tariff Rates (drag to reorder) <span class="tooltip">ⓘ<span class="tooltiptext">Drag and drop to order your tariff rates from cheapest to most expensive. This will be used in future to manage off-peak power when solar is insufficient.</span></span></h4>
+                    <p class="help-text">Drag and drop to order from cheapest (top) to most expensive (bottom)</p>
+                    <div id="tariff_order_list" class="tariff-order-list">
+                        <!-- Options will be populated by JavaScript -->
+                    </div>
+                    <input type="hidden" name="tariff_order" id="tariff_order" value="{{ config.tariff_order|default('[]') }}">
+                </div>
+            </div>
+
+            <button type="submit" class="button">Save Configuration</button>
+        </div>
+    </form>
+
+    <script>
+        function convertToWatts(value, unit) {
+            if (!value || !unit) return null;
+            
+            // Convert to watts
+            if (unit.toLowerCase() === 'kw') {
+                return (parseFloat(value) * 1000).toFixed(0);
+            } else if (unit.toLowerCase() === 'w') {
+                return parseFloat(value).toFixed(0);
+            }
+            return value;
+        }
+
+        function updateDisplayedValues() {
+            document.querySelectorAll('.sensor-card .value[data-original-value]').forEach(element => {
+                const originalValue = element.getAttribute('data-original-value');
+                const originalUnit = element.getAttribute('data-original-unit');
+                const convertedValue = convertToWatts(originalValue, originalUnit);
+                
+                if (convertedValue !== null) {
+                    element.textContent = `${convertedValue} W`;
+                }
+            });
+        }
+
+        // Update values when the page loads
+        document.addEventListener('DOMContentLoaded', updateDisplayedValues);
+
+        // Initialize searchable selects
+        document.addEventListener('DOMContentLoaded', function() {
+            new SearchableSelect('solar_generation_input', 'solar_generation_options', 'solar_generation');
+            new SearchableSelect('grid_power_input', 'grid_power_options', 'grid_power');
+            new SearchableSelect('solar_forecast_input', 'solar_forecast_options', 'solar_forecast');
+            new SearchableSelect('grid_voltage_input', 'grid_voltage_options', 'grid_voltage');
+            new SearchableSelect('tariff_rate_input', 'tariff_rate_options', 'tariff_rate', onTariffRateSelect);
+        });
+
+        function onTariffRateSelect(selectedValue, selectedText) {
+            const container = document.getElementById('tariff_order_container');
+            const list = document.getElementById('tariff_order_list');
+            
+            if (selectedValue) {
+                // Show the container
+                container.style.display = 'block';
+                
+                // Fetch options for the selected entity
+                fetch(`/api/states/${selectedValue}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.attributes && data.attributes.options) {
+                            // Clear existing options
+                            list.innerHTML = '';
+                            
+                            // Create draggable items for each option
+                            data.attributes.options.forEach(option => {
+                                const item = document.createElement('div');
+                                item.className = 'tariff-order-item';
+                                item.draggable = true;
+                                item.dataset.value = option;
+                                item.textContent = option;
+                                
+                                // Add drag event listeners
+                                item.addEventListener('dragstart', handleDragStart);
+                                item.addEventListener('dragover', handleDragOver);
+                                item.addEventListener('drop', handleDrop);
+                                item.addEventListener('dragend', handleDragEnd);
+                                
+                                list.appendChild(item);
+                            });
+                            
+                            // Restore saved order if exists
+                            const savedOrder = JSON.parse(document.getElementById('tariff_order').value || '[]');
+                            if (savedOrder.length > 0) {
+                                savedOrder.forEach(value => {
+                                    const item = list.querySelector(`[data-value="${value}"]`);
+                                    if (item) {
+                                        list.appendChild(item);
+                                    }
+                                });
+                            }
+                        }
+                    });
+            } else {
+                container.style.display = 'none';
+            }
+        }
+
+        let draggedItem = null;
+
+        function handleDragStart(e) {
+            draggedItem = this;
+            this.classList.add('dragging');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            const rect = this.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            
+            if (e.clientY < midY) {
+                this.classList.add('drag-over-top');
+                this.classList.remove('drag-over-bottom');
+            } else {
+                this.classList.add('drag-over-bottom');
+                this.classList.remove('drag-over-top');
+            }
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const rect = this.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            
+            if (e.clientY < midY) {
+                this.parentNode.insertBefore(draggedItem, this);
+            } else {
+                this.parentNode.insertBefore(draggedItem, this.nextSibling);
+            }
+            
+            updateTariffOrder();
+        }
+
+        function handleDragEnd() {
+            this.classList.remove('dragging');
+            document.querySelectorAll('.tariff-order-item').forEach(item => {
+                item.classList.remove('drag-over-top', 'drag-over-bottom');
+            });
+        }
+
+        function updateTariffOrder() {
+            const items = document.querySelectorAll('.tariff-order-item');
+            const order = Array.from(items).map(item => item.dataset.value);
+            document.getElementById('tariff_order').value = JSON.stringify(order);
+        }
+    </script>
+
+    <style>
+        .tariff-order-container {
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-top: 1rem;
+        }
+
+        .tariff-order-list {
+            min-height: 100px;
+            margin-top: 0.5rem;
+        }
+
+        .tariff-order-item {
+            background: white;
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: move;
+            user-select: none;
+        }
+
+        .tariff-order-item.dragging {
+            opacity: 0.5;
+        }
+
+        .tariff-order-item.drag-over-top {
+            border-top: 2px solid #2196F3;
+        }
+
+        .tariff-order-item.drag-over-bottom {
+            border-bottom: 2px solid #2196F3;
+        }
+
+        .help-text {
+            color: #666;
+            font-size: 0.9em;
+            margin: 0.5rem 0;
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+            color: #666;
+            font-size: 0.9em;
+            margin-left: 4px;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 10px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+{% endblock %} 

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Debug Information{% endblock %}
+
+{% block heading %}Debug Information{% endblock %}
+
+{% block content %}
+    <div class="debug-section">
+        <h2>Environment Variables</h2>
+        <pre>{{ env | tojson(indent=2) }}</pre>
+    </div>
+
+    <div class="debug-section">
+        <h2>Request Headers</h2>
+        <pre>{{ headers | tojson(indent=2) }}</pre>
+    </div>
+
+    <div class="debug-section">
+        <h2>Configuration</h2>
+        <pre>{{ config | tojson(indent=2) }}</pre>
+    </div>
+
+    <div class="debug-section">
+        <h2>Nginx Error Log</h2>
+        <pre>{{ nginx_error_log }}</pre>
+    </div>
+
+    <div class="debug-section">
+        <h2>Nginx Access Log</h2>
+        <pre>{{ nginx_access_log }}</pre>
+    </div>
+
+    <style>
+        .debug-section {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        .debug-section h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        pre {
+            background: #fff;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+{% endblock %} 

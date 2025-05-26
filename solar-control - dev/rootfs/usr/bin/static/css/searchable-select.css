@@ -1,0 +1,85 @@
+.searchable-select {
+    position: relative;
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+.searchable-select input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1.5;
+    box-sizing: border-box;
+    background-color: #424242;
+    color: #ffffff;
+}
+
+.searchable-select input::placeholder {
+    color: #bdbdbd;
+}
+
+.searchable-select .options {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    background: #424242;
+    border: 1px solid #666;
+    border-radius: 4px;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    margin-top: 4px;
+}
+
+.searchable-select .options.active {
+    display: block;
+}
+
+.searchable-select .option {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1.5;
+    transition: background-color 0.2s ease;
+    color: #ffffff;
+}
+
+.searchable-select .option:hover {
+    background: #616161;
+}
+
+.searchable-select .option.selected {
+    background: #03a9f4;
+    color: #ffffff;
+}
+
+/* Add styles for the search input */
+.searchable-select input:focus {
+    outline: none;
+    border-color: #03a9f4;
+    box-shadow: 0 0 0 2px rgba(3, 169, 244, 0.2);
+}
+
+/* Style the scrollbar for better visibility */
+.searchable-select .options::-webkit-scrollbar {
+    width: 8px;
+}
+
+.searchable-select .options::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.searchable-select .options::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+
+.searchable-select .options::-webkit-scrollbar-thumb:hover {
+    background: #999;
+} 
