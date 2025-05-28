@@ -67,7 +67,17 @@
                             <input type="hidden" name="current_power_sensor" id="current_power_sensor">
                             <div class="options" id="current_power_sensor_options">
                                 {% for entity in entities %}
-                                    {% if 'power' in entity.entity_id.lower() %}
+                                    {% if entity.entity_id.startswith('sensor.') and (
+                                        'power' in entity.entity_id.lower() or 
+                                        'energy' in entity.entity_id.lower() or 
+                                        'consumption' in entity.entity_id.lower() or 
+                                        'usage' in entity.entity_id.lower() or 
+                                        'wattage' in entity.entity_id.lower() or 
+                                        'current' in entity.entity_id.lower() or 
+                                        'amperage' in entity.entity_id.lower() or
+                                        (entity.attributes and entity.attributes.unit_of_measurement and 
+                                         entity.attributes.unit_of_measurement.lower() in ['w', 'kw', 'wh', 'kwh', 'a', 'ma'])
+                                    ) %}
                                     <div class="option" data-value="{{ entity.entity_id }}">
                                         {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
                                     </div>

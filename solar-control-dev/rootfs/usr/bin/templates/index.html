@@ -49,7 +49,7 @@
             <div class="sensor-card">
                 <h3>Last Sunrise</h3>
                 {% if sunrise_time %}
-                    <p class="value">{{ sunrise_time.split('T')[1].split('+')[0] }}</p>
+                    <p class="value">{{ sunrise_time.split('T')[1].split(':')[0] }}:{{ sunrise_time.split('T')[1].split(':')[1] }}</p>
                     <p class="name">Today's Sunrise (Local Time)</p>
                 {% else %}
                     <p class="value">Not available</p>
