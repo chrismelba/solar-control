@@ -51,6 +51,10 @@ h1 {
     text-align: center;
     font-weight: 700;
     letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60px;
 }
 
 .card {

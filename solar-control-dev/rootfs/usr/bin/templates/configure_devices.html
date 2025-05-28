@@ -105,8 +105,7 @@
                                         (entity.attributes and entity.attributes.unit_of_measurement and 
                                          entity.attributes.unit_of_measurement.lower() in ['w', 'kw', 'wh', 'kwh', 'a', 'ma'])
                                     ) %}
-                                        {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
-                                    </div>
+                                        <div class="option" data-value="{{ entity.entity_id }}">{{ entity.attributes.friendly_name }} ({{ entity.entity_id }})</div>
                                     {% endif %}
                                 {% endfor %}
                             </div>
