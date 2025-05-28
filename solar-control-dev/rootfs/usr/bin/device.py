@@ -80,6 +80,7 @@ class Device:
                 return
                 
             last_rise = datetime.fromisoformat(sunrise_time)
+            logger.debug(f"Using sunrise time: {last_rise}")
             
             # Get energy sensor value at dawn
             dawn_time = last_rise.isoformat()
@@ -94,24 +95,43 @@ class Device:
             response.raise_for_status()
             history = response.json()
             
-            if history and history[0]:
-                # Get the first reading after dawn
-                dawn_energy = float(history[0][0].get('state', 0))
+            if not history or not history[0]:
+                logger.error(f"No history data found for {self.energy_sensor} after {dawn_time}")
+                return
                 
-                # Get current energy value
-                response = requests.get(
-                    f"{hass_url}/api/states/{self.energy_sensor}",
-                    headers=headers
-                )
-                response.raise_for_status()
-                current_energy = float(response.json().get('state', 0))
-                
-                # Calculate energy delivered today
-                self.energy_delivered_today = current_energy - dawn_energy
-                logger.debug(f"Updated energy delivered for {self.name}: {self.energy_delivered_today} Wh")
+            # Get the first reading after dawn
+            dawn_energy = None
+            for reading in history[0]:
+                try:
+                    dawn_energy = float(reading.get('state', 0))
+                    logger.debug(f"Found dawn energy reading: {dawn_energy}")
+                    break
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Invalid energy reading at dawn: {reading.get('state')}")
+                    continue
             
+            if dawn_energy is None:
+                logger.error(f"Could not find valid energy reading after dawn for {self.energy_sensor}")
+                return
+                
+            # Get current energy value
+            response = requests.get(
+                f"{hass_url}/api/states/{self.energy_sensor}",
+                headers=headers
+            )
+            response.raise_for_status()
+            current_state = response.json()
+            current_energy = float(current_state.get('state', 0))
+            logger.debug(f"Current energy reading: {current_energy}")
+            
+            # Calculate energy delivered today
+            self.energy_delivered_today = current_energy - dawn_energy
+            logger.info(f"Updated energy delivered for {self.name}: {self.energy_delivered_today} Wh (Current: {current_energy}, Dawn: {dawn_energy})")
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Network error while updating energy delivered for {self.name}: {e}")
         except Exception as e:
-            logger.error(f"Failed to update power delivered for {self.name}: {e}")
+            logger.error(f"Failed to update energy delivered for {self.name}: {e}", exc_info=True)
 
     def save(self, devices_file: str):
         """Save this device to the devices configuration file"""
