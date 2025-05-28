@@ -5,6 +5,7 @@ import os
 import requests
 import logging
 from datetime import datetime
+from my_program import get_sunrise_time
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,6 @@ class Device:
     completion_sensor: Optional[str] = None  # Home Assistant entity ID for completion status
     order: int = 0  # For drag-and-drop ordering
     energy_delivered_today: float = 0.0  # in watt-hours
-    last_power_update: Optional[datetime] = None
-    last_dawn_reset: Optional[datetime] = None
     min_daily_power: Optional[float] = None  # Minimum power required per day in watt-hours
 
     def to_dict(self) -> dict:
@@ -48,44 +47,24 @@ class Device:
             'completion_sensor': self.completion_sensor,
             'order': self.order,
             'energy_delivered_today': self.energy_delivered_today,
-            'last_power_update': self.last_power_update.isoformat() if self.last_power_update else None,
-            'last_dawn_reset': self.last_dawn_reset.isoformat() if self.last_dawn_reset else None,
             'min_daily_power': self.min_daily_power
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> 'Device':
-        # Convert the ISO format strings back to datetime if they exist
-        if 'last_power_update' in data and data['last_power_update']:
-            data['last_power_update'] = datetime.fromisoformat(data['last_power_update'])
-        if 'last_dawn_reset' in data and data['last_dawn_reset']:
-            data['last_dawn_reset'] = datetime.fromisoformat(data['last_dawn_reset'])
         return cls(**data)
 
-    def update_power_delivered(self, current_power: float) -> None:
-        """Update the energy delivered tracking"""
-        now = datetime.now()
-        
-        # Check if we need to reset (dawn condition)
-        if self.should_reset_power_tracking():
-            self.energy_delivered_today = 0.0
-            self.last_power_update = now
-            self.last_dawn_reset = now
+    def update_energy_delivered(self) -> None:
+        """Update the energy delivered tracking using Home Assistant history API"""
+        if not self.energy_sensor:
+            logger.debug(f"No energy sensor defined for {self.name}")
             return
 
-        # Calculate energy delivered since last update
-        if self.last_power_update:
-            time_diff = (now - self.last_power_update).total_seconds() / 3600  # Convert to hours
-            self.energy_delivered_today += current_power * time_diff
-
-        self.last_power_update = now
-
-    def should_reset_power_tracking(self) -> bool:
-        """Check if power tracking should be reset based on dawn condition"""
         try:
             supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
             if not supervisor_token:
-                return False
+                logger.error("No supervisor token found in environment")
+                return
 
             headers = {
                 "Authorization": f"Bearer {supervisor_token}",
@@ -94,29 +73,45 @@ class Device:
             
             hass_url = "http://supervisor/core"
             
-            # Get the sun.sun entity state
+            # Get sunrise time using existing function
+            sunrise_time = get_sunrise_time()
+            if not sunrise_time:
+                logger.error("Failed to get sunrise time")
+                return
+                
+            last_rise = datetime.fromisoformat(sunrise_time)
+            
+            # Get energy sensor value at dawn
+            dawn_time = last_rise.isoformat()
             response = requests.get(
-                f"{hass_url}/api/states/sun.sun",
+                f"{hass_url}/api/history/period/{dawn_time}",
+                params={
+                    'filter_entity_id': self.energy_sensor,
+                    'minimal_response': 'true'
+                },
                 headers=headers
             )
             response.raise_for_status()
-            sun_state = response.json()
+            history = response.json()
             
-            # Check if the sun has risen since our last reset
-            if sun_state['state'] == 'above_horizon':
-                if not self.last_dawn_reset:
-                    return True
+            if history and history[0]:
+                # Get the first reading after dawn
+                dawn_energy = float(history[0][0].get('state', 0))
                 
-                # Get the last time the sun rose
-                last_rise = datetime.fromisoformat(sun_state['attributes'].get('next_rising', '').replace('Z', '+00:00'))
-                if last_rise > self.last_dawn_reset:
-                    return True
-            
-            return False
+                # Get current energy value
+                response = requests.get(
+                    f"{hass_url}/api/states/{self.energy_sensor}",
+                    headers=headers
+                )
+                response.raise_for_status()
+                current_energy = float(response.json().get('state', 0))
+                
+                # Calculate energy delivered today
+                self.energy_delivered_today = current_energy - dawn_energy
+                logger.debug(f"Updated energy delivered for {self.name}: {self.energy_delivered_today} Wh")
             
         except Exception as e:
-            logger.error(f"Failed to check dawn condition: {e}")
-            return False
+            logger.error(f"Failed to update power delivered for {self.name}: {e}")
 
     def save(self, devices_file: str):
         """Save this device to the devices configuration file"""

@@ -439,6 +439,12 @@ class SolarController:
             mandatory_devices = []
             devices_to_turn_on = []
             
+            # Update energy delivered tracking for each device
+            for device_state in self.device_states.values():
+                device = device_state.device
+                if device.energy_sensor:
+                    device.update_energy_delivered()
+            
             for device_state in self.device_states.values():
                 device = device_state.device
                 
