@@ -4,7 +4,7 @@ import json
 import os
 import requests
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from utils import get_sunrise_time
 
 logger = logging.getLogger(__name__)
@@ -79,8 +79,16 @@ class Device:
                 logger.error("Failed to get sunrise time")
                 return
                 
+            # Parse the sunrise time and ensure it's in UTC
             last_rise = datetime.fromisoformat(sunrise_time)
-            logger.debug(f"Using sunrise time: {last_rise}")
+            if last_rise.tzinfo is None:
+                # If no timezone info, assume it's in UTC
+                last_rise = last_rise.replace(tzinfo=timezone.utc)
+            else:
+                # Convert to UTC if it has timezone info
+                last_rise = last_rise.astimezone(timezone.utc)
+                
+            logger.debug(f"Using sunrise time (UTC): {last_rise}")
             
             # Get energy sensor value at dawn
             dawn_time = last_rise.isoformat()
