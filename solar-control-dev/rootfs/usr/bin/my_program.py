@@ -7,6 +7,7 @@ from device import Device
 from datetime import datetime, timezone
 import pytz
 from solar_controller import SolarController
+from utils import get_sunrise_time
 
 # Get debug level from configuration
 try:

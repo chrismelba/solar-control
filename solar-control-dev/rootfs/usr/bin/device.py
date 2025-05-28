@@ -5,7 +5,7 @@ import os
 import requests
 import logging
 from datetime import datetime
-from my_program import get_sunrise_time
+from utils import get_sunrise_time
 
 logger = logging.getLogger(__name__)
 
