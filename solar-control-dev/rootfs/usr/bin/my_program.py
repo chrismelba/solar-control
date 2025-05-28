@@ -112,7 +112,7 @@ def initialize_files():
         logger.info(f"Creating settings file: {SETTINGS_FILE}")
         with open(SETTINGS_FILE, 'w') as f:
             json.dump({
-                'power_optimization_enabled': False
+                'power_optimization_enabled': True
             }, f)
     
     # Initialize config file
