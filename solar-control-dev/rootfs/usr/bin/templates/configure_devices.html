@@ -175,7 +175,7 @@
                         </label>
                     </div>
                     
-                    <div class="form-group">
+                    <div class="form-group completion-sensor-group">
                         <label for="completion_sensor">Completion Sensor (optional): <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that indicates when the device has completed its task. In future patches the system will use this to run the device off-peak if not completed.</span></span></label>
                         <div class="searchable-select">
                             <input type="text" id="completion_sensor_input" placeholder="Search for a completion sensor..." autocomplete="off">
@@ -198,6 +198,23 @@
                     <div class="form-group">
                         <label for="min_daily_power">Minimum Daily Power Required (Wh): <span class="tooltip">ⓘ<span class="tooltiptext">The minimum amount of energy the device needs to receive each day. In future patches the system will use this to run the device off-peak if not completed.</span></span></label>
                         <input type="number" id="min_daily_power" name="min_daily_power" min="0" step="0.1">
+                    </div>
+
+                    <div class="form-group completion-sensor-group">
+                        <label for="completion_sensor_offpeak">Completion Sensor (optional): <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that indicates when the device has completed its task. In future patches the system will use this to run the device off-peak if not completed.</span></span></label>
+                        <div class="searchable-select">
+                            <input type="text" id="completion_sensor_input_offpeak" placeholder="Search for a completion sensor..." autocomplete="off">
+                            <input type="hidden" name="completion_sensor" id="completion_sensor_offpeak">
+                            <div class="options" id="completion_sensor_options_offpeak">
+                                {% for entity in entities %}
+                                    {% if entity.entity_id.startswith('binary_sensor.') or entity.entity_id.startswith('input_boolean.') %}
+                                    <div class="option" data-value="{{ entity.entity_id }}">
+                                        {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -684,5 +701,25 @@
 
         // Load devices when page loads
         document.addEventListener('DOMContentLoaded', loadDevices);
+
+        // Synchronize completion sensor inputs
+        document.addEventListener('DOMContentLoaded', function() {
+            const completionSensorInput = document.getElementById('completion_sensor_input');
+            const completionSensorInputOffpeak = document.getElementById('completion_sensor_input_offpeak');
+            const completionSensor = document.getElementById('completion_sensor');
+            const completionSensorOffpeak = document.getElementById('completion_sensor_offpeak');
+
+            // Sync from runtime to off-peak
+            completionSensorInput.addEventListener('change', function() {
+                completionSensorInputOffpeak.value = this.value;
+                completionSensorOffpeak.value = completionSensor.value;
+            });
+
+            // Sync from off-peak to runtime
+            completionSensorInputOffpeak.addEventListener('change', function() {
+                completionSensorInput.value = this.value;
+                completionSensor.value = completionSensorOffpeak.value;
+            });
+        });
     </script>
 {% endblock %} 
