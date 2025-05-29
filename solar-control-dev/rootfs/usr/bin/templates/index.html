@@ -390,4 +390,25 @@
         // Initialize drag and drop when page loads
         document.addEventListener('DOMContentLoaded', initializeDragAndDrop);
     </script>
+
+    <script>
+        async function updateDeviceCards() {
+            try {
+                const devices = await apiCall('/api/devices');
+                devices.forEach(device => {
+                    const card = document.querySelector(`.device-card[data-device-name="${device.name}"]`);
+                    if (card) {
+                        const deliveredElem = card.querySelector('.device-power-delivered');
+                        if (deliveredElem) {
+                            deliveredElem.textContent = `Energy Delivered: ${device.energy_delivered_today.toFixed(2)} Wh`;
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Failed to update device cards:', error);
+            }
+        }
+        setInterval(updateDeviceCards, 1000);
+        updateDeviceCards();
+    </script>
 {% endblock %} 
