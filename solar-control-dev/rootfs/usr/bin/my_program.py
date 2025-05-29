@@ -352,23 +352,52 @@ def configure_devices():
 @app.route('/api/devices/<name>', methods=['GET'])
 def get_device(name):
     try:
-        devices = Device.load_all(DEVICES_FILE)
-        device = next((d for d in devices if d.name == name), None)
-        if device is None:
+        # Get device from controller's live state
+        device_state = controller.device_states.get(name)
+        if device_state is None:
             return jsonify({'status': 'error', 'message': 'Device not found'}), 404
-        return jsonify(device.to_dict())
+        
+        # Get the device object and update its energy delivered value
+        device = device_state.device
+        device.update_energy_delivered()
+        
+        # Get the device data and add runtime state
+        device_data = device.to_dict()
+        device_data.update({
+            'is_on': device_state.is_on,
+            'last_state_change': device_state.last_state_change.isoformat() if device_state.last_state_change else None,
+            'current_amperage': device_state.current_amperage,
+            'has_completed': device_state.has_completed
+        })
+        
+        return jsonify(device_data)
     except Exception as e:
+        logger.error(f"Error getting device state: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/devices', methods=['GET'])
 def get_devices():
     try:
-        if not os.path.exists(DEVICES_FILE):
-            return jsonify([])
-        devices = Device.load_all(DEVICES_FILE)
+        # Get all devices from controller's live state
+        devices_data = []
+        for device_state in controller.device_states.values():
+            device = device_state.device
+            # Update energy delivered value
+            device.update_energy_delivered()
+            
+            # Get device data and add runtime state
+            device_data = device.to_dict()
+            device_data.update({
+                'is_on': device_state.is_on,
+                'last_state_change': device_state.last_state_change.isoformat() if device_state.last_state_change else None,
+                'current_amperage': device_state.current_amperage,
+                'has_completed': device_state.has_completed
+            })
+            devices_data.append(device_data)
+        
         # Sort devices by their order property
-        devices.sort(key=lambda x: x.order)
-        return jsonify([device.to_dict() for device in devices])
+        devices_data.sort(key=lambda x: x['order'])
+        return jsonify(devices_data)
     except Exception as e:
         logger.error(f"Error loading devices: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
