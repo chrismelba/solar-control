@@ -278,7 +278,8 @@ def configure_grid():
             'grid_voltage': request.form.get('grid_voltage'),
             'grid_voltage_fixed': request.form.get('grid_voltage_fixed'),
             'tariff_rate': request.form.get('tariff_rate'),
-            'site_export_limit': request.form.get('site_export_limit')
+            'site_export_limit': request.form.get('site_export_limit'),
+            'tariff_modes': request.form.get('tariff_modes')
         }
         
         # Convert site_export_limit to float if provided
@@ -289,6 +290,15 @@ def configure_grid():
                 config['site_export_limit'] = None
         else:
             config['site_export_limit'] = None
+            
+        # Parse tariff_modes JSON if provided
+        if config['tariff_modes']:
+            try:
+                config['tariff_modes'] = json.loads(config['tariff_modes'])
+            except json.JSONDecodeError:
+                config['tariff_modes'] = {}
+        else:
+            config['tariff_modes'] = {}
         
         # Save configuration
         with open(CONFIG_FILE, 'w') as f:

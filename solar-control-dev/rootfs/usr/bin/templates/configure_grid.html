@@ -141,13 +141,22 @@
                         {% endfor %}
                     </div>
                 </div>
-                <div id="tariff_order_container" class="tariff-order-container" style="display: none; margin-top: 1rem;">
-                    <h4>Order Tariff Rates (drag to reorder) <span class="tooltip">ⓘ<span class="tooltiptext">Drag and drop to order your tariff rates from cheapest to most expensive. This will be used in future to manage off-peak power when solar is insufficient.</span></span></h4>
-                    <p class="help-text">Drag and drop to order from cheapest (top) to most expensive (bottom)</p>
-                    <div id="tariff_order_list" class="tariff-order-list">
-                        <!-- Options will be populated by JavaScript -->
+                <div id="tariff_mode_container" class="tariff-mode-container" style="display: none; margin-top: 1rem;">
+                    <h4>Configure Tariff Modes <span class="tooltip">ⓘ<span class="tooltiptext">During normal power no controllable devices will be turned on. During cheap energy times you can select your devices to continue until they've run for a certain time or delivered a certain number of kWh and during free power periods all devices will run at maximum</span></span></h4>
+                    <div class="tariff-modes-grid">
+                        <div class="tariff-mode-header">
+                            <div class="tariff-name">Tariff Rate</div>
+                            <div class="tariff-mode-options">
+                                <div class="mode-option">Normal</div>
+                                <div class="mode-option">Cheap</div>
+                                <div class="mode-option">Free</div>
+                            </div>
+                        </div>
+                        <div id="tariff_modes_list" class="tariff-modes-list">
+                            <!-- Options will be populated by JavaScript -->
+                        </div>
                     </div>
-                    <input type="hidden" name="tariff_order" id="tariff_order" value="{{ config.tariff_order|default('[]') }}">
+                    <input type="hidden" name="tariff_modes" id="tariff_modes" value="{{ config.tariff_modes|default('{}') }}">
                 </div>
             </div>
 
@@ -193,8 +202,8 @@
         });
 
         function onTariffRateSelect(selectedValue, selectedText) {
-            const container = document.getElementById('tariff_order_container');
-            const list = document.getElementById('tariff_order_list');
+            const container = document.getElementById('tariff_mode_container');
+            const list = document.getElementById('tariff_modes_list');
             
             if (selectedValue) {
                 // Show the container
@@ -204,126 +213,148 @@
                 fetch(`/api/states/${selectedValue}`)
                     .then(response => response.json())
                     .then(data => {
-                        if (data.attributes && data.attributes.options) {
-                            // Clear existing options
-                            list.innerHTML = '';
+                        // Get the options from the entity's attributes
+                        const options = data.attributes?.options || [];
+                        
+                        // Clear existing options
+                        list.innerHTML = '';
+                        
+                        // Create items for each option
+                        options.forEach(option => {
+                            const item = document.createElement('div');
+                            item.className = 'tariff-mode-item';
+                            item.dataset.value = option;
                             
-                            // Create draggable items for each option
-                            data.attributes.options.forEach(option => {
-                                const item = document.createElement('div');
-                                item.className = 'tariff-order-item';
-                                item.draggable = true;
-                                item.dataset.value = option;
-                                item.textContent = option;
+                            // Create tariff name
+                            const nameDiv = document.createElement('div');
+                            nameDiv.className = 'tariff-name';
+                            nameDiv.textContent = option;
+                            item.appendChild(nameDiv);
+                            
+                            // Create mode options
+                            const optionsDiv = document.createElement('div');
+                            optionsDiv.className = 'tariff-mode-options';
+                            
+                            ['normal', 'cheap', 'free'].forEach(mode => {
+                                const optionDiv = document.createElement('div');
+                                optionDiv.className = 'mode-option';
+                                optionDiv.dataset.mode = mode;
+                                optionDiv.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
                                 
-                                // Add drag event listeners
-                                item.addEventListener('dragstart', handleDragStart);
-                                item.addEventListener('dragover', handleDragOver);
-                                item.addEventListener('drop', handleDrop);
-                                item.addEventListener('dragend', handleDragEnd);
+                                // Add click handler
+                                optionDiv.addEventListener('click', () => {
+                                    // Remove selected class from all options in this item
+                                    item.querySelectorAll('.mode-option').forEach(opt => {
+                                        opt.classList.remove('selected');
+                                    });
+                                    // Add selected class to clicked option
+                                    optionDiv.classList.add('selected');
+                                    updateTariffModes();
+                                });
                                 
-                                list.appendChild(item);
+                                optionsDiv.appendChild(optionDiv);
                             });
                             
-                            // Restore saved order if exists
-                            const savedOrder = JSON.parse(document.getElementById('tariff_order').value || '[]');
-                            if (savedOrder.length > 0) {
-                                savedOrder.forEach(value => {
-                                    const item = list.querySelector(`[data-value="${value}"]`);
-                                    if (item) {
-                                        list.appendChild(item);
-                                    }
-                                });
+                            item.appendChild(optionsDiv);
+                            list.appendChild(item);
+                        });
+                        
+                        // Restore saved modes if exists
+                        const savedModes = JSON.parse(document.getElementById('tariff_modes').value || '{}');
+                        Object.entries(savedModes).forEach(([tariff, mode]) => {
+                            const item = list.querySelector(`[data-value="${tariff}"]`);
+                            if (item) {
+                                const option = item.querySelector(`[data-mode="${mode}"]`);
+                                if (option) {
+                                    option.classList.add('selected');
+                                }
                             }
-                        }
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error fetching tariff options:', error);
+                        container.style.display = 'none';
                     });
             } else {
                 container.style.display = 'none';
             }
         }
 
-        let draggedItem = null;
-
-        function handleDragStart(e) {
-            draggedItem = this;
-            this.classList.add('dragging');
-        }
-
-        function handleDragOver(e) {
-            e.preventDefault();
-            const rect = this.getBoundingClientRect();
-            const midY = rect.top + rect.height / 2;
-            
-            if (e.clientY < midY) {
-                this.classList.add('drag-over-top');
-                this.classList.remove('drag-over-bottom');
-            } else {
-                this.classList.add('drag-over-bottom');
-                this.classList.remove('drag-over-top');
-            }
-        }
-
-        function handleDrop(e) {
-            e.preventDefault();
-            const rect = this.getBoundingClientRect();
-            const midY = rect.top + rect.height / 2;
-            
-            if (e.clientY < midY) {
-                this.parentNode.insertBefore(draggedItem, this);
-            } else {
-                this.parentNode.insertBefore(draggedItem, this.nextSibling);
-            }
-            
-            updateTariffOrder();
-        }
-
-        function handleDragEnd() {
-            this.classList.remove('dragging');
-            document.querySelectorAll('.tariff-order-item').forEach(item => {
-                item.classList.remove('drag-over-top', 'drag-over-bottom');
+        function updateTariffModes() {
+            const modes = {};
+            document.querySelectorAll('.tariff-mode-item').forEach(item => {
+                const value = item.dataset.value;
+                const selectedMode = item.querySelector('.mode-option.selected');
+                if (value && selectedMode) {
+                    modes[value] = selectedMode.dataset.mode;
+                }
             });
-        }
-
-        function updateTariffOrder() {
-            const items = document.querySelectorAll('.tariff-order-item');
-            const order = Array.from(items).map(item => item.dataset.value);
-            document.getElementById('tariff_order').value = JSON.stringify(order);
+            document.getElementById('tariff_modes').value = JSON.stringify(modes);
         }
     </script>
 
     <style>
-        .tariff-order-container {
+        .tariff-mode-container {
             background: #f5f5f5;
             padding: 1rem;
             border-radius: 4px;
             margin-top: 1rem;
         }
 
-        .tariff-order-list {
-            min-height: 100px;
-            margin-top: 0.5rem;
-        }
-
-        .tariff-order-item {
+        .tariff-modes-grid {
             background: white;
-            padding: 0.75rem;
-            margin: 0.5rem 0;
             border: 1px solid #ddd;
             border-radius: 4px;
-            cursor: move;
-            user-select: none;
+            overflow: hidden;
         }
 
-        .tariff-order-item.dragging {
-            opacity: 0.5;
+        .tariff-mode-header {
+            display: flex;
+            background: #f8f9fa;
+            padding: 0.75rem;
+            border-bottom: 1px solid #ddd;
+            font-weight: bold;
         }
 
-        .tariff-order-item.drag-over-top {
-            border-top: 2px solid #2196F3;
+        .tariff-name {
+            flex: 1;
+            padding-right: 1rem;
         }
 
-        .tariff-order-item.drag-over-bottom {
-            border-bottom: 2px solid #2196F3;
+        .tariff-mode-options {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .mode-option {
+            padding: 0.25rem 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .mode-option:hover {
+            background-color: #e9ecef;
+        }
+
+        .mode-option.selected {
+            background-color: #2196F3;
+            color: white;
+            border-color: #2196F3;
+        }
+
+        .tariff-mode-item {
+            display: flex;
+            padding: 0.75rem;
+            border-bottom: 1px solid #ddd;
+            align-items: center;
+        }
+
+        .tariff-mode-item:last-child {
+            border-bottom: none;
         }
 
         .help-text {
