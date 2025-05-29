@@ -3,6 +3,7 @@ class SearchableSelect {
         this.input = document.getElementById(inputId);
         this.options = document.getElementById(optionsId);
         this.hiddenInput = document.getElementById(hiddenInputId);
+        this.onSelectCallback = null;
         this.currentFocus = -1;
         
         this.setupEventListeners();
@@ -13,6 +14,9 @@ class SearchableSelect {
         const selectedOption = this.options.querySelector('[data-selected="true"]');
         if (selectedOption) {
             this.input.value = selectedOption.textContent;
+            if (this.onSelectCallback) {
+                this.onSelectCallback(selectedOption.dataset.value, selectedOption.textContent);
+            }
         }
     }
 
@@ -113,6 +117,11 @@ class SearchableSelect {
             opt.classList.remove('selected');
         });
         option.classList.add('selected');
+
+        // Call the callback if provided
+        if (this.onSelectCallback) {
+            this.onSelectCallback(option.dataset.value, option.textContent);
+        }
     }
 }
 

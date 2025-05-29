@@ -198,7 +198,16 @@
             new SearchableSelect('grid_power_input', 'grid_power_options', 'grid_power');
             new SearchableSelect('solar_forecast_input', 'solar_forecast_options', 'solar_forecast');
             new SearchableSelect('grid_voltage_input', 'grid_voltage_options', 'grid_voltage');
-            new SearchableSelect('tariff_rate_input', 'tariff_rate_options', 'tariff_rate', onTariffRateSelect);
+            
+            // Initialize tariff rate select with callback
+            const tariffRateSelect = new SearchableSelect('tariff_rate_input', 'tariff_rate_options', 'tariff_rate');
+            tariffRateSelect.onSelectCallback = onTariffRateSelect;
+            
+            // Trigger callback for initial value if exists
+            const initialValue = document.getElementById('tariff_rate').value;
+            if (initialValue) {
+                onTariffRateSelect(initialValue, document.getElementById('tariff_rate_input').value);
+            }
         });
 
         function onTariffRateSelect(selectedValue, selectedText) {
