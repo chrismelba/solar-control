@@ -5,27 +5,10 @@ import json
 import requests
 from device import Device
 from solar_controller import SolarController
-from utils import get_sunrise_time
+from utils import get_sunrise_time, setup_logging
 
-# Get debug level from configuration
-try:
-    supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
-    headers = {"Authorization": f"Bearer {supervisor_token}", "Content-Type": "application/json"} if supervisor_token else {}
-    response = requests.get('http://supervisor/addons/self/options', headers=headers)
-    config = response.json()
-    debug_level = config.get('debug_level', 'info').upper()
-except Exception as e:
-    debug_level = 'DEBUG'
-
-# Set up logging with configuration-based level
-logging.basicConfig(
-    level=getattr(logging, debug_level),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# Log the current debug level
-logger.info(f"Logging level set to: {debug_level}")
+# Configure logging
+logger = setup_logging()
 
 # Create static directory if it doesn't exist
 static_dir = '/usr/bin/static'
