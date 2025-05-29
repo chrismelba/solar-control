@@ -206,7 +206,10 @@
             // Trigger callback for initial value if exists
             const initialValue = document.getElementById('tariff_rate').value;
             if (initialValue) {
-                onTariffRateSelect(initialValue, document.getElementById('tariff_rate_input').value);
+                const selectedOption = document.querySelector(`#tariff_rate_options .option[data-value="${initialValue}"]`);
+                if (selectedOption) {
+                    onTariffRateSelect(initialValue, selectedOption.textContent);
+                }
             }
         });
 
