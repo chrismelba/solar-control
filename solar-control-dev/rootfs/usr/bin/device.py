@@ -133,7 +133,7 @@ class Device:
             logger.debug(f"Current energy reading: {current_energy}")
             
             # Calculate energy delivered today
-            self.energy_delivered_today = current_energy - dawn_energy
+            self.energy_delivered_today = current_energy 
             logger.info(f"Updated energy delivered for {self.name}: {self.energy_delivered_today} Wh (Current: {current_energy}, Dawn: {dawn_energy})")
             
         except requests.exceptions.RequestException as e:
