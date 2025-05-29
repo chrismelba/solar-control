@@ -7,6 +7,16 @@ import logging
 from datetime import datetime, timezone
 from utils import get_sunrise_time
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # Log to console
+        logging.FileHandler('/var/log/solar-control/device.log')  # Log to file
+    ]
+)
+
 logger = logging.getLogger(__name__)
 
 @dataclass
