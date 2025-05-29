@@ -210,8 +210,7 @@
                 container.style.display = 'block';
                 
                 // Fetch options for the selected entity
-                fetch(`/api/states/${selectedValue}`)
-                    .then(response => response.json())
+                apiCall(`/api/states/${selectedValue}`)
                     .then(data => {
                         // Get the options from the entity's attributes
                         const options = data.attributes?.options || [];
