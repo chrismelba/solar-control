@@ -621,6 +621,35 @@ def set_device_state(name):
         logger.error(f"Error setting device state for {name}: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
+@app.route('/api/states/<entity_id>', methods=['GET'])
+def get_entity_state(entity_id):
+    try:
+        supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+        if not supervisor_token:
+            logger.error("No supervisor token available in environment")
+            return jsonify({'status': 'error', 'message': 'No supervisor token available'}), 500
+
+        headers = {
+            "Authorization": f"Bearer {supervisor_token}",
+            "Content-Type": "application/json",
+        }
+
+        logger.debug(f"Making request to Home Assistant API for entity: {entity_id}")
+        response = requests.get(
+            f"http://supervisor/core/api/states/{entity_id}",
+            headers=headers
+        )
+        logger.debug(f"Home Assistant API response status: {response.status_code}")
+        
+        response.raise_for_status()
+        return jsonify(response.json())
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error getting entity state for {entity_id}: {e}")
+        return jsonify({'status': 'error', 'message': f'Network error: {str(e)}'}), 400
+    except Exception as e:
+        logger.error(f"Error getting entity state for {entity_id}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
 # Get port from environment
 port = int(os.environ.get('PORT', 5000))
 logger.info(f"Starting Flask application on port {port}")
