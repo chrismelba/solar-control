@@ -206,6 +206,10 @@
             if (initialValue) {
                 const selectedOption = document.querySelector(`#tariff_rate_options .option[data-value="${initialValue}"]`);
                 if (selectedOption) {
+                    // Show the container immediately
+                    const container = document.getElementById('tariff_mode_container');
+                    container.style.display = 'block';
+                    // Then trigger the callback
                     onTariffRateSelect(initialValue, selectedOption.textContent);
                 }
             }
@@ -216,7 +220,7 @@
             const list = document.getElementById('tariff_modes_list');
             
             if (selectedValue) {
-                // Show the container
+                // Show the container immediately
                 container.style.display = 'block';
                 
                 // Fetch options for the selected entity
@@ -282,7 +286,8 @@
                     })
                     .catch(error => {
                         console.error('Error fetching tariff options:', error);
-                        container.style.display = 'none';
+                        // Don't hide the container on error, just show an error message
+                        list.innerHTML = '<div class="error-message">Error loading tariff options. Please try again.</div>';
                     });
             } else {
                 container.style.display = 'none';
@@ -370,6 +375,16 @@
 
         .tariff-mode-item:last-child {
             border-bottom: none;
+        }
+
+        .error-message {
+            color: #dc3545;
+            padding: 1rem;
+            text-align: center;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            margin: 1rem 0;
         }
 
         .help-text {
