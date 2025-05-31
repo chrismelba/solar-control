@@ -378,6 +378,54 @@ class SolarController:
             logger.error(f"Failed to get tariff rate: {e}")
             return 0.0
 
+    def get_current_tariff_mode(self) -> str:
+        """Determine the current tariff mode (normal, cheap, or free) based on the configured tariff rate and modes.
+        
+        Returns:
+            str: The current tariff mode ('normal', 'cheap', or 'free')
+        """
+        config = self.load_config()
+        if not config.get('tariff_rate'):
+            logger.warning("No tariff rate configured, defaulting to normal mode")
+            return 'normal'
+            
+        try:
+            # Get current tariff rate from Home Assistant
+            response = requests.get(
+                f"{self.hass_url}/api/states/{config['tariff_rate']}", 
+                headers=self.get_headers()
+            )
+            response.raise_for_status()
+            current_tariff = response.json().get('state')
+            
+            if not current_tariff:
+                logger.warning("No current tariff rate available, defaulting to normal mode")
+                return 'normal'
+                
+            # Get the tariff modes configuration
+            tariff_modes = config.get('tariff_modes', {})
+            if not tariff_modes:
+                logger.warning("No tariff modes configured, defaulting to normal mode")
+                return 'normal'
+                
+            # Get the mode for the current tariff
+            mode = tariff_modes.get(current_tariff)
+            if not mode:
+                logger.warning(f"No mode configured for tariff '{current_tariff}', defaulting to normal mode")
+                return 'normal'
+                
+            # Validate the mode is one of the allowed values
+            if mode not in ['normal', 'cheap', 'free']:
+                logger.warning(f"Invalid mode '{mode}' for tariff '{current_tariff}', defaulting to normal mode")
+                return 'normal'
+                
+            logger.info(f"Current tariff '{current_tariff}' maps to mode '{mode}'")
+            return mode
+            
+        except Exception as e:
+            logger.error(f"Failed to determine tariff mode: {e}")
+            return 'normal'
+
     def is_between_dawn_and_dusk(self) -> bool:
         """Check if current time is between dawn and dusk using sun.sun entity"""
         try:
