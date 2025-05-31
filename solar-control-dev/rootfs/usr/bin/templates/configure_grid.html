@@ -147,9 +147,7 @@
                         <div class="tariff-mode-header">
                             <div class="tariff-name">Tariff Rate</div>
                             <div class="tariff-mode-options">
-                                <div class="mode-option">Normal</div>
-                                <div class="mode-option">Cheap</div>
-                                <div class="mode-option">Free</div>
+                                <div class="mode-label">Mode</div>
                             </div>
                         </div>
                         <div id="tariff_modes_list" class="tariff-modes-list">
@@ -335,6 +333,12 @@
         .tariff-mode-options {
             display: flex;
             gap: 1rem;
+            min-width: 200px;
+            justify-content: center;
+        }
+
+        .mode-label {
+            font-weight: bold;
         }
 
         .mode-option {
