@@ -396,10 +396,11 @@
         }
 
         // Initialize drag and drop when page loads
-        document.addEventListener('DOMContentLoaded', initializeDragAndDrop);
-    </script>
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeDragAndDrop();
+            updateDeviceCards(); // Call immediately when page loads
+        });
 
-    <script>
         async function updateDeviceCards() {
             try {
                 const devices = await apiCall('/api/devices');
