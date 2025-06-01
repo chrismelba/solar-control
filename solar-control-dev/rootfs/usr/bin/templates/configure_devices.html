@@ -609,6 +609,16 @@
                     document.getElementById('completion_sensor_input').value = device.completion_sensor;
                 }
                 
+                // Add population of minimum daily power and off-peak completion sensor
+                if (device.min_daily_power) {
+                    document.getElementById('min_daily_power').value = device.min_daily_power;
+                }
+                
+                if (device.completion_sensor) {
+                    document.getElementById('completion_sensor_offpeak').value = device.completion_sensor;
+                    document.getElementById('completion_sensor_input_offpeak').value = device.completion_sensor;
+                }
+                
                 // Remove the old submit handler and add the new one
                 const form = document.getElementById('addDeviceForm');
                 form.onsubmit = async (e) => {
