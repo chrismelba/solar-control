@@ -95,9 +95,14 @@ class SolarController:
         """Calculate available power by subtracting controlled loads from grid power.
         Negative grid power means we're exporting to the grid, which is available power.
         Positive grid power means we're importing from the grid.
-        We subtract the power consumption of all controlled devices to get the true available power."""
+        We subtract the power consumption of all controlled devices to get the true available power.
+        If tariff mode is 'free', returns effectively unlimited power."""
         if self.manual_power_override is not None:
             return self.manual_power_override
+
+        # Check if we're in free tariff mode
+        if self.get_current_tariff_mode() == 'free':
+            return float('inf')  # Return effectively unlimited power
 
         config = self.load_config()
         if not config.get('grid_power'):
