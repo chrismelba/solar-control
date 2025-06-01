@@ -223,16 +223,18 @@
                 // Show the container immediately
                 container.style.display = 'block';
                 
-                // Fetch options for the selected entity
-                apiCall(`/api/states/${selectedValue}`)
+                // Fetch tariff modes from our API
+                apiCall('/api/tariff_modes')
                     .then(data => {
-                        // Get the options from the entity's attributes
-                        const options = data.attributes?.options || [];
+                        // Get the available modes and current assignments
+                        const availableModes = data.modes || ['normal', 'cheap', 'free'];
+                        const currentModes = data.current_modes || {};
                         
                         // Clear existing options
                         list.innerHTML = '';
                         
-                        // Create items for each option
+                        // Create items for each tariff rate option
+                        const options = selectedText.split(' ')[0].split(',');
                         options.forEach(option => {
                             const item = document.createElement('div');
                             item.className = 'tariff-mode-item';
@@ -248,7 +250,7 @@
                             const optionsDiv = document.createElement('div');
                             optionsDiv.className = 'tariff-mode-options';
                             
-                            ['normal', 'cheap', 'free'].forEach(mode => {
+                            availableModes.forEach(mode => {
                                 const optionDiv = document.createElement('div');
                                 optionDiv.className = 'mode-option';
                                 optionDiv.dataset.mode = mode;
@@ -273,8 +275,7 @@
                         });
                         
                         // Restore saved modes if exists
-                        const savedModes = JSON.parse(document.getElementById('tariff_modes').value || '{}');
-                        Object.entries(savedModes).forEach(([tariff, mode]) => {
+                        Object.entries(currentModes).forEach(([tariff, mode]) => {
                             const item = list.querySelector(`[data-value="${tariff}"]`);
                             if (item) {
                                 const option = item.querySelector(`[data-mode="${mode}"]`);
@@ -285,9 +286,9 @@
                         });
                     })
                     .catch(error => {
-                        console.error('Error fetching tariff options:', error);
+                        console.error('Error fetching tariff modes:', error);
                         // Don't hide the container on error, just show an error message
-                        list.innerHTML = '<div class="error-message">Error loading tariff options. Please try again.</div>';
+                        list.innerHTML = '<div class="error-message">Error loading tariff modes. Please try again.</div>';
                     });
             } else {
                 container.style.display = 'none';

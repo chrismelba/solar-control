@@ -650,6 +650,28 @@ def get_entity_state(entity_id):
         logger.error(f"Error getting entity state for {entity_id}: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
+@app.route('/api/tariff_modes', methods=['GET'])
+def get_tariff_modes():
+    try:
+        # Load current configuration
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            config = {}
+        
+        # Get the tariff modes from config, defaulting to empty dict if not present
+        tariff_modes = config.get('tariff_modes', {})
+        
+        return jsonify({
+            'status': 'success',
+            'modes': ['normal', 'cheap', 'free'],  # The available modes we support
+            'current_modes': tariff_modes  # The current mode assignments
+        })
+    except Exception as e:
+        logger.error(f"Error getting tariff modes: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
 # Get port from environment
 port = int(os.environ.get('PORT', 5000))
 logger.info(f"Starting Flask application on port {port}")
