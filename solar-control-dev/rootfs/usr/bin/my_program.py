@@ -529,6 +529,15 @@ def get_status():
         logger.error(f"Error getting status: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
+@app.route('/api/control/run', methods=['POST'])
+def run_control_loop():
+    try:
+        controller.run_control_loop()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Error running control loop: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
 @app.route('/api/settings/power_optimization', methods=['POST'])
 def update_power_optimization():
     try:

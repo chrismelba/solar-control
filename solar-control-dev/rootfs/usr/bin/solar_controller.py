@@ -365,12 +365,16 @@ class SolarController:
             logger.error(f"Failed to get grid power: {e}")
             return 0.0
 
-    def get_tariff_rate(self) -> float:
-        """Get the current tariff rate from the configured entity"""
+    def get_tariff_rate(self) -> str:
+        """Get the current tariff rate from the configured entity
+        
+        Returns:
+            str: The current tariff rate value
+        """
         config = self.load_config()
         if not config.get('tariff_rate'):
             logger.error("No tariff rate configured")
-            return 0.0
+            return ''
             
         try:
             response = requests.get(
@@ -378,10 +382,10 @@ class SolarController:
                 headers=self.get_headers()
             )
             response.raise_for_status()
-            return float(response.json().get('state', 0.0))
+            return response.json().get('state', '')
         except Exception as e:
             logger.error(f"Failed to get tariff rate: {e}")
-            return 0.0
+            return ''
 
     def get_current_tariff_mode(self) -> str:
         """Determine the current tariff mode (normal, cheap, or free) based on the configured tariff rate and modes.
@@ -575,22 +579,41 @@ class SolarController:
 
             self.debug_state.mandatory_devices = mandatory_devices
 
-            # Check if we're in free tariff mode first
-            current_mode = self.get_current_tariff_mode()
-            if current_mode == 'free':
+            # Determine control mode and run appropriate logic
+            control_mode = self._determine_control_mode()
+            logger.info(f"Selected control mode: {control_mode}")
+            
+            if control_mode == 'free':
                 self._run_free_mode(voltage, devices_to_turn_on)
-            else:
-                # Determine which control mode to use based on time of day
-                if self.is_between_dawn_and_dusk():
-                    self._run_solar_control(available_power, voltage, devices_to_turn_on)
-                else:
-                    self._run_tariff_control(available_power, voltage, devices_to_turn_on)
+            elif control_mode == 'solar':
+                self._run_solar_control(available_power, voltage, devices_to_turn_on)
+            else:  # tariff mode
+                self._run_tariff_control(available_power, voltage, devices_to_turn_on)
 
             # Apply all state changes
             self._apply_state_changes(devices_to_turn_on)
 
         except Exception as e:
             logger.error(f"Error in control loop: {e}")
+
+    def _determine_control_mode(self) -> str:
+        """Determine which control mode to use based on tariff mode and time of day.
+        
+        Returns:
+            str: The control mode to use ('free', 'solar', or 'tariff')
+        """
+        current_tariff_mode = self.get_current_tariff_mode()
+        
+        # Free tariff mode takes precedence
+        if current_tariff_mode == 'free':
+            return 'free'
+            
+        # During daylight hours, use solar control
+        if self.is_between_dawn_and_dusk():
+            return 'solar'
+            
+        # Otherwise use tariff control
+        return 'tariff'
 
     def _run_solar_control(self, available_power: float, voltage: float, devices_to_turn_on: List[Tuple]):
         """Run solar-based power control logic"""

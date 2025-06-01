@@ -53,6 +53,23 @@ class Device:
 
     @classmethod
     def from_dict(cls, data: dict) -> 'Device':
+        # Convert numeric values to their correct types
+        if 'typical_power_draw' in data:
+            data['typical_power_draw'] = float(data['typical_power_draw'])
+        if 'min_amperage' in data and data['min_amperage'] is not None:
+            data['min_amperage'] = float(data['min_amperage'])
+        if 'max_amperage' in data and data['max_amperage'] is not None:
+            data['max_amperage'] = float(data['max_amperage'])
+        if 'min_on_time' in data:
+            data['min_on_time'] = int(data['min_on_time'])
+        if 'min_off_time' in data:
+            data['min_off_time'] = int(data['min_off_time'])
+        if 'order' in data:
+            data['order'] = int(data['order'])
+        if 'energy_delivered_today' in data:
+            data['energy_delivered_today'] = float(data['energy_delivered_today'])
+        if 'min_daily_power' in data and data['min_daily_power'] is not None:
+            data['min_daily_power'] = float(data['min_daily_power'])
         return cls(**data)
 
     def update_energy_delivered(self) -> None:

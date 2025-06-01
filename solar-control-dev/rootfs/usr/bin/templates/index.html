@@ -289,9 +289,21 @@
             }
         }
 
+        // Run control loop
+        async function runControlLoop() {
+            try {
+                await apiCall('/api/control/run', {
+                    method: 'POST'
+                });
+            } catch (error) {
+                console.error('Error running control loop:', error);
+            }
+        }
+
         // Update status immediately and then periodically
         document.addEventListener('DOMContentLoaded', () => {
             updateStatus();
+            runControlLoop(); // Run control loop when page loads
             setInterval(updateStatus, 30000);  // Update every 30 seconds
         });
 
