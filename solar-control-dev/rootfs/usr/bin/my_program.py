@@ -200,7 +200,7 @@ def get_sensor_values():
     }
     
     sensor_values = {}
-    for entity_id in ['solar_generation', 'grid_power', 'solar_forecast']:
+    for entity_id in ['solar_generation', 'grid_power', 'solar_forecast', 'tariff_rate']:
         if entity_id in config and config[entity_id]:
             try:
                 response = requests.get(

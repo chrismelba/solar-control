@@ -57,6 +57,14 @@
                 {% endif %}
             </div>
 
+            {% if sensor_values.tariff_rate %}
+            <div class="sensor-card">
+                <h3>Current Tariff</h3>
+                <p class="value">{{ sensor_values.tariff_rate.state }}</p>
+                <p class="name">{{ sensor_values.tariff_rate.friendly_name }}</p>
+            </div>
+            {% endif %}
+
             <div class="sensor-card">
                 <h3>Last Sunrise</h3>
                 {% if sunrise_time %}

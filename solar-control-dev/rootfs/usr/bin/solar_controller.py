@@ -665,45 +665,17 @@ class SolarController:
                     self.set_device_state(device_state, False)
 
     def _handle_disabled_optimization(self):
-        """Handle case when optimization is disabled"""
+        """Handle case when optimization is disabled - leave devices in their current state"""
         optional_devices = []
         for device_state in self.device_states.values():
             device = device_state.device
+            current_power = self.get_device_power(device_state) if device_state.is_on else 0
             
-            # Skip if device is mandatory (run-once and not completed)
-            if device.run_once and not device_state.has_completed:
-                optional_devices.append({
-                    'name': device.name,
-                    'power': self.get_device_power(device) if device_state.is_on else 0,
-                    'reason': 'Mandatory device'
-                })
-                continue
-                
-            # Skip if device is in minimum on time
-            if device_state.is_on and device_state.last_state_change:
-                time_since_change = (datetime.now(timezone.utc) - device_state.last_state_change).total_seconds()
-                if time_since_change < device.min_on_time:
-                    optional_devices.append({
-                        'name': device.name,
-                        'power': self.get_device_power(device),
-                        'reason': 'Minimum on time not met'
-                    })
-                    continue
-                    
-            # Turn off the device
-            if device_state.is_on:
-                self.set_device_state(device_state, False)
-                optional_devices.append({
-                    'name': device.name,
-                    'power': 0,
-                    'reason': 'Turned off (optimization disabled)'
-                })
-            else:
-                optional_devices.append({
-                    'name': device.name,
-                    'power': 0,
-                    'reason': 'Already off'
-                })
+            optional_devices.append({
+                'name': device.name,
+                'power': current_power,
+                'reason': 'Optimization disabled - maintaining current state'
+            })
 
         self.debug_state.optional_devices = optional_devices
 
