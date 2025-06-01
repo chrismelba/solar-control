@@ -448,6 +448,41 @@ class SolarController:
             logger.error(f"Failed to check sun state: {e}")
             return True  # Default to True if we can't determine state
 
+    def _run_free_mode(self, voltage: float, devices_to_turn_on: List[Tuple]):
+        """Run free tariff mode control logic - maximize all devices"""
+        logger.info("Running in free tariff mode - maximizing all devices")
+        optional_devices = []
+        
+        # Turn on all devices at maximum power
+        for device_state in self.device_states.values():
+            device = device_state.device
+            
+            # Skip if device has completed its task
+            if device.run_once and device_state.has_completed:
+                optional_devices.append({
+                    'name': device.name,
+                    'power': 0,
+                    'reason': 'Task completed'
+                })
+                continue
+            
+            # For variable amperage devices, set to maximum
+            if device.has_variable_amperage:
+                max_amperage = device.max_amperage
+                power_needed = voltage * max_amperage
+                devices_to_turn_on.append((device_state, power_needed, max_amperage))
+            else:
+                power_needed = device.typical_power_draw
+                devices_to_turn_on.append((device_state, power_needed, None))
+            
+            optional_devices.append({
+                'name': device.name,
+                'power': power_needed,
+                'reason': 'Free tariff mode - maximizing power'
+            })
+        
+        self.debug_state.optional_devices = optional_devices
+
     def run_control_loop(self):
         """Main control loop - runs one iteration"""
         try:
@@ -540,11 +575,19 @@ class SolarController:
 
             self.debug_state.mandatory_devices = mandatory_devices
 
-            # Determine which control mode to use
-            if self.is_between_dawn_and_dusk():
-                self._run_solar_control(available_power, voltage, devices_to_turn_on)
+            # Check if we're in free tariff mode first
+            current_mode = self.get_current_tariff_mode()
+            if current_mode == 'free':
+                self._run_free_mode(voltage, devices_to_turn_on)
             else:
-                self._run_tariff_control(available_power, voltage, devices_to_turn_on)
+                # Determine which control mode to use based on time of day
+                if self.is_between_dawn_and_dusk():
+                    self._run_solar_control(available_power, voltage, devices_to_turn_on)
+                else:
+                    self._run_tariff_control(available_power, voltage, devices_to_turn_on)
+
+            # Apply all state changes
+            self._apply_state_changes(devices_to_turn_on)
 
         except Exception as e:
             logger.error(f"Error in control loop: {e}")
