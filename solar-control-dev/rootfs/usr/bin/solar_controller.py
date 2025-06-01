@@ -100,6 +100,10 @@ class SolarController:
         if self.manual_power_override is not None:
             return self.manual_power_override
 
+        # Check if we're in free tariff mode
+        if self.get_current_tariff_mode() == 'free':
+            return float('inf')  # Return effectively unlimited power
+
         config = self.load_config()
         if not config.get('grid_power'):
             logger.error("No grid power sensor configured")

@@ -339,36 +339,8 @@ def configure_battery():
     except (FileNotFoundError, json.JSONDecodeError):
         config = {}
     
-    if request.method == 'POST':
-        # Get form data
-        battery_size = request.form.get('battery_size')
-        battery_percentage = request.form.get('battery_percentage')
-        max_charging_speed = request.form.get('max_charging_speed')
-        force_charge = request.form.get('force_charge')
-        
-        # Update config
-        config.update({
-            'battery_size': float(battery_size) if battery_size else None,
-            'battery_percentage': battery_percentage,
-            'max_charging_speed': float(max_charging_speed) if max_charging_speed else None,
-            'force_charge': force_charge
-        })
-        
-        # Save config
-        try:
-            with open(CONFIG_FILE, 'w') as f:
-                json.dump(config, f, indent=4)
-            flash('Battery configuration saved successfully!', 'success')
-        except Exception as e:
-            logger.error(f"Failed to save battery configuration: {e}")
-            flash('Failed to save battery configuration', 'error')
-    
-    # Get entities for the searchable selects
-    entities = get_entities()
-    
     return make_response(render_template('configure_battery.html',
                          config=config,
-                         entities=entities,
                          ingress_path=ingress_path,
                          basename=ingress_path))
 
