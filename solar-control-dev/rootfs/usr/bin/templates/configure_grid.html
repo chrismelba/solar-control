@@ -226,15 +226,26 @@
                 // Fetch tariff modes from our API
                 apiCall('/api/tariff_modes')
                     .then(data => {
-                        // Get the available modes and current assignments
+                        // Get the available modes, current assignments, and options
                         const availableModes = data.modes || ['normal', 'cheap', 'free'];
                         const currentModes = data.current_modes || {};
+                        const options = data.options || [];
                         
                         // Clear existing options
                         list.innerHTML = '';
                         
+                        // Filter out any old mode assignments that aren't in the new options
+                        const filteredModes = {};
+                        options.forEach(option => {
+                            if (currentModes[option]) {
+                                filteredModes[option] = currentModes[option];
+                            }
+                        });
+                        
+                        // Update the hidden input with filtered modes
+                        document.getElementById('tariff_modes').value = JSON.stringify(filteredModes);
+                        
                         // Create items for each tariff rate option
-                        const options = selectedText.split(' ')[0].split(',');
                         options.forEach(option => {
                             const item = document.createElement('div');
                             item.className = 'tariff-mode-item';
@@ -275,7 +286,7 @@
                         });
                         
                         // Restore saved modes if exists
-                        Object.entries(currentModes).forEach(([tariff, mode]) => {
+                        Object.entries(filteredModes).forEach(([tariff, mode]) => {
                             const item = list.querySelector(`[data-value="${tariff}"]`);
                             if (item) {
                                 const option = item.querySelector(`[data-mode="${mode}"]`);
@@ -292,6 +303,8 @@
                     });
             } else {
                 container.style.display = 'none';
+                // Clear the tariff modes when no entity is selected
+                document.getElementById('tariff_modes').value = '{}';
             }
         }
 

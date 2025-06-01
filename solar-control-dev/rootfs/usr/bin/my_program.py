@@ -653,21 +653,55 @@ def get_entity_state(entity_id):
 @app.route('/api/tariff_modes', methods=['GET'])
 def get_tariff_modes():
     try:
-        # Load current configuration
+        # Get the tariff rate entity from config
         try:
             with open(CONFIG_FILE, 'r') as f:
                 config = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             config = {}
         
-        # Get the tariff modes from config, defaulting to empty dict if not present
-        tariff_modes = config.get('tariff_modes', {})
+        tariff_rate_entity = config.get('tariff_rate')
+        if not tariff_rate_entity:
+            return jsonify({
+                'status': 'success',
+                'modes': ['normal', 'cheap', 'free'],
+                'current_modes': {},
+                'options': []
+            })
+
+        # Get the options from Home Assistant
+        supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+        if not supervisor_token:
+            logger.error("No supervisor token available in environment")
+            return jsonify({'status': 'error', 'message': 'No supervisor token available'}), 500
+
+        headers = {
+            "Authorization": f"Bearer {supervisor_token}",
+            "Content-Type": "application/json",
+        }
+
+        response = requests.get(
+            f"http://supervisor/core/api/states/{tariff_rate_entity}",
+            headers=headers
+        )
+        response.raise_for_status()
+        state_data = response.json()
+        
+        # Get the options from the entity's attributes
+        options = state_data.get('attributes', {}).get('options', [])
+        
+        # Get the current mode assignments from config
+        current_modes = config.get('tariff_modes', {})
         
         return jsonify({
             'status': 'success',
             'modes': ['normal', 'cheap', 'free'],  # The available modes we support
-            'current_modes': tariff_modes  # The current mode assignments
+            'current_modes': current_modes,  # The current mode assignments
+            'options': options  # The tariff rate options from Home Assistant
         })
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error getting tariff modes: {e}")
+        return jsonify({'status': 'error', 'message': f'Network error: {str(e)}'}), 400
     except Exception as e:
         logger.error(f"Error getting tariff modes: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
