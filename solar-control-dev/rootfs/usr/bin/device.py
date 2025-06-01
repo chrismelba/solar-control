@@ -58,7 +58,6 @@ class Device:
     def update_energy_delivered(self) -> None:
         """Update the energy delivered tracking using Home Assistant history API"""
         if not self.energy_sensor:
-            logger.debug(f"No energy sensor defined for {self.name}")
             return
 
         try:
@@ -88,8 +87,6 @@ class Device:
             else:
                 # Convert to UTC if it has timezone info
                 last_rise = last_rise.astimezone(timezone.utc)
-                
-            logger.debug(f"Using sunrise time (UTC): {last_rise}")
             
             # Get current energy value and check its unit
             response = requests.get(
@@ -101,7 +98,6 @@ class Device:
             
             # Check the unit of measurement
             unit_of_measurement = current_state.get('attributes', {}).get('unit_of_measurement', '')
-            logger.debug(f"Energy sensor unit of measurement: {unit_of_measurement}")
             
             # Get energy sensor value at dawn
             dawn_time = last_rise.isoformat()
@@ -128,7 +124,6 @@ class Device:
                     # Convert to kWh if the sensor is in Wh
                     if unit_of_measurement.lower() in ['wh', 'watt-hour', 'watt-hours']:
                         dawn_energy = dawn_energy / 1000
-                    logger.debug(f"Found dawn energy reading: {dawn_energy} kWh")
                     break
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Invalid energy reading at dawn: {reading.get('state')}")
@@ -143,11 +138,10 @@ class Device:
             # Convert to kWh if the sensor is in Wh
             if unit_of_measurement.lower() in ['wh', 'watt-hour', 'watt-hours']:
                 current_energy = current_energy / 1000
-            logger.debug(f"Current energy reading: {current_energy} kWh")
             
             # Calculate energy delivered today
             self.energy_delivered_today = current_energy - dawn_energy
-            logger.info(f"Updated energy delivered for {self.name}: {self.energy_delivered_today} kWh (Current: {current_energy}, Dawn: {dawn_energy})")
+            logger.info(f"Updated energy delivered for {self.name}: {self.energy_delivered_today:.2f} kWh")
             
         except requests.exceptions.RequestException as e:
             logger.error(f"Network error while updating energy delivered for {self.name}: {e}")

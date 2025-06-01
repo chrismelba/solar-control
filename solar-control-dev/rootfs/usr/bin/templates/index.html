@@ -416,7 +416,7 @@
                 console.error('Failed to update device cards:', error);
             }
         }
-        setInterval(updateDeviceCards, 1000);
+        setInterval(updateDeviceCards, 60000); // Update every minute
         updateDeviceCards();
     </script>
 {% endblock %} 
