@@ -4,6 +4,7 @@ import logging
 import json
 import requests
 from device import Device
+from battery import Battery
 from solar_controller import SolarController
 from utils import get_sunrise_time, setup_logging
 
@@ -69,6 +70,7 @@ for root, dirs, files in os.walk(static_dir):
 CONFIG_FILE = '/data/solar_config.json'
 DEVICES_FILE = '/data/devices.json'
 SETTINGS_FILE = '/data/settings.json'
+BATTERY_FILE = '/data/battery.json'
 
 # Debug: Log data directory state
 logger.info("Checking data directory state...")
@@ -704,6 +706,52 @@ def get_tariff_modes():
         return jsonify({'status': 'error', 'message': f'Network error: {str(e)}'}), 400
     except Exception as e:
         logger.error(f"Error getting tariff modes: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/battery', methods=['GET'])
+def get_battery():
+    try:
+        battery = Battery.load(BATTERY_FILE)
+        if battery is None:
+            return jsonify({
+                'status': 'success',
+                'config': {}
+            })
+        
+        return jsonify({
+            'status': 'success',
+            'config': battery.to_dict()
+        })
+    except Exception as e:
+        logger.error(f"Error getting battery configuration: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/battery', methods=['POST'])
+def update_battery():
+    try:
+        data = request.json
+        if not data:
+            return jsonify({'status': 'error', 'message': 'No data provided'}), 400
+
+        # Validate required fields
+        if 'size_kwh' not in data or 'battery_percent_entity' not in data:
+            return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
+
+        # Create battery object
+        battery = Battery(
+            size_kwh=float(data['size_kwh']),
+            battery_percent_entity=data['battery_percent_entity'],
+            max_charging_speed_kw=float(data['max_charging_speed_kw']) if data.get('max_charging_speed_kw') else None,
+            force_charge_entity=data.get('force_charge_entity')
+        )
+
+        # Save configuration
+        if battery.save(BATTERY_FILE):
+            return jsonify({'status': 'success'})
+        else:
+            return jsonify({'status': 'error', 'message': 'Failed to save battery configuration'}), 500
+    except Exception as e:
+        logger.error(f"Error updating battery configuration: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 # Get port from environment
