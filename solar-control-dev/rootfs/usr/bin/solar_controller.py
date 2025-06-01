@@ -655,6 +655,19 @@ class SolarController:
         logger.info("Running tariff control mode")
         optional_devices = []
         
+        # Check if we're in cheap or free tariff mode
+        current_mode = self.get_current_tariff_mode()
+        if current_mode not in ['cheap', 'free']:
+            logger.info(f"Skipping tariff control - current mode is {current_mode}, not 'cheap' or 'free'")
+            for device_state in self.device_states.values():
+                optional_devices.append({
+                    'name': device_state.device.name,
+                    'power': 0,
+                    'reason': f'Not in cheap/free tariff mode (current: {current_mode})'
+                })
+            self.debug_state.optional_devices = optional_devices
+            return
+        
         # Process each device
         for device_state in self.device_states.values():
             device = device_state.device
