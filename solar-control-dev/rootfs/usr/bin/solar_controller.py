@@ -653,9 +653,66 @@ class SolarController:
     def _run_tariff_control(self, available_power: float, voltage: float, devices_to_turn_on: List[Tuple]):
         """Run tariff-based power control logic"""
         logger.info("Running tariff control mode")
-        # TODO: Implement tariff-based control logic
-        # This will handle off-peak and other tariff-based control scenarios
-        pass
+        optional_devices = []
+        
+        # Process each device
+        for device_state in self.device_states.values():
+            device = device_state.device
+            
+            # Skip if no minimum daily power is specified
+            if not device.min_daily_power:
+                logger.info(f"Skipping {device.name} - no minimum daily power specified")
+                optional_devices.append({
+                    'name': device.name,
+                    'power': 0,
+                    'reason': 'No minimum daily power specified'
+                })
+                continue
+                
+            # Check if device has completed its task
+            if device.run_once and device_state.is_on:
+                if self.check_device_completion(device_state):
+                    logger.info(f"Turning off {device.name} - task completed")
+                    device_state.has_completed = True
+                    optional_devices.append({
+                        'name': device.name,
+                        'power': 0,
+                        'reason': 'Task completed'
+                    })
+                    continue
+            
+            # Check if minimum daily power requirement is met
+            if device.energy_delivered_today >= device.min_daily_power:
+                logger.info(f"Turning off {device.name} - minimum daily power requirement met")
+                optional_devices.append({
+                    'name': device.name,
+                    'power': 0,
+                    'reason': 'Minimum daily power requirement met'
+                })
+                continue
+                
+            # If we get here, we need to turn the device on
+            logger.info(f"Turning on {device.name} - minimum daily power requirement not met")
+            
+            # For variable amperage devices, set to maximum
+            if device.has_variable_amperage:
+                max_amperage = device.max_amperage
+                power_needed = voltage * max_amperage
+                devices_to_turn_on.append((device_state, power_needed, max_amperage))
+            else:
+                power_needed = device.typical_power_draw
+                devices_to_turn_on.append((device_state, power_needed, None))
+                
+            optional_devices.append({
+                'name': device.name,
+                'power': power_needed,
+                'reason': 'Minimum daily power requirement not met'
+            })
+            
+        self.debug_state.optional_devices = optional_devices
+        
+        # Apply all state changes
+        self._apply_state_changes(devices_to_turn_on)
 
     def _apply_state_changes(self, devices_to_turn_on: List[Tuple]):
         """Apply state changes to devices"""
