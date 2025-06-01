@@ -214,6 +214,14 @@ def get_sensor_values():
             except Exception as e:
                 logger.error(f"Error fetching {entity_id} value: {e}")
     
+    # Add tariff mode if tariff rate is configured
+    if 'tariff_rate' in sensor_values:
+        try:
+            sensor_values['tariff_mode'] = controller.get_current_tariff_mode()
+        except Exception as e:
+            logger.error(f"Error determining tariff mode: {e}")
+            sensor_values['tariff_mode'] = 'error'
+    
     return sensor_values
 
 

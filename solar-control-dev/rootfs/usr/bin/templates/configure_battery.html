@@ -15,8 +15,9 @@
             <div class="form-group">
                 <label for="battery_percent_entity">Battery Percentage Sensor</label>
                 <select id="battery_percent_entity" name="battery_percent_entity" class="searchable-select" required>
-                    <option value="">Select a sensor...</option>
+                    <option value="">Select a battery percentage sensor...</option>
                 </select>
+                <small class="form-text text-muted">Select a sensor that reports battery percentage (0-100%)</small>
             </div>
 
             <div class="form-group">
@@ -41,9 +42,22 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize searchable selects
-            initializeSearchableSelect('battery_percent_entity', 'sensor');
-            initializeSearchableSelect('force_charge_entity', 'switch');
+            // Initialize searchable selects with specific filters
+            initializeSearchableSelect('battery_percent_entity', 'sensor', {
+                filter: function(entity) {
+                    // Filter for battery percentage sensors
+                    return entity.entity_id.toLowerCase().includes('battery') && 
+                           entity.entity_id.toLowerCase().includes('percentage');
+                }
+            });
+            
+            initializeSearchableSelect('force_charge_entity', 'switch', {
+                filter: function(entity) {
+                    // Filter for battery-related switches
+                    return entity.entity_id.toLowerCase().includes('battery') && 
+                           entity.entity_id.toLowerCase().includes('charge');
+                }
+            });
 
             // Load existing configuration
             fetch('/api/battery')

@@ -62,6 +62,7 @@
                 <h3>Current Tariff</h3>
                 <p class="value">{{ sensor_values.tariff_rate.state }}</p>
                 <p class="name">{{ sensor_values.tariff_rate.friendly_name }}</p>
+                <p class="mode">Mode: {{ sensor_values.tariff_mode|default('error') }}</p>
             </div>
             {% endif %}
 
@@ -134,6 +135,11 @@
             color: #2196F3;
         }
         .sensor-card .name {
+            font-size: 0.9rem;
+            color: #666;
+            margin: 0;
+        }
+        .sensor-card .mode {
             font-size: 0.9rem;
             color: #666;
             margin: 0;
