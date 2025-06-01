@@ -484,6 +484,17 @@ class SolarController:
                 if device.energy_sensor:
                     device.update_energy_delivered()
             
+            # Sync all device states with Home Assistant before processing
+            for device_state in self.device_states.values():
+                device = device_state.device
+                # Get current state from Home Assistant
+                hass_state = self.get_device_state_from_hass(device)
+                # Update our local state if it differs from Home Assistant
+                if device_state.is_on != hass_state:
+                    logger.info(f"Syncing state for {device.name} with Home Assistant: {hass_state}")
+                    device_state.is_on = hass_state
+                    device_state.last_state_change = current_time
+            
             for device_state in self.device_states.values():
                 device = device_state.device
                 
