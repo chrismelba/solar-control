@@ -6,7 +6,81 @@
 
 {% block content %}
     <div class="card">
-        <h2>Coming Soon</h2>
-        <p>Battery configuration features are currently under development.</p>
+        <form method="POST" action="{{ url_for('configure_battery') }}">
+            <div class="form-group">
+                <label for="battery_size">Battery Size: <span class="tooltip">ⓘ<span class="tooltiptext">The total capacity of your battery in kilowatt-hours (kWh).</span></span></label>
+                <div class="input-group">
+                    <input type="number" id="battery_size" name="battery_size" min="0" step="0.1" required
+                           value="{{ config.battery_size if config.battery_size else '' }}">
+                    <span class="unit">kWh</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="battery_percentage">Battery Percentage Sensor: <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that measures your battery's current charge percentage.</span></span></label>
+                <div class="searchable-select">
+                    <input type="text" id="battery_percentage_input" placeholder="Search for a battery percentage sensor..." autocomplete="off">
+                    <input type="hidden" name="battery_percentage" id="battery_percentage" value="{{ config.battery_percentage }}">
+                    <div class="options" id="battery_percentage_options">
+                        {% for entity in entities %}
+                            {% if entity.entity_id.startswith('sensor.') and (
+                                'battery' in entity.entity_id.lower() and 
+                                ('percentage' in entity.entity_id.lower() or 
+                                 'level' in entity.entity_id.lower() or 
+                                 'soc' in entity.entity_id.lower())
+                            ) %}
+                            <div class="option" data-value="{{ entity.entity_id }}"
+                                 {% if entity.entity_id == config.battery_percentage %}data-selected="true"{% endif %}>
+                                {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="max_charging_speed">Maximum Charging Speed (optional): <span class="tooltip">ⓘ<span class="tooltiptext">The maximum power at which your battery can charge, in kilowatts (kW).</span></span></label>
+                <div class="input-group">
+                    <input type="number" id="max_charging_speed" name="max_charging_speed" min="0" step="0.1"
+                           value="{{ config.max_charging_speed if config.max_charging_speed else '' }}">
+                    <span class="unit">kW</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="force_charge">Force Charge Switch (optional): <span class="tooltip">ⓘ<span class="tooltiptext">Select a switch that can force your battery to charge regardless of other conditions.</span></span></label>
+                <div class="searchable-select">
+                    <input type="text" id="force_charge_input" placeholder="Search for a force charge switch..." autocomplete="off">
+                    <input type="hidden" name="force_charge" id="force_charge" value="{{ config.force_charge }}">
+                    <div class="options" id="force_charge_options">
+                        {% for entity in entities %}
+                            {% if entity.entity_id.startswith('switch.') and (
+                                'battery' in entity.entity_id.lower() and 
+                                ('force' in entity.entity_id.lower() or 
+                                 'charge' in entity.entity_id.lower())
+                            ) %}
+                            <div class="option" data-value="{{ entity.entity_id }}"
+                                 {% if entity.entity_id == config.force_charge %}data-selected="true"{% endif %}>
+                                {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="button primary">Save Configuration</button>
+            </div>
+        </form>
     </div>
+
+    <script>
+        // Initialize searchable selects
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSearchableSelect('battery_percentage');
+            initializeSearchableSelect('force_charge');
+        });
+    </script>
 {% endblock %} 
