@@ -270,25 +270,8 @@ class Device:
 @dataclass
 class Battery(Device):
     """A special type of device that represents a battery storage system"""
-    name: str
-    switch_entity: str
-    typical_power_draw: float  # in watts
     battery_size: float  # in kWh
     battery_percentage_sensor: str  # Home Assistant entity ID for battery percentage
-    current_power_sensor: Optional[str] = None  # Home Assistant entity ID
-    energy_sensor: Optional[str] = None  # Home Assistant entity ID for energy consumption
-    power_delivery_sensor: Optional[str] = None  # Home Assistant entity ID for power delivery
-    has_variable_amperage: bool = False
-    min_amperage: Optional[float] = None  # in amps
-    max_amperage: Optional[float] = None  # in amps
-    variable_amperage_control: Optional[str] = None  # Home Assistant entity ID for controlling amperage
-    min_on_time: int = 60  # in seconds
-    min_off_time: int = 60  # in seconds
-    run_once: bool = False
-    completion_sensor: Optional[str] = None  # Home Assistant entity ID for completion status
-    order: int = 0  # For drag-and-drop ordering
-    energy_delivered_today: float = 0.0  # in watt-hours
-    min_daily_power: Optional[float] = None
     max_charging_speed: Optional[float] = None  # in kW
     force_charge_switch: Optional[str] = None  # Home Assistant entity ID for force charge switch
 
