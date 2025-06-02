@@ -92,7 +92,7 @@ class Device:
                 converted_data[field] = cls._safe_convert(converted_data[field], target_type)
         
         # Remove legacy fields that are no longer supported
-        legacy_fields = ['last_power_update']
+        legacy_fields = ['last_power_update', 'last_dawn_reset']
         for field in legacy_fields:
             if field in converted_data:
                 logger.info(f"Removing legacy field '{field}' from device data")
