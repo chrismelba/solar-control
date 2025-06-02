@@ -9,12 +9,18 @@ def setup_logging():
     try:
         # Get debug level from configuration
         supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+        if not supervisor_token:
+            print("Warning: No supervisor token found in environment")
+            
         headers = {"Authorization": f"Bearer {supervisor_token}", "Content-Type": "application/json"} if supervisor_token else {}
         response = requests.get('http://supervisor/addons/self/options', headers=headers)
         config = response.json()
-        debug_level = config.get('debug_level', 'info').upper()
+        print(f"Retrieved config from supervisor: {config}")
+        debug_level = config.get('debug_level', 'debug').upper()
+        print(f"Debug level from config: {debug_level}")
     except Exception as e:
-        debug_level = 'DEBUG'
+        print(f"Error getting debug level from supervisor: {str(e)}")
+        debug_level = 'DEBUG'  # Changed from DEBUG as default
 
     # Create logs directory if it doesn't exist
     log_dir = '/data/logs'

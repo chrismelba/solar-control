@@ -8,7 +8,7 @@ from battery import Battery
 from solar_controller import SolarController
 from utils import get_sunrise_time, setup_logging
 
-# Configure logging
+# Set up logging using the centralized configuration
 logger = setup_logging()
 
 # Create static directory if it doesn't exist
