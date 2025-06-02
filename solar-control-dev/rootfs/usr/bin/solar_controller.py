@@ -328,7 +328,8 @@ class SolarController:
                 if success:
                     device_state.is_on = turn_on
                     device_state.last_state_change = current_time
-                    logger.info(f"Set {device.name} to {'on' if turn_on else 'off'}")
+                    logger.info(f"Set {device.name} to {'on' if turn_on else 'off'}" + 
+                              (f" with {amperage}A" if amperage is not None else ""))
                 else:
                     logger.error(f"Failed to set state for {device.name}")
             
@@ -559,6 +560,7 @@ class SolarController:
                 if device.run_once and device_state.is_on:
                     if self.check_device_completion(device_state):
                         device_state.has_completed = True
+                        logger.info(f"Device {device.name} has completed its task")
                         continue
                 
                 # Check minimum on/off times
@@ -574,6 +576,7 @@ class SolarController:
                             'power': power,
                             'reason': 'Minimum on time not met'
                         })
+                        logger.info(f"Device {device.name} must stay on due to minimum on time")
                         # If it's a variable amperage device, set to minimum amperage
                         if device.has_variable_amperage:
                             min_amperage = device.min_amperage
@@ -593,6 +596,7 @@ class SolarController:
                             'power': 0,
                             'reason': 'Minimum off time not met'
                         })
+                        logger.info(f"Device {device.name} must stay off due to minimum off time")
                         continue
 
             self.debug_state.mandatory_devices = mandatory_devices
@@ -710,7 +714,8 @@ class SolarController:
             
             # Check if we have enough power
             if power_needed <= available_power:
-                logger.info(f"Turning on {device.name} with {power_needed}W")
+                logger.info(f"Turning on {device.name} with {power_needed}W" + 
+                          (f" at {optimal_amperage}A" if device.has_variable_amperage else ""))
                 devices_to_turn_on.append((device_state, power_needed, optimal_amperage if device.has_variable_amperage else None))
                 available_power -= power_needed
                 optional_devices.append({
@@ -730,7 +735,7 @@ class SolarController:
 
     def _run_tariff_control(self, available_power: float, voltage: float, devices_to_turn_on: List[Tuple]):
         """Run tariff-based power control logic"""
-        logger.info("Running tariff control mode")
+        logger.info(f"Running tariff control mode with {available_power}W available")
         optional_devices = []
         
         # Check if we're in cheap or free tariff mode
