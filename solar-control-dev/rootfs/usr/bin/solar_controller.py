@@ -81,12 +81,15 @@ class SolarController:
             return 230.0  # Default to 230V if not configured
             
         try:
+            logger.debug(f"Fetching grid voltage from {config['grid_voltage']}")
             response = requests.get(
                 f"{self.hass_url}/api/states/{config['grid_voltage']}", 
                 headers=self.get_headers()
             )
             response.raise_for_status()
-            return float(response.json().get('state', 230.0))
+            voltage = float(response.json().get('state', 230.0))
+            logger.debug(f"Grid voltage: {voltage}V")
+            return voltage
         except Exception as e:
             logger.error(f"Failed to get grid voltage: {e}")
             return 230.0  # Default to 230V on error
@@ -98,10 +101,12 @@ class SolarController:
         We subtract the power consumption of all controlled devices to get the true available power.
         If tariff mode is 'free', returns effectively unlimited power."""
         if self.manual_power_override is not None:
+            logger.info(f"Using manual power override: {self.manual_power_override}W")
             return self.manual_power_override
 
         # Check if we're in free tariff mode
         if self.get_current_tariff_mode() == 'free':
+            logger.info("Free tariff mode - returning unlimited power")
             return float('inf')  # Return effectively unlimited power
 
         config = self.load_config()
@@ -110,6 +115,7 @@ class SolarController:
             return 0.0
             
         try:
+            logger.debug(f"Fetching grid power from {config['grid_power']}")
             response = requests.get(
                 f"{self.hass_url}/api/states/{config['grid_power']}", 
                 headers=self.get_headers()
@@ -121,28 +127,29 @@ class SolarController:
             unit = response.json().get('attributes', {}).get('unit_of_measurement', 'W')
             if unit.lower() == 'kw':
                 grid_power *= 1000
+                logger.debug(f"Converted grid power from kW to W: {grid_power}W")
                 
             # Calculate total power consumption of controlled devices
             controlled_power = 0.0
             for device_state in self.device_states.values():
                 if device_state.is_on:
-                    controlled_power += self.get_device_power(device_state)
+                    power = self.get_device_power(device_state)
+                    controlled_power += power
+                    logger.debug(f"Device {device_state.device.name} consuming {power}W")
             
             # Subtract controlled power from grid power
-            # If result is negative, we have that much power available
-            # If result is positive, we're importing that much power
             available_power = -grid_power + controlled_power
+            logger.debug(f"Grid power: {grid_power}W, Controlled power: {controlled_power}W, Available power: {available_power}W")
             
             # Apply site export limit if configured
             site_export_limit = config.get('site_export_limit')
             if site_export_limit is not None and isinstance(site_export_limit, (int, float)):
-                # If we're exporting more than the limit, reduce available power
                 if grid_power < -site_export_limit:
                     available_power = max(0, available_power - (abs(grid_power) - site_export_limit))
+                    logger.debug(f"Applied site export limit of {site_export_limit}W, new available power: {available_power}W")
             else:
                 logger.debug("No valid site export limit configured, proceeding without export limit")
             
-            # Return available power (must be positive or zero)
             return max(0, available_power)
             
         except Exception as e:
@@ -170,12 +177,15 @@ class SolarController:
     def get_device_state_from_hass(self, device: Device) -> bool:
         """Get the current state of a device from Home Assistant"""
         try:
+            logger.debug(f"Fetching state for device {device.name} from {device.switch_entity}")
             response = requests.get(
                 f"{self.hass_url}/api/states/{device.switch_entity}",
                 headers=self.get_headers()
             )
             response.raise_for_status()
-            return response.json().get('state', 'off').lower() == 'on'
+            state = response.json().get('state', 'off').lower() == 'on'
+            logger.debug(f"Device {device.name} state: {'on' if state else 'off'}")
+            return state
         except Exception as e:
             logger.error(f"Failed to get state for {device.name}: {e}")
             return False
@@ -218,6 +228,7 @@ class SolarController:
         # If device has a power sensor, use that
         if device.current_power_sensor:
             try:
+                logger.debug(f"Fetching power for {device.name} from {device.current_power_sensor}")
                 response = requests.get(
                     f"{self.hass_url}/api/states/{device.current_power_sensor}",
                     headers=self.get_headers()
@@ -229,7 +240,9 @@ class SolarController:
                 unit = response.json().get('attributes', {}).get('unit_of_measurement', 'W')
                 if unit.lower() == 'kw':
                     power *= 1000
+                    logger.debug(f"Converted power for {device.name} from kW to W: {power}W")
                     
+                logger.debug(f"Device {device.name} power: {power}W")
                 return power
             except Exception as e:
                 logger.error(f"Failed to get power for {device.name}: {e}")
@@ -237,9 +250,12 @@ class SolarController:
         # If device has variable amperage, calculate power
         if device.has_variable_amperage and device_state.current_amperage is not None:
             voltage = self.get_grid_voltage()
-            return voltage * device_state.current_amperage
+            power = voltage * device_state.current_amperage
+            logger.debug(f"Calculated power for {device.name} from amperage: {power}W ({voltage}V * {device_state.current_amperage}A)")
+            return power
             
         # Fall back to typical power draw
+        logger.debug(f"Using typical power draw for {device.name}: {device.typical_power_draw}W")
         return device.typical_power_draw
         
     def check_device_completion(self, device_state: DeviceState) -> bool:
@@ -267,17 +283,18 @@ class SolarController:
             # For variable load devices, we can always set the amperage
             if device.has_variable_amperage and amperage is not None:
                 logger.info(f"Setting amperage for {device.name} to {amperage}A")
-                logger.info(f"Device details - min_amperage: {device.min_amperage}A, max_amperage: {device.max_amperage}A")
-                logger.info(f"Control entity: {device.variable_amperage_control}")
+                logger.debug(f"Device details - min_amperage: {device.min_amperage}A, max_amperage: {device.max_amperage}A")
+                logger.debug(f"Control entity: {device.variable_amperage_control}")
                 
                 service_data = {
-                    "entity_id": device.variable_amperage_control,  # Use the variable amperage control entity
+                    "entity_id": device.variable_amperage_control,
                     "value": amperage
                 }
-                logger.info(f"Sending request to Home Assistant: {service_data}")
+                logger.debug(f"Sending request to Home Assistant: {service_data}")
                 
                 # First check the entity type
                 try:
+                    logger.debug(f"Checking entity type for {device.variable_amperage_control}")
                     entity_response = requests.get(
                         f"{self.hass_url}/api/states/{device.variable_amperage_control}",
                         headers=self.get_headers()
@@ -287,7 +304,7 @@ class SolarController:
                     
                     # Use appropriate service based on entity type
                     service = "input_number/set_value" if entity_type == "input_number" else "number/set_value"
-                    logger.info(f"Using service: {service} for entity type: {entity_type}")
+                    logger.debug(f"Using service: {service} for entity type: {entity_type}")
                     
                     response = requests.post(
                         f"{self.hass_url}/api/services/{service}",
@@ -296,13 +313,13 @@ class SolarController:
                     )
                     response.raise_for_status()
                     logger.info(f"Successfully set amperage for {device.name} to {amperage}A")
-                    logger.info(f"Response status: {response.status_code}")
-                    logger.info(f"Response content: {response.text}")
+                    logger.debug(f"Response status: {response.status_code}")
+                    logger.debug(f"Response content: {response.text}")
                     device_state.current_amperage = amperage
                 except Exception as e:
                     logger.error(f"Failed to set amperage for {device.name}: {e}")
             else:
-                logger.info(f"No amperage change needed for {device.name} - has_variable_amperage: {device.has_variable_amperage}, amperage: {amperage}")
+                logger.debug(f"No amperage change needed for {device.name} - has_variable_amperage: {device.has_variable_amperage}, amperage: {amperage}")
             
             # Only change switch state if we're allowed to
             if not (device_state.is_on and device_state.last_state_change and 
@@ -311,6 +328,7 @@ class SolarController:
                 if success:
                     device_state.is_on = turn_on
                     device_state.last_state_change = current_time
+                    logger.info(f"Set {device.name} to {'on' if turn_on else 'off'}")
                 else:
                     logger.error(f"Failed to set state for {device.name}")
             
@@ -600,27 +618,26 @@ class SolarController:
             logger.error(f"Error in control loop: {e}")
 
     def _determine_control_mode(self) -> str:
-        """Determine which control mode to use based on tariff mode and time of day.
-        
-        Returns:
-            str: The control mode to use ('free', 'solar', or 'tariff')
-        """
+        """Determine which control mode to use based on tariff mode and time of day."""
         current_tariff_mode = self.get_current_tariff_mode()
         
         # Free tariff mode takes precedence
         if current_tariff_mode == 'free':
+            logger.info("Selected control mode: free (based on tariff mode)")
             return 'free'
             
         # During daylight hours, use solar control
         if self.is_between_dawn_and_dusk():
+            logger.info("Selected control mode: solar (daylight hours)")
             return 'solar'
             
         # Otherwise use tariff control
+        logger.info("Selected control mode: tariff (night hours)")
         return 'tariff'
 
     def _run_solar_control(self, available_power: float, voltage: float, devices_to_turn_on: List[Tuple]):
         """Run solar-based power control logic"""
-        logger.info("Running solar control mode")
+        logger.info(f"Running solar control mode with {available_power}W available")
         optional_devices = []
         
         # Sort devices by their order (priority)
@@ -632,7 +649,7 @@ class SolarController:
         # Process potential devices in priority order
         for device_state in sorted_devices:
             device = device_state.device
-            logger.info(f"Optimizing device {device.name} with {available_power}W available")
+            logger.debug(f"Processing device {device.name} with {available_power}W available")
             
             # Skip if device has completed its task
             if device.run_once and device_state.has_completed:
@@ -660,7 +677,7 @@ class SolarController:
             if device.has_variable_amperage:
                 # Calculate optimal amperage considering current load
                 optimal_amperage = self.calculate_optimal_amperage(device, available_power)
-                logger.info(f"Calculated optimal amperage for {device.name}: {optimal_amperage}A")
+                logger.debug(f"Calculated optimal amperage for {device.name}: {optimal_amperage}A")
                 if optimal_amperage is None:
                     logger.info(f"Cannot calculate optimal amperage for {device.name}")
                     optional_devices.append({
@@ -675,21 +692,21 @@ class SolarController:
                     current_power = self.get_device_power(device_state)
                     if device_state.current_amperage and device_state.current_amperage > 0:
                         power_needed = current_power * (optimal_amperage / device_state.current_amperage)
-                        logger.info(f"Scaled power needed for {device.name} from {current_power}W to {power_needed}W based on amperage ratio")
+                        logger.debug(f"Scaled power needed for {device.name} from {current_power}W to {power_needed}W based on amperage ratio")
                     else:
                         power_needed = voltage * optimal_amperage
-                        logger.info(f"Using calculated power for {device.name}: {power_needed}W (no current amperage available)")
+                        logger.debug(f"Using calculated power for {device.name}: {power_needed}W (no current amperage available)")
                 else:
                     power_needed = voltage * optimal_amperage
-                    logger.info(f"Using calculated power for {device.name}: {power_needed}W (device is off)")
+                    logger.debug(f"Using calculated power for {device.name}: {power_needed}W (device is off)")
             else:
                 # For non-variable devices, use actual power if device is on
                 if device_state.is_on:
                     power_needed = self.get_device_power(device_state)
-                    logger.info(f"Using actual power for {device.name}: {power_needed}W")
+                    logger.debug(f"Using actual power for {device.name}: {power_needed}W")
                 else:
                     power_needed = device.typical_power_draw
-                    logger.info(f"Using typical power for {device.name}: {power_needed}W")
+                    logger.debug(f"Using typical power for {device.name}: {power_needed}W")
             
             # Check if we have enough power
             if power_needed <= available_power:
@@ -732,6 +749,7 @@ class SolarController:
         # Process each device
         for device_state in self.device_states.values():
             device = device_state.device
+            logger.debug(f"Processing device {device.name} in tariff control mode")
             
             # Skip if no minimum daily power is specified
             if not device.min_daily_power:
@@ -772,9 +790,11 @@ class SolarController:
             if device.has_variable_amperage:
                 max_amperage = device.max_amperage
                 power_needed = voltage * max_amperage
+                logger.debug(f"Setting {device.name} to maximum amperage: {max_amperage}A ({power_needed}W)")
                 devices_to_turn_on.append((device_state, power_needed, max_amperage))
             else:
                 power_needed = device.typical_power_draw
+                logger.debug(f"Using typical power for {device.name}: {power_needed}W")
                 devices_to_turn_on.append((device_state, power_needed, None))
                 
             optional_devices.append({
