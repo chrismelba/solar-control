@@ -51,26 +51,47 @@ class Device:
             'min_daily_power': self.min_daily_power
         }
 
+    @staticmethod
+    def _safe_convert(value: any, target_type: type) -> any:
+        """Safely convert a value to the target type, handling None and empty strings.
+        
+        Args:
+            value: The value to convert
+            target_type: The type to convert to (float, int, etc.)
+            
+        Returns:
+            The converted value, or None if conversion is not possible
+        """
+        if value in [None, '']:
+            return None
+        try:
+            return target_type(value)
+        except (ValueError, TypeError):
+            return None
+
     @classmethod
     def from_dict(cls, data: dict) -> 'Device':
         # Convert numeric values to their correct types
-        if 'typical_power_draw' in data:
-            data['typical_power_draw'] = float(data['typical_power_draw'])
-        if 'min_amperage' in data and data['min_amperage'] is not None:
-            data['min_amperage'] = float(data['min_amperage'])
-        if 'max_amperage' in data and data['max_amperage'] is not None:
-            data['max_amperage'] = float(data['max_amperage'])
-        if 'min_on_time' in data:
-            data['min_on_time'] = int(data['min_on_time'])
-        if 'min_off_time' in data:
-            data['min_off_time'] = int(data['min_off_time'])
-        if 'order' in data:
-            data['order'] = int(data['order'])
-        if 'energy_delivered_today' in data:
-            data['energy_delivered_today'] = float(data['energy_delivered_today'])
-        if 'min_daily_power' in data and data['min_daily_power'] is not None:
-            data['min_daily_power'] = float(data['min_daily_power'])
-        return cls(**data)
+        converted_data = data.copy()
+        
+        # Define the conversion rules
+        conversions = {
+            'typical_power_draw': float,
+            'min_amperage': float,
+            'max_amperage': float,
+            'min_on_time': int,
+            'min_off_time': int,
+            'order': int,
+            'energy_delivered_today': float,
+            'min_daily_power': float
+        }
+        
+        # Apply conversions
+        for field, target_type in conversions.items():
+            if field in converted_data:
+                converted_data[field] = cls._safe_convert(converted_data[field], target_type)
+        
+        return cls(**converted_data)
 
     def update_energy_delivered(self) -> None:
         """Update the energy delivered tracking using Home Assistant history API"""
