@@ -3,6 +3,7 @@ import requests
 import os
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
+import json
 
 def setup_logging():
     """Centralized logging configuration for the application"""
@@ -14,13 +15,25 @@ def setup_logging():
             
         headers = {"Authorization": f"Bearer {supervisor_token}", "Content-Type": "application/json"} if supervisor_token else {}
         response = requests.get('http://supervisor/addons/self/options', headers=headers)
-        config = response.json()
+        
+        # Log the raw response for debugging
+        print(f"Supervisor response status: {response.status_code}")
+        print(f"Supervisor response content: {response.text}")
+        
+        # Try to parse the response as JSON
+        try:
+            config = response.json()
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON response: {str(e)}")
+            print(f"Raw response content: {response.text}")
+            raise
+            
         print(f"Retrieved config from supervisor: {config}")
-        debug_level = config.get('debug_level', 'debug').upper()
+        debug_level = config.get('debug_level', 'info').upper()
         print(f"Debug level from config: {debug_level}")
     except Exception as e:
         print(f"Error getting debug level from supervisor: {str(e)}")
-        debug_level = 'DEBUG'  # Changed from DEBUG as default
+        debug_level = 'INFO'  # Default to INFO level
 
     # Create logs directory if it doesn't exist
     log_dir = '/data/logs'
