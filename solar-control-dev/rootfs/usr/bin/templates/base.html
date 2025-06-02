@@ -39,11 +39,17 @@
             color: #fff;
             box-sizing: border-box;
             padding: 0px 16px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
         }
         .flex {
             display: flex;
             flex-direction: column;
             height: 100%;
+            padding-top: 65px; /* Add padding to account for fixed toolbar */
         }
         .content {
             display: flex;
@@ -102,10 +108,9 @@
         }
 
         .hamburger {
-            position: absolute;
+            position: fixed;
             left: 16px;
-            top: 50%;
-            transform: translateY(-50%);
+            top: 20px;
             cursor: pointer;
             padding: 10px;
             z-index: 1001;
