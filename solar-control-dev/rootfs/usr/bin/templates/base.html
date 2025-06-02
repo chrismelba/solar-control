@@ -62,6 +62,90 @@
             letter-spacing: 0;
             margin: 0 0 0 72px;
         }
+        /* Navigation Drawer Styles */
+        .nav-drawer {
+            height: 100%;
+            width: 0;
+            position: fixed;
+            z-index: 1000;
+            top: 0;
+            left: 0;
+            background-color: #fff;
+            overflow-x: hidden;
+            transition: 0.3s;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+        }
+
+        .nav-drawer.open {
+            width: 250px;
+        }
+
+        .nav-drawer-content {
+            padding: 20px;
+            padding-top: 80px;
+        }
+
+        .nav-drawer a {
+            display: block;
+            padding: 10px 15px;
+            text-decoration: none;
+            color: #333;
+            font-size: 16px;
+            transition: 0.3s;
+            border-radius: 4px;
+            margin-bottom: 5px;
+        }
+
+        .nav-drawer a:hover {
+            background-color: #f0f0f0;
+            color: #03a9f4;
+        }
+
+        .hamburger {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            padding: 10px;
+            z-index: 1001;
+        }
+
+        .hamburger span {
+            display: block;
+            width: 25px;
+            height: 3px;
+            background-color: #fff;
+            margin: 5px 0;
+            transition: 0.3s;
+        }
+
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(-45deg) translate(-5px, 6px);
+        }
+
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(45deg) translate(-5px, -6px);
+        }
+
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+
+        .overlay.active {
+            display: block;
+        }
     </style>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/searchable-select.css') }}">
@@ -69,8 +153,23 @@
     {% block extra_head %}{% endblock %}
 </head>
 <body>
+    <div class="overlay" id="overlay"></div>
+    <div class="nav-drawer" id="navDrawer">
+        <div class="nav-drawer-content">
+            <a href="{{ url_for('index') }}">Dashboard</a>
+            <a href="{{ url_for('configure_grid') }}">Configure Grid</a>
+            <a href="{{ url_for('configure_battery') }}">Configure Battery</a>
+            <a href="{{ url_for('configure_devices') }}">Configure Devices</a>
+            <a href="{{ url_for('static_page', page='debug') }}">Debug Interface</a>
+        </div>
+    </div>
     <div class="flex">
         <div class="toolbar">
+            <div class="hamburger" id="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
             <h1>{% block heading %}Solar Optimiser{% endblock %}</h1>
         </div>
         <div class="content">
@@ -208,6 +307,31 @@
             observer.observe(document.body, {
                 childList: true,
                 subtree: true
+            });
+        });
+
+        // Navigation Drawer functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const hamburger = document.getElementById('hamburger');
+            const navDrawer = document.getElementById('navDrawer');
+            const overlay = document.getElementById('overlay');
+
+            function toggleNav() {
+                hamburger.classList.toggle('active');
+                navDrawer.classList.toggle('open');
+                overlay.classList.toggle('active');
+            }
+
+            hamburger.addEventListener('click', toggleNav);
+            overlay.addEventListener('click', toggleNav);
+
+            // Close drawer when clicking a link
+            document.querySelectorAll('.nav-drawer a').forEach(link => {
+                link.addEventListener('click', () => {
+                    if (navDrawer.classList.contains('open')) {
+                        toggleNav();
+                    }
+                });
             });
         });
     </script>
