@@ -590,8 +590,11 @@ class SolarController:
             else:  # tariff mode
                 self._run_tariff_control(available_power, voltage, devices_to_turn_on)
 
-            # Apply all state changes
-            self._apply_state_changes(devices_to_turn_on)
+            # Only apply state changes if optimization is enabled
+            if self.debug_state.power_optimization_enabled:
+                self._apply_state_changes(devices_to_turn_on)
+            else:
+                logger.info("Power optimization is disabled - skipping state changes")
 
         except Exception as e:
             logger.error(f"Error in control loop: {e}")
@@ -620,101 +623,93 @@ class SolarController:
         logger.info("Running solar control mode")
         optional_devices = []
         
-        # Only run optimization if enabled
-        if self.debug_state.power_optimization_enabled:
-            # Sort devices by their order (priority)
-            sorted_devices = sorted(
-                self.device_states.values(),
-                key=lambda x: x.device.order
-            )
+        # Sort devices by their order (priority)
+        sorted_devices = sorted(
+            self.device_states.values(),
+            key=lambda x: x.device.order
+        )
+        
+        # Process potential devices in priority order
+        for device_state in sorted_devices:
+            device = device_state.device
+            logger.info(f"Optimizing device {device.name} with {available_power}W available")
             
-            # Process potential devices in priority order
-            for device_state in sorted_devices:
-                device = device_state.device
-                logger.info(f"Optimizing device {device.name} with {available_power}W available")
+            # Skip if device has completed its task
+            if device.run_once and device_state.has_completed:
+                logger.info(f"Skipping {device.name} - task completed")
+                optional_devices.append({
+                    'name': device.name,
+                    'power': 0,
+                    'reason': 'Task completed'
+                })
+                continue
                 
-                # Skip if device has completed its task
-                if device.run_once and device_state.has_completed:
-                    logger.info(f"Skipping {device.name} - task completed")
+            # Skip if device is in minimum off time
+            if not device_state.is_on and device_state.last_state_change:
+                time_since_change = (datetime.now(timezone.utc) - device_state.last_state_change).total_seconds()
+                if time_since_change < device.min_off_time:
+                    logger.info(f"Skipping {device.name} - in minimum off time")
                     optional_devices.append({
                         'name': device.name,
                         'power': 0,
-                        'reason': 'Task completed'
+                        'reason': 'Minimum off time not met'
                     })
                     continue
-                    
-                # Skip if device is in minimum off time
-                if not device_state.is_on and device_state.last_state_change:
-                    time_since_change = (datetime.now(timezone.utc) - device_state.last_state_change).total_seconds()
-                    if time_since_change < device.min_off_time:
-                        logger.info(f"Skipping {device.name} - in minimum off time")
-                        optional_devices.append({
-                            'name': device.name,
-                            'power': 0,
-                            'reason': 'Minimum off time not met'
-                        })
-                        continue
-                
-                # Calculate power needed based on current state of devices_to_turn_on
-                if device.has_variable_amperage:
-                    # Calculate optimal amperage considering current load
-                    optimal_amperage = self.calculate_optimal_amperage(device, available_power)
-                    logger.info(f"Calculated optimal amperage for {device.name}: {optimal_amperage}A")
-                    if optimal_amperage is None:
-                        logger.info(f"Cannot calculate optimal amperage for {device.name}")
-                        optional_devices.append({
-                            'name': device.name,
-                            'power': 0,
-                            'reason': 'Cannot calculate optimal amperage'
-                        })
-                        continue
-
-                    # If device is already on, scale power based on amperage ratio
-                    if device_state.is_on:
-                        current_power = self.get_device_power(device_state)
-                        if device_state.current_amperage and device_state.current_amperage > 0:
-                            power_needed = current_power * (optimal_amperage / device_state.current_amperage)
-                            logger.info(f"Scaled power needed for {device.name} from {current_power}W to {power_needed}W based on amperage ratio")
-                        else:
-                            power_needed = voltage * optimal_amperage
-                            logger.info(f"Using calculated power for {device.name}: {power_needed}W (no current amperage available)")
-                    else:
-                        power_needed = voltage * optimal_amperage
-                        logger.info(f"Using calculated power for {device.name}: {power_needed}W (device is off)")
-                else:
-                    # For non-variable devices, use actual power if device is on
-                    if device_state.is_on:
-                        power_needed = self.get_device_power(device_state)
-                        logger.info(f"Using actual power for {device.name}: {power_needed}W")
-                    else:
-                        power_needed = device.typical_power_draw
-                        logger.info(f"Using typical power for {device.name}: {power_needed}W")
-                
-                # Check if we have enough power
-                if power_needed <= available_power:
-                    logger.info(f"Turning on {device.name} with {power_needed}W")
-                    devices_to_turn_on.append((device_state, power_needed, optimal_amperage if device.has_variable_amperage else None))
-                    available_power -= power_needed
-                    optional_devices.append({
-                        'name': device.name,
-                        'power': power_needed,
-                        'reason': 'Will be turned on'
-                    })
-                else:
-                    logger.info(f"Not enough power for {device.name} (needs {power_needed}W, has {available_power}W)")
+            
+            # Calculate power needed based on current state of devices_to_turn_on
+            if device.has_variable_amperage:
+                # Calculate optimal amperage considering current load
+                optimal_amperage = self.calculate_optimal_amperage(device, available_power)
+                logger.info(f"Calculated optimal amperage for {device.name}: {optimal_amperage}A")
+                if optimal_amperage is None:
+                    logger.info(f"Cannot calculate optimal amperage for {device.name}")
                     optional_devices.append({
                         'name': device.name,
                         'power': 0,
-                        'reason': 'Not enough power available'
+                        'reason': 'Cannot calculate optimal amperage'
                     })
+                    continue
+
+                # If device is already on, scale power based on amperage ratio
+                if device_state.is_on:
+                    current_power = self.get_device_power(device_state)
+                    if device_state.current_amperage and device_state.current_amperage > 0:
+                        power_needed = current_power * (optimal_amperage / device_state.current_amperage)
+                        logger.info(f"Scaled power needed for {device.name} from {current_power}W to {power_needed}W based on amperage ratio")
+                    else:
+                        power_needed = voltage * optimal_amperage
+                        logger.info(f"Using calculated power for {device.name}: {power_needed}W (no current amperage available)")
+                else:
+                    power_needed = voltage * optimal_amperage
+                    logger.info(f"Using calculated power for {device.name}: {power_needed}W (device is off)")
+            else:
+                # For non-variable devices, use actual power if device is on
+                if device_state.is_on:
+                    power_needed = self.get_device_power(device_state)
+                    logger.info(f"Using actual power for {device.name}: {power_needed}W")
+                else:
+                    power_needed = device.typical_power_draw
+                    logger.info(f"Using typical power for {device.name}: {power_needed}W")
             
-            self.debug_state.optional_devices = optional_devices
-            
-            # Apply all state changes
-            self._apply_state_changes(devices_to_turn_on)
-        else:
-            # If optimization is disabled, turn off all devices that aren't mandatory
-            self._handle_disabled_optimization()
+            # Check if we have enough power
+            if power_needed <= available_power:
+                logger.info(f"Turning on {device.name} with {power_needed}W")
+                devices_to_turn_on.append((device_state, power_needed, optimal_amperage if device.has_variable_amperage else None))
+                available_power -= power_needed
+                optional_devices.append({
+                    'name': device.name,
+                    'power': power_needed,
+                    'reason': 'Will be turned on'
+                })
+            else:
+                logger.info(f"Not enough power for {device.name} (needs {power_needed}W, has {available_power}W)")
+                optional_devices.append({
+                    'name': device.name,
+                    'power': 0,
+                    'reason': 'Not enough power available'
+                })
+        
+        self.debug_state.optional_devices = optional_devices
 
     def _run_tariff_control(self, available_power: float, voltage: float, devices_to_turn_on: List[Tuple]):
         """Run tariff-based power control logic"""
@@ -789,9 +784,6 @@ class SolarController:
             })
             
         self.debug_state.optional_devices = optional_devices
-        
-        # Apply all state changes
-        self._apply_state_changes(devices_to_turn_on)
 
     def _apply_state_changes(self, devices_to_turn_on: List[Tuple]):
         """Apply state changes to devices"""
