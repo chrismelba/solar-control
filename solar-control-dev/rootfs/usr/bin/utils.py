@@ -8,31 +8,19 @@ import json
 def setup_logging():
     """Centralized logging configuration for the application"""
     try:
-        # Get debug level from configuration
-        supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
-        if not supervisor_token:
-            print("Warning: No supervisor token found in environment")
-            
-        headers = {"Authorization": f"Bearer {supervisor_token}", "Content-Type": "application/json"} if supervisor_token else {}
-        response = requests.get('http://supervisor/addons/self/options', headers=headers)
-        
-        # Log the raw response for debugging
-        print(f"Supervisor response status: {response.status_code}")
-        print(f"Supervisor response content: {response.text}")
-        
-        # Try to parse the response as JSON
-        try:
-            config = response.json()
-        except json.JSONDecodeError as e:
-            print(f"Error decoding JSON response: {str(e)}")
-            print(f"Raw response content: {response.text}")
-            raise
-            
-        print(f"Retrieved config from supervisor: {config}")
-        debug_level = config.get('debug_level', 'info').upper()
-        print(f"Debug level from config: {debug_level}")
+        # Read debug level directly from options.json
+        options_file = '/data/options.json'
+        if os.path.exists(options_file):
+            with open(options_file, 'r') as f:
+                config = json.load(f)
+            print(f"Retrieved config from options.json: {config}")
+            debug_level = config.get('debug_level', 'info').upper()
+            print(f"Debug level from config: {debug_level}")
+        else:
+            print(f"Options file not found at {options_file}")
+            debug_level = 'INFO'
     except Exception as e:
-        print(f"Error getting debug level from supervisor: {str(e)}")
+        print(f"Error reading options file: {str(e)}")
         debug_level = 'INFO'  # Default to INFO level
 
     # Create logs directory if it doesn't exist
