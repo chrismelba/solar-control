@@ -6,7 +6,105 @@
 
 {% block content %}
     <div class="card">
-        <h2>Coming Soon</h2>
-        <p>Battery configuration features are currently under development.</p>
+        <form id="batteryForm" class="form">
+            <div class="form-group">
+                <label for="size_kwh">Battery Size (kWh)</label>
+                <input type="number" id="size_kwh" name="size_kwh" step="0.1" min="0" required>
+            </div>
+
+            <div class="form-group">
+                <label for="battery_percent_entity">Battery Percentage Sensor</label>
+                <select id="battery_percent_entity" name="battery_percent_entity" class="searchable-select" required>
+                    <option value="">Select a battery percentage sensor...</option>
+                </select>
+                <small class="form-text text-muted">Select a sensor that reports battery percentage (0-100%)</small>
+            </div>
+
+            <div class="form-group">
+                <label for="max_charging_speed_kw">Maximum Charging Speed (kW)</label>
+                <input type="number" id="max_charging_speed_kw" name="max_charging_speed_kw" step="0.1" min="0">
+                <small class="form-text text-muted">Optional: Maximum charging speed in kilowatts</small>
+            </div>
+
+            <div class="form-group">
+                <label for="force_charge_entity">Force Charge Switch</label>
+                <select id="force_charge_entity" name="force_charge_entity" class="searchable-select">
+                    <option value="">Select a switch...</option>
+                </select>
+                <small class="form-text text-muted">Optional: Switch entity to force battery charging</small>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save Configuration</button>
+            </div>
+        </form>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize searchable selects with specific filters
+            initializeSearchableSelect('battery_percent_entity', 'sensor', {
+                filter: function(entity) {
+                    // Filter for battery percentage sensors
+                    return entity.entity_id.toLowerCase().includes('battery') && 
+                           entity.entity_id.toLowerCase().includes('percentage');
+                }
+            });
+            
+            initializeSearchableSelect('force_charge_entity', 'switch', {
+                filter: function(entity) {
+                    // Filter for battery-related switches
+                    return entity.entity_id.toLowerCase().includes('battery') && 
+                           entity.entity_id.toLowerCase().includes('charge');
+                }
+            });
+
+            // Load existing configuration
+            fetch('/api/battery')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const config = data.config;
+                        document.getElementById('size_kwh').value = config.size_kwh || '';
+                        document.getElementById('battery_percent_entity').value = config.battery_percent_entity || '';
+                        document.getElementById('max_charging_speed_kw').value = config.max_charging_speed_kw || '';
+                        document.getElementById('force_charge_entity').value = config.force_charge_entity || '';
+                    }
+                })
+                .catch(error => console.error('Error loading battery configuration:', error));
+
+            // Handle form submission
+            document.getElementById('batteryForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = {
+                    size_kwh: parseFloat(document.getElementById('size_kwh').value),
+                    battery_percent_entity: document.getElementById('battery_percent_entity').value,
+                    max_charging_speed_kw: document.getElementById('max_charging_speed_kw').value ? 
+                        parseFloat(document.getElementById('max_charging_speed_kw').value) : null,
+                    force_charge_entity: document.getElementById('force_charge_entity').value || null
+                };
+
+                fetch('/api/battery', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showNotification('Battery configuration saved successfully', 'success');
+                    } else {
+                        showNotification('Error saving battery configuration: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification('Error saving battery configuration', 'error');
+                });
+            });
+        });
+    </script>
 {% endblock %} 

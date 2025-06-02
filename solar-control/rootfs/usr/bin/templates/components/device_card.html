@@ -11,11 +11,11 @@
         </p>
         {% if device.energy_consumption %}
         <p class="device-energy">
-            Today: {{ device.energy_consumption.today|round(2) }} {{ device.energy_consumption.unit }}
+            Today: {{ (device.energy_consumption.today )|round(2) }} kWh
         </p>
         {% endif %}
         <p class="device-power-delivered">
-            Energy Delivered: {{ device.energy_delivered_today|round(2) }} Wh
+            Energy Delivered: {{ device.energy_delivered_today|round(2) }} kWh
         </p>
     </div>
     {% if not draggable %}

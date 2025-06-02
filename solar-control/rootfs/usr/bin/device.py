@@ -4,9 +4,11 @@ import json
 import os
 import requests
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
+from utils import get_sunrise_time, setup_logging
 
-logger = logging.getLogger(__name__)
+# Configure logging
+logger = setup_logging()
 
 @dataclass
 class Device:
@@ -26,8 +28,6 @@ class Device:
     completion_sensor: Optional[str] = None  # Home Assistant entity ID for completion status
     order: int = 0  # For drag-and-drop ordering
     energy_delivered_today: float = 0.0  # in watt-hours
-    last_power_update: Optional[datetime] = None
-    last_dawn_reset: Optional[datetime] = None
     min_daily_power: Optional[float] = None  # Minimum power required per day in watt-hours
 
     def to_dict(self) -> dict:
@@ -48,44 +48,61 @@ class Device:
             'completion_sensor': self.completion_sensor,
             'order': self.order,
             'energy_delivered_today': self.energy_delivered_today,
-            'last_power_update': self.last_power_update.isoformat() if self.last_power_update else None,
-            'last_dawn_reset': self.last_dawn_reset.isoformat() if self.last_dawn_reset else None,
             'min_daily_power': self.min_daily_power
         }
 
+    @staticmethod
+    def _safe_convert(value: any, target_type: type) -> any:
+        """Safely convert a value to the target type, handling None and empty strings.
+        
+        Args:
+            value: The value to convert
+            target_type: The type to convert to (float, int, etc.)
+            
+        Returns:
+            The converted value, or None if conversion is not possible
+        """
+        if value in [None, '']:
+            return None
+        try:
+            return target_type(value)
+        except (ValueError, TypeError):
+            return None
+
     @classmethod
     def from_dict(cls, data: dict) -> 'Device':
-        # Convert the ISO format strings back to datetime if they exist
-        if 'last_power_update' in data and data['last_power_update']:
-            data['last_power_update'] = datetime.fromisoformat(data['last_power_update'])
-        if 'last_dawn_reset' in data and data['last_dawn_reset']:
-            data['last_dawn_reset'] = datetime.fromisoformat(data['last_dawn_reset'])
-        return cls(**data)
-
-    def update_power_delivered(self, current_power: float) -> None:
-        """Update the energy delivered tracking"""
-        now = datetime.now()
+        # Convert numeric values to their correct types
+        converted_data = data.copy()
         
-        # Check if we need to reset (dawn condition)
-        if self.should_reset_power_tracking():
-            self.energy_delivered_today = 0.0
-            self.last_power_update = now
-            self.last_dawn_reset = now
+        # Define the conversion rules
+        conversions = {
+            'typical_power_draw': float,
+            'min_amperage': float,
+            'max_amperage': float,
+            'min_on_time': int,
+            'min_off_time': int,
+            'order': int,
+            'energy_delivered_today': float,
+            'min_daily_power': float
+        }
+        
+        # Apply conversions
+        for field, target_type in conversions.items():
+            if field in converted_data:
+                converted_data[field] = cls._safe_convert(converted_data[field], target_type)
+        
+        return cls(**converted_data)
+
+    def update_energy_delivered(self) -> None:
+        """Update the energy delivered tracking using Home Assistant history API"""
+        if not self.energy_sensor:
             return
 
-        # Calculate energy delivered since last update
-        if self.last_power_update:
-            time_diff = (now - self.last_power_update).total_seconds() / 3600  # Convert to hours
-            self.energy_delivered_today += current_power * time_diff
-
-        self.last_power_update = now
-
-    def should_reset_power_tracking(self) -> bool:
-        """Check if power tracking should be reset based on dawn condition"""
         try:
             supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
             if not supervisor_token:
-                return False
+                logger.error("No supervisor token found in environment")
+                return
 
             headers = {
                 "Authorization": f"Bearer {supervisor_token}",
@@ -94,29 +111,80 @@ class Device:
             
             hass_url = "http://supervisor/core"
             
-            # Get the sun.sun entity state
+            # Get sunrise time using existing function
+            sunrise_time = get_sunrise_time()
+            if not sunrise_time:
+                logger.error("Failed to get sunrise time")
+                return
+                
+            # Parse the sunrise time and ensure it's in UTC
+            last_rise = datetime.fromisoformat(sunrise_time)
+            if last_rise.tzinfo is None:
+                # If no timezone info, assume it's in UTC
+                last_rise = last_rise.replace(tzinfo=timezone.utc)
+            else:
+                # Convert to UTC if it has timezone info
+                last_rise = last_rise.astimezone(timezone.utc)
+            
+            # Get current energy value and check its unit
             response = requests.get(
-                f"{hass_url}/api/states/sun.sun",
+                f"{hass_url}/api/states/{self.energy_sensor}",
                 headers=headers
             )
             response.raise_for_status()
-            sun_state = response.json()
+            current_state = response.json()
             
-            # Check if the sun has risen since our last reset
-            if sun_state['state'] == 'above_horizon':
-                if not self.last_dawn_reset:
-                    return True
+            # Check the unit of measurement
+            unit_of_measurement = current_state.get('attributes', {}).get('unit_of_measurement', '')
+            
+            # Get energy sensor value at dawn
+            dawn_time = last_rise.isoformat()
+            response = requests.get(
+                f"{hass_url}/api/history/period/{dawn_time}",
+                params={
+                    'filter_entity_id': self.energy_sensor,
+                    'minimal_response': 'true'
+                },
+                headers=headers
+            )
+            response.raise_for_status()
+            history = response.json()
+            
+            if not history or not history[0]:
+                logger.error(f"No history data found for {self.energy_sensor} after {dawn_time}")
+                return
                 
-                # Get the last time the sun rose
-                last_rise = datetime.fromisoformat(sun_state['attributes'].get('next_rising', '').replace('Z', '+00:00'))
-                if last_rise > self.last_dawn_reset:
-                    return True
+            # Get the first reading after dawn
+            dawn_energy = None
+            for reading in history[0]:
+                try:
+                    dawn_energy = float(reading.get('state', 0))
+                    # Convert to kWh if the sensor is in Wh
+                    if unit_of_measurement.lower() in ['wh', 'watt-hour', 'watt-hours']:
+                        dawn_energy = dawn_energy / 1000
+                    break
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Invalid energy reading at dawn: {reading.get('state')}")
+                    continue
             
-            return False
+            if dawn_energy is None:
+                logger.error(f"Could not find valid energy reading after dawn for {self.energy_sensor}")
+                return
+                
+            # Get current energy value
+            current_energy = float(current_state.get('state', 0))
+            # Convert to kWh if the sensor is in Wh
+            if unit_of_measurement.lower() in ['wh', 'watt-hour', 'watt-hours']:
+                current_energy = current_energy / 1000
             
+            # Calculate energy delivered today
+            self.energy_delivered_today = current_energy - dawn_energy
+            logger.info(f"Updated energy delivered for {self.name}: {self.energy_delivered_today:.2f} kWh")
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Network error while updating energy delivered for {self.name}: {e}")
         except Exception as e:
-            logger.error(f"Failed to check dawn condition: {e}")
-            return False
+            logger.error(f"Failed to update energy delivered for {self.name}: {e}", exc_info=True)
 
     def save(self, devices_file: str):
         """Save this device to the devices configuration file"""

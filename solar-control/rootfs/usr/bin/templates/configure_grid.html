@@ -141,13 +141,20 @@
                         {% endfor %}
                     </div>
                 </div>
-                <div id="tariff_order_container" class="tariff-order-container" style="display: none; margin-top: 1rem;">
-                    <h4>Order Tariff Rates (drag to reorder) <span class="tooltip">ⓘ<span class="tooltiptext">Drag and drop to order your tariff rates from cheapest to most expensive. This will be used in future to manage off-peak power when solar is insufficient.</span></span></h4>
-                    <p class="help-text">Drag and drop to order from cheapest (top) to most expensive (bottom)</p>
-                    <div id="tariff_order_list" class="tariff-order-list">
-                        <!-- Options will be populated by JavaScript -->
+                <div id="tariff_mode_container" class="tariff-mode-container" style="display: none; margin-top: 1rem;">
+                    <h4>Configure Tariff Modes <span class="tooltip">ⓘ<span class="tooltiptext">During normal power no controllable devices will be turned on. During cheap energy times you can select your devices to continue until they've run for a certain time or delivered a certain number of kWh and during free power periods all devices will run at maximum</span></span></h4>
+                    <div class="tariff-modes-grid">
+                        <div class="tariff-mode-header">
+                            <div class="tariff-name">Tariff Rate</div>
+                            <div class="tariff-mode-options">
+                                <div class="mode-label">Mode</div>
+                            </div>
+                        </div>
+                        <div id="tariff_modes_list" class="tariff-modes-list">
+                            <!-- Options will be populated by JavaScript -->
+                        </div>
                     </div>
-                    <input type="hidden" name="tariff_order" id="tariff_order" value="{{ config.tariff_order|default('[]') }}">
+                    <input type="hidden" name="tariff_modes" id="tariff_modes" value="{{ config.tariff_modes|default('{}') }}">
                 </div>
             </div>
 
@@ -189,141 +196,209 @@
             new SearchableSelect('grid_power_input', 'grid_power_options', 'grid_power');
             new SearchableSelect('solar_forecast_input', 'solar_forecast_options', 'solar_forecast');
             new SearchableSelect('grid_voltage_input', 'grid_voltage_options', 'grid_voltage');
-            new SearchableSelect('tariff_rate_input', 'tariff_rate_options', 'tariff_rate', onTariffRateSelect);
+            
+            // Initialize tariff rate select with callback
+            const tariffRateSelect = new SearchableSelect('tariff_rate_input', 'tariff_rate_options', 'tariff_rate');
+            tariffRateSelect.onSelectCallback = onTariffRateSelect;
+            
+            // Trigger callback for initial value if exists
+            const initialValue = document.getElementById('tariff_rate').value;
+            if (initialValue) {
+                const selectedOption = document.querySelector(`#tariff_rate_options .option[data-value="${initialValue}"]`);
+                if (selectedOption) {
+                    // Show the container immediately
+                    const container = document.getElementById('tariff_mode_container');
+                    container.style.display = 'block';
+                    // Then trigger the callback
+                    onTariffRateSelect(initialValue, selectedOption.textContent);
+                }
+            }
         });
 
         function onTariffRateSelect(selectedValue, selectedText) {
-            const container = document.getElementById('tariff_order_container');
-            const list = document.getElementById('tariff_order_list');
+            const container = document.getElementById('tariff_mode_container');
+            const list = document.getElementById('tariff_modes_list');
             
             if (selectedValue) {
-                // Show the container
+                // Show the container immediately
                 container.style.display = 'block';
                 
-                // Fetch options for the selected entity
-                fetch(`/api/states/${selectedValue}`)
-                    .then(response => response.json())
+                // Fetch tariff modes from our API
+                apiCall('/api/tariff_modes')
                     .then(data => {
-                        if (data.attributes && data.attributes.options) {
-                            // Clear existing options
-                            list.innerHTML = '';
+                        // Get the available modes, current assignments, and options
+                        const availableModes = data.modes || ['normal', 'cheap', 'free'];
+                        const currentModes = data.current_modes || {};
+                        const options = data.options || [];
+                        
+                        // Clear existing options
+                        list.innerHTML = '';
+                        
+                        // Filter out any old mode assignments that aren't in the new options
+                        const filteredModes = {};
+                        options.forEach(option => {
+                            if (currentModes[option]) {
+                                filteredModes[option] = currentModes[option];
+                            }
+                        });
+                        
+                        // Update the hidden input with filtered modes
+                        document.getElementById('tariff_modes').value = JSON.stringify(filteredModes);
+                        
+                        // Create items for each tariff rate option
+                        options.forEach(option => {
+                            const item = document.createElement('div');
+                            item.className = 'tariff-mode-item';
+                            item.dataset.value = option;
                             
-                            // Create draggable items for each option
-                            data.attributes.options.forEach(option => {
-                                const item = document.createElement('div');
-                                item.className = 'tariff-order-item';
-                                item.draggable = true;
-                                item.dataset.value = option;
-                                item.textContent = option;
+                            // Create tariff name
+                            const nameDiv = document.createElement('div');
+                            nameDiv.className = 'tariff-name';
+                            nameDiv.textContent = option;
+                            item.appendChild(nameDiv);
+                            
+                            // Create mode options
+                            const optionsDiv = document.createElement('div');
+                            optionsDiv.className = 'tariff-mode-options';
+                            
+                            availableModes.forEach(mode => {
+                                const optionDiv = document.createElement('div');
+                                optionDiv.className = 'mode-option';
+                                optionDiv.dataset.mode = mode;
+                                optionDiv.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
                                 
-                                // Add drag event listeners
-                                item.addEventListener('dragstart', handleDragStart);
-                                item.addEventListener('dragover', handleDragOver);
-                                item.addEventListener('drop', handleDrop);
-                                item.addEventListener('dragend', handleDragEnd);
+                                // Add click handler
+                                optionDiv.addEventListener('click', () => {
+                                    // Remove selected class from all options in this item
+                                    item.querySelectorAll('.mode-option').forEach(opt => {
+                                        opt.classList.remove('selected');
+                                    });
+                                    // Add selected class to clicked option
+                                    optionDiv.classList.add('selected');
+                                    updateTariffModes();
+                                });
                                 
-                                list.appendChild(item);
+                                optionsDiv.appendChild(optionDiv);
                             });
                             
-                            // Restore saved order if exists
-                            const savedOrder = JSON.parse(document.getElementById('tariff_order').value || '[]');
-                            if (savedOrder.length > 0) {
-                                savedOrder.forEach(value => {
-                                    const item = list.querySelector(`[data-value="${value}"]`);
-                                    if (item) {
-                                        list.appendChild(item);
-                                    }
-                                });
+                            item.appendChild(optionsDiv);
+                            list.appendChild(item);
+                        });
+                        
+                        // Restore saved modes if exists
+                        Object.entries(filteredModes).forEach(([tariff, mode]) => {
+                            const item = list.querySelector(`[data-value="${tariff}"]`);
+                            if (item) {
+                                const option = item.querySelector(`[data-mode="${mode}"]`);
+                                if (option) {
+                                    option.classList.add('selected');
+                                }
                             }
-                        }
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error fetching tariff modes:', error);
+                        // Don't hide the container on error, just show an error message
+                        list.innerHTML = '<div class="error-message">Error loading tariff modes. Please try again.</div>';
                     });
             } else {
                 container.style.display = 'none';
+                // Clear the tariff modes when no entity is selected
+                document.getElementById('tariff_modes').value = '{}';
             }
         }
 
-        let draggedItem = null;
-
-        function handleDragStart(e) {
-            draggedItem = this;
-            this.classList.add('dragging');
-        }
-
-        function handleDragOver(e) {
-            e.preventDefault();
-            const rect = this.getBoundingClientRect();
-            const midY = rect.top + rect.height / 2;
-            
-            if (e.clientY < midY) {
-                this.classList.add('drag-over-top');
-                this.classList.remove('drag-over-bottom');
-            } else {
-                this.classList.add('drag-over-bottom');
-                this.classList.remove('drag-over-top');
-            }
-        }
-
-        function handleDrop(e) {
-            e.preventDefault();
-            const rect = this.getBoundingClientRect();
-            const midY = rect.top + rect.height / 2;
-            
-            if (e.clientY < midY) {
-                this.parentNode.insertBefore(draggedItem, this);
-            } else {
-                this.parentNode.insertBefore(draggedItem, this.nextSibling);
-            }
-            
-            updateTariffOrder();
-        }
-
-        function handleDragEnd() {
-            this.classList.remove('dragging');
-            document.querySelectorAll('.tariff-order-item').forEach(item => {
-                item.classList.remove('drag-over-top', 'drag-over-bottom');
+        function updateTariffModes() {
+            const modes = {};
+            document.querySelectorAll('.tariff-mode-item').forEach(item => {
+                const value = item.dataset.value;
+                const selectedMode = item.querySelector('.mode-option.selected');
+                if (value && selectedMode) {
+                    modes[value] = selectedMode.dataset.mode;
+                }
             });
-        }
-
-        function updateTariffOrder() {
-            const items = document.querySelectorAll('.tariff-order-item');
-            const order = Array.from(items).map(item => item.dataset.value);
-            document.getElementById('tariff_order').value = JSON.stringify(order);
+            document.getElementById('tariff_modes').value = JSON.stringify(modes);
         }
     </script>
 
     <style>
-        .tariff-order-container {
+        .tariff-mode-container {
             background: #f5f5f5;
             padding: 1rem;
             border-radius: 4px;
             margin-top: 1rem;
         }
 
-        .tariff-order-list {
-            min-height: 100px;
-            margin-top: 0.5rem;
-        }
-
-        .tariff-order-item {
+        .tariff-modes-grid {
             background: white;
-            padding: 0.75rem;
-            margin: 0.5rem 0;
             border: 1px solid #ddd;
             border-radius: 4px;
-            cursor: move;
-            user-select: none;
+            overflow: hidden;
         }
 
-        .tariff-order-item.dragging {
-            opacity: 0.5;
+        .tariff-mode-header {
+            display: flex;
+            background: #f8f9fa;
+            padding: 0.75rem;
+            border-bottom: 1px solid #ddd;
+            font-weight: bold;
         }
 
-        .tariff-order-item.drag-over-top {
-            border-top: 2px solid #2196F3;
+        .tariff-name {
+            flex: 1;
+            padding-right: 1rem;
         }
 
-        .tariff-order-item.drag-over-bottom {
-            border-bottom: 2px solid #2196F3;
+        .tariff-mode-options {
+            display: flex;
+            gap: 1rem;
+            min-width: 200px;
+            justify-content: center;
+        }
+
+        .mode-label {
+            font-weight: bold;
+        }
+
+        .mode-option {
+            padding: 0.25rem 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .mode-option:hover {
+            background-color: #e9ecef;
+        }
+
+        .mode-option.selected {
+            background-color: #2196F3;
+            color: white;
+            border-color: #2196F3;
+        }
+
+        .tariff-mode-item {
+            display: flex;
+            padding: 0.75rem;
+            border-bottom: 1px solid #ddd;
+            align-items: center;
+        }
+
+        .tariff-mode-item:last-child {
+            border-bottom: none;
+        }
+
+        .error-message {
+            color: #dc3545;
+            padding: 1rem;
+            text-align: center;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            margin: 1rem 0;
         }
 
         .help-text {

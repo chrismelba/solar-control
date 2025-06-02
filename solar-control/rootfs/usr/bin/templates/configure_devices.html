@@ -12,10 +12,6 @@
         <p>First entity (if any): {{ entities[0] if entities else 'No entities' }}</p>
     </div>
 
-    <div class="nav-menu">
-        <a href="{{ url_for('static_page', page='') }}" class="button">Back to Dashboard</a>
-    </div>
-
     <div class="card">
         <h2>Add New Device</h2>
         <form id="addDeviceForm" class="form">
@@ -67,7 +63,17 @@
                             <input type="hidden" name="current_power_sensor" id="current_power_sensor">
                             <div class="options" id="current_power_sensor_options">
                                 {% for entity in entities %}
-                                    {% if 'power' in entity.entity_id.lower() %}
+                                    {% if entity.entity_id.startswith('sensor.') and (
+                                        'power' in entity.entity_id.lower() or 
+                                        'energy' in entity.entity_id.lower() or 
+                                        'consumption' in entity.entity_id.lower() or 
+                                        'usage' in entity.entity_id.lower() or 
+                                        'wattage' in entity.entity_id.lower() or 
+                                        'current' in entity.entity_id.lower() or 
+                                        'amperage' in entity.entity_id.lower() or
+                                        (entity.attributes and entity.attributes.unit_of_measurement and 
+                                         entity.attributes.unit_of_measurement.lower() in ['w', 'kw', 'wh', 'kwh', 'a', 'ma'])
+                                    ) %}
                                     <div class="option" data-value="{{ entity.entity_id }}">
                                         {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
                                     </div>
@@ -78,16 +84,24 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="power_delivery_sensor">Power Delivery Sensor (optional): <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that measures how much power the device is actually receiving. This is useful for devices that may not receive their full requested power.</span></span></label>
+                        <label for="energy_sensor">Energy Delivery Sensor (optional): <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that measures how much energy the device has input. This will allow for off-peak control.</span></span></label>
                         <div class="searchable-select">
-                            <input type="text" id="power_delivery_sensor_input" placeholder="Search for a power delivery sensor..." autocomplete="off">
-                            <input type="hidden" name="power_delivery_sensor" id="power_delivery_sensor">
-                            <div class="options" id="power_delivery_sensor_options">
+                            <input type="text" id="energy_sensor_input" placeholder="Search for a power delivery sensor..." autocomplete="off">
+                            <input type="hidden" name="energy_sensor" id="energy_sensor">
+                            <div class="options" id="energy_sensor_options">
                                 {% for entity in entities %}
-                                    {% if 'power' in entity.entity_id.lower() %}
-                                    <div class="option" data-value="{{ entity.entity_id }}">
-                                        {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
-                                    </div>
+                                    {% if entity.entity_id.startswith('sensor.') and (
+                                        'power' in entity.entity_id.lower() or 
+                                        'energy' in entity.entity_id.lower() or 
+                                        'consumption' in entity.entity_id.lower() or 
+                                        'usage' in entity.entity_id.lower() or 
+                                        'wattage' in entity.entity_id.lower() or 
+                                        'current' in entity.entity_id.lower() or 
+                                        'amperage' in entity.entity_id.lower() or
+                                        (entity.attributes and entity.attributes.unit_of_measurement and 
+                                         entity.attributes.unit_of_measurement.lower() in ['w', 'kw', 'wh', 'kwh', 'a', 'ma'])
+                                    ) %}
+                                        <div class="option" data-value="{{ entity.entity_id }}">{{ entity.attributes.friendly_name }} ({{ entity.entity_id }})</div>
                                     {% endif %}
                                 {% endfor %}
                             </div>
@@ -157,7 +171,7 @@
                         </label>
                     </div>
                     
-                    <div class="form-group">
+                    <div class="form-group completion-sensor-group">
                         <label for="completion_sensor">Completion Sensor (optional): <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that indicates when the device has completed its task. In future patches the system will use this to run the device off-peak if not completed.</span></span></label>
                         <div class="searchable-select">
                             <input type="text" id="completion_sensor_input" placeholder="Search for a completion sensor..." autocomplete="off">
@@ -178,8 +192,25 @@
                 <div class="tab-content" id="offpeak-tab">
                     <h3>Off-Peak Charging Settings</h3>
                     <div class="form-group">
-                        <label for="min_daily_power">Minimum Daily Power Required (Wh): <span class="tooltip">ⓘ<span class="tooltiptext">The minimum amount of energy the device needs to receive each day. In future patches the system will use this to run the device off-peak if not completed.</span></span></label>
+                        <label for="min_daily_power">Minimum Daily Power Required (kWh): <span class="tooltip">ⓘ<span class="tooltiptext">The minimum amount of energy the device needs to receive each day. In future patches the system will use this to run the device off-peak if not completed.</span></span></label>
                         <input type="number" id="min_daily_power" name="min_daily_power" min="0" step="0.1">
+                    </div>
+
+                    <div class="form-group completion-sensor-group">
+                        <label for="completion_sensor_offpeak">Completion Sensor (optional): <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that indicates when the device has completed its task. In future patches the system will use this to run the device off-peak if not completed.</span></span></label>
+                        <div class="searchable-select">
+                            <input type="text" id="completion_sensor_input_offpeak" placeholder="Search for a completion sensor..." autocomplete="off">
+                            <input type="hidden" name="completion_sensor" id="completion_sensor_offpeak">
+                            <div class="options" id="completion_sensor_options_offpeak">
+                                {% for entity in entities %}
+                                    {% if entity.entity_id.startswith('binary_sensor.') or entity.entity_id.startswith('input_boolean.') %}
+                                    <div class="option" data-value="{{ entity.entity_id }}">
+                                        {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -425,6 +456,7 @@
                             <p>Switch: ${device.switch_entity}</p>
                             <p>Power Draw: ${device.typical_power_draw}W</p>
                             ${device.current_power_sensor ? `<p>Power Sensor: ${device.current_power_sensor}</p>` : ''}
+                            ${device.energy_sensor ? `<p>Energy Sensor: ${device.energy_sensor}</p>` : ''}
                             ${device.has_variable_amperage ? `
                                 <p>Amperage Range: ${device.min_amperage}A - ${device.max_amperage}A</p>
                                 <p>Amperage Control: ${device.variable_amperage_control}</p>
@@ -548,6 +580,11 @@
                     document.getElementById('current_power_sensor_input').value = device.current_power_sensor;
                 }
                 
+                if (device.energy_sensor) {
+                    document.getElementById('energy_sensor').value = device.energy_sensor;
+                    document.getElementById('energy_sensor_input').value = device.energy_sensor;
+                }
+                
                 document.getElementById('has_variable_amperage').checked = device.has_variable_amperage;
                 if (device.has_variable_amperage) {
                     document.getElementById('amperage-controls').style.display = 'block';
@@ -566,6 +603,16 @@
                 if (device.completion_sensor) {
                     document.getElementById('completion_sensor').value = device.completion_sensor;
                     document.getElementById('completion_sensor_input').value = device.completion_sensor;
+                }
+                
+                // Add population of minimum daily power and off-peak completion sensor
+                if (device.min_daily_power) {
+                    document.getElementById('min_daily_power').value = device.min_daily_power;
+                }
+                
+                if (device.completion_sensor) {
+                    document.getElementById('completion_sensor_offpeak').value = device.completion_sensor;
+                    document.getElementById('completion_sensor_input_offpeak').value = device.completion_sensor;
                 }
                 
                 // Remove the old submit handler and add the new one
@@ -660,5 +707,25 @@
 
         // Load devices when page loads
         document.addEventListener('DOMContentLoaded', loadDevices);
+
+        // Synchronize completion sensor inputs
+        document.addEventListener('DOMContentLoaded', function() {
+            const completionSensorInput = document.getElementById('completion_sensor_input');
+            const completionSensorInputOffpeak = document.getElementById('completion_sensor_input_offpeak');
+            const completionSensor = document.getElementById('completion_sensor');
+            const completionSensorOffpeak = document.getElementById('completion_sensor_offpeak');
+
+            // Sync from runtime to off-peak
+            completionSensorInput.addEventListener('change', function() {
+                completionSensorInputOffpeak.value = this.value;
+                completionSensorOffpeak.value = completionSensor.value;
+            });
+
+            // Sync from off-peak to runtime
+            completionSensorInputOffpeak.addEventListener('change', function() {
+                completionSensorInput.value = this.value;
+                completionSensor.value = completionSensorOffpeak.value;
+            });
+        });
     </script>
 {% endblock %} 

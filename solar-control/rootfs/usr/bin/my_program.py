@@ -4,29 +4,12 @@ import logging
 import json
 import requests
 from device import Device
-from datetime import datetime, timezone
-import pytz
+from battery import Battery
 from solar_controller import SolarController
+from utils import get_sunrise_time, setup_logging
 
-# Get debug level from configuration
-try:
-    supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
-    headers = {"Authorization": f"Bearer {supervisor_token}", "Content-Type": "application/json"} if supervisor_token else {}
-    response = requests.get('http://supervisor/addons/self/options', headers=headers)
-    config = response.json()
-    debug_level = config.get('debug_level', 'info').upper()
-except Exception as e:
-    debug_level = 'DEBUG'
-
-# Set up logging with configuration-based level
-logging.basicConfig(
-    level=getattr(logging, debug_level),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# Log the current debug level
-logger.info(f"Logging level set to: {debug_level}")
+# Set up logging using the centralized configuration
+logger = setup_logging()
 
 # Create static directory if it doesn't exist
 static_dir = '/usr/bin/static'
@@ -43,8 +26,8 @@ app = Flask(__name__,
 def inject_ingress_path():
     # Get ingress path from header
     ingress_path = request.headers.get('X-Ingress-Path', '')
-    logger.info(f"Using ingress path from header: {ingress_path}")
-    logger.info(f"All request headers: {dict(request.headers)}")
+    logger.debug(f"Using ingress path from header: {ingress_path}")
+    logger.debug(f"All request headers: {dict(request.headers)}")
     return dict(ingress_path=ingress_path, basename=ingress_path)
 
 # Override url_for to include ingress path for all URLs
@@ -87,6 +70,7 @@ for root, dirs, files in os.walk(static_dir):
 CONFIG_FILE = '/data/solar_config.json'
 DEVICES_FILE = '/data/devices.json'
 SETTINGS_FILE = '/data/settings.json'
+BATTERY_FILE = '/data/battery.json'
 
 # Debug: Log data directory state
 logger.info("Checking data directory state...")
@@ -111,7 +95,7 @@ def initialize_files():
         logger.info(f"Creating settings file: {SETTINGS_FILE}")
         with open(SETTINGS_FILE, 'w') as f:
             json.dump({
-                'power_optimization_enabled': False
+                'power_optimization_enabled': True
             }, f)
     
     # Initialize config file
@@ -132,16 +116,18 @@ def root():
     # Sort devices by their order property
     devices.sort(key=lambda x: x.order)
     sensor_values = get_sensor_values()  # Get sensor values
+    sunrise_time = get_sunrise_time()  # Get sunrise time
     return make_response(render_template('index.html', 
                          devices=devices,
                          sensor_values=sensor_values,
+                         sunrise_time=sunrise_time,
                          ingress_path=ingress_path,
                          basename=ingress_path))
 
 @app.route('/<path:page>')
 def static_page(page):
     ingress_path = request.headers.get('X-Ingress-Path', '')
-    logger.info(f"Serving static page {page} with ingress path: {ingress_path}")
+    logger.debug(f"Serving static page {page} with ingress path: {ingress_path}")
     
     # Map page names to templates and required data
     page_config = {
@@ -216,7 +202,7 @@ def get_sensor_values():
     }
     
     sensor_values = {}
-    for entity_id in ['solar_generation', 'grid_power', 'solar_forecast']:
+    for entity_id in ['solar_generation', 'grid_power', 'solar_forecast', 'tariff_rate']:
         if entity_id in config and config[entity_id]:
             try:
                 response = requests.get(
@@ -228,7 +214,16 @@ def get_sensor_values():
             except Exception as e:
                 logger.error(f"Error fetching {entity_id} value: {e}")
     
+    # Add tariff mode if tariff rate is configured
+    if 'tariff_rate' in sensor_values:
+        try:
+            sensor_values['tariff_mode'] = controller.get_current_tariff_mode()
+        except Exception as e:
+            logger.error(f"Error determining tariff mode: {e}")
+            sensor_values['tariff_mode'] = 'error'
+    
     return sensor_values
+
 
 def get_entities():
     try:
@@ -293,7 +288,8 @@ def configure_grid():
             'grid_voltage': request.form.get('grid_voltage'),
             'grid_voltage_fixed': request.form.get('grid_voltage_fixed'),
             'tariff_rate': request.form.get('tariff_rate'),
-            'site_export_limit': request.form.get('site_export_limit')
+            'site_export_limit': request.form.get('site_export_limit'),
+            'tariff_modes': request.form.get('tariff_modes')
         }
         
         # Convert site_export_limit to float if provided
@@ -304,6 +300,15 @@ def configure_grid():
                 config['site_export_limit'] = None
         else:
             config['site_export_limit'] = None
+            
+        # Parse tariff_modes JSON if provided
+        if config['tariff_modes']:
+            try:
+                config['tariff_modes'] = json.loads(config['tariff_modes'])
+            except json.JSONDecodeError:
+                config['tariff_modes'] = {}
+        else:
+            config['tariff_modes'] = {}
         
         # Save configuration
         with open(CONFIG_FILE, 'w') as f:
@@ -367,23 +372,57 @@ def configure_devices():
 @app.route('/api/devices/<name>', methods=['GET'])
 def get_device(name):
     try:
-        devices = Device.load_all(DEVICES_FILE)
-        device = next((d for d in devices if d.name == name), None)
-        if device is None:
+        logger.debug(f"Getting state for device: {name}")
+        # Get device from controller's live state
+        device_state = controller.device_states.get(name)
+        if device_state is None:
+            logger.info(f"Device not found: {name}")
             return jsonify({'status': 'error', 'message': 'Device not found'}), 404
-        return jsonify(device.to_dict())
+        
+        # Get the device object and update its energy delivered value
+        device = device_state.device
+        device.update_energy_delivered()
+        
+        # Get the device data and add runtime state
+        device_data = device.to_dict()
+        device_data.update({
+            'is_on': device_state.is_on,
+            'last_state_change': device_state.last_state_change.isoformat() if device_state.last_state_change else None,
+            'current_amperage': device_state.current_amperage,
+            'has_completed': device_state.has_completed
+        })
+        
+        logger.debug(f"Retrieved device state for {name}: {device_data}")
+        return jsonify(device_data)
     except Exception as e:
+        logger.error(f"Error getting device state for {name}: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/devices', methods=['GET'])
 def get_devices():
     try:
-        if not os.path.exists(DEVICES_FILE):
-            return jsonify([])
-        devices = Device.load_all(DEVICES_FILE)
+        logger.debug("Getting state for all devices")
+        # Get all devices from controller's live state
+        devices_data = []
+        for device_state in controller.device_states.values():
+            device = device_state.device
+            # Update energy delivered value
+            device.update_energy_delivered()
+            
+            # Get device data and add runtime state
+            device_data = device.to_dict()
+            device_data.update({
+                'is_on': device_state.is_on,
+                'last_state_change': device_state.last_state_change.isoformat() if device_state.last_state_change else None,
+                'current_amperage': device_state.current_amperage,
+                'has_completed': device_state.has_completed
+            })
+            devices_data.append(device_data)
+        
         # Sort devices by their order property
-        devices.sort(key=lambda x: x.order)
-        return jsonify([device.to_dict() for device in devices])
+        devices_data.sort(key=lambda x: x['order'])
+        logger.debug(f"Retrieved state for {len(devices_data)} devices")
+        return jsonify(devices_data)
     except Exception as e:
         logger.error(f"Error loading devices: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
@@ -392,10 +431,12 @@ def get_devices():
 def add_device():
     try:
         device_data = request.json
+        logger.debug(f"Adding new device: {device_data}")
         devices = Device.load_all(DEVICES_FILE)
         
         # Check if device with same name exists
         if any(d.name == device_data['name'] for d in devices):
+            logger.info(f"Device with name {device_data['name']} already exists")
             return jsonify({'status': 'error', 'message': 'Device with this name already exists'}), 400
         
         # Set order to be the next available index
@@ -406,19 +447,23 @@ def add_device():
         devices.append(device)
         Device.save_all(devices, DEVICES_FILE)
         
+        logger.info(f"Successfully added device: {device.name}")
         return jsonify(device.to_dict())
     except Exception as e:
+        logger.error(f"Error adding device: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/devices/<name>', methods=['PUT'])
 def update_device(name):
     try:
         device_data = request.json
+        logger.debug(f"Updating device {name}: {device_data}")
         devices = Device.load_all(DEVICES_FILE)
         
         # Find device
         device_index = next((i for i, d in enumerate(devices) if d.name == name), None)
         if device_index is None:
+            logger.info(f"Device not found: {name}")
             return jsonify({'status': 'error', 'message': 'Device not found'}), 404
         
         # Preserve the existing order if not provided in the update
@@ -429,28 +474,35 @@ def update_device(name):
         devices[device_index] = Device(**device_data)
         Device.save_all(devices, DEVICES_FILE)
         
+        logger.info(f"Successfully updated device: {name}")
         return jsonify(devices[device_index].to_dict())
     except Exception as e:
+        logger.error(f"Error updating device {name}: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/devices/<name>', methods=['DELETE'])
 def delete_device(name):
     try:
+        logger.debug(f"Deleting device: {name}")
         devices = Device.load_all(DEVICES_FILE)
         
         # Find and remove device
         devices = [d for d in devices if d.name != name]
         Device.save_all(devices, DEVICES_FILE)
         
+        logger.info(f"Successfully deleted device: {name}")
         return jsonify({'status': 'success'})
     except Exception as e:
+        logger.error(f"Error deleting device {name}: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/devices/reorder', methods=['POST'])
 def reorder_devices():
     try:
         order_data = request.get_json()
+        logger.debug(f"Reordering devices: {order_data}")
         if not order_data or not isinstance(order_data, list):
+            logger.info("Invalid order data format")
             return jsonify({'status': 'error', 'message': 'Invalid order data format'}), 400
             
         devices = Device.load_all(DEVICES_FILE)
@@ -459,6 +511,7 @@ def reorder_devices():
         # Update order for each device
         for item in order_data:
             if not isinstance(item, dict) or 'name' not in item or 'order' not in item:
+                logger.info("Invalid device order item format")
                 return jsonify({'status': 'error', 'message': 'Invalid device order item format'}), 400
                 
             device = device_dict.get(item['name'])
@@ -467,6 +520,7 @@ def reorder_devices():
         
         # Save updated devices
         Device.save_all(list(device_dict.values()), DEVICES_FILE)
+        logger.info("Successfully reordered devices")
         return jsonify({'status': 'success'})
     except Exception as e:
         logger.error(f"Error reordering devices: {e}")
@@ -475,6 +529,7 @@ def reorder_devices():
 @app.route('/api/status', methods=['GET'])
 def get_status():
     try:
+        logger.debug("Getting system status")
         # Load settings
         if not os.path.exists(SETTINGS_FILE):
             settings = {'power_optimization_enabled': False}
@@ -486,13 +541,26 @@ def get_status():
                 logger.error("Error decoding settings file, using defaults")
                 settings = {'power_optimization_enabled': False}
         
-        return jsonify({
+        status = {
             'status': 'running',
             'version': '1.0.0',  # TODO: Get actual version
             'power_optimization_enabled': settings.get('power_optimization_enabled', False)
-        })
+        }
+        logger.debug(f"System status: {status}")
+        return jsonify(status)
     except Exception as e:
         logger.error(f"Error getting status: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/control/run', methods=['POST'])
+def run_control_loop():
+    try:
+        logger.debug("Manually running control loop")
+        controller.run_control_loop()
+        logger.info("Control loop completed successfully")
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Error running control loop: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/settings/power_optimization', methods=['POST'])
@@ -500,6 +568,7 @@ def update_power_optimization():
     try:
         data = request.json
         enabled = data.get('enabled', False)
+        logger.debug(f"Updating power optimization setting: {enabled}")
         
         # Load current settings
         try:
@@ -515,8 +584,10 @@ def update_power_optimization():
         with open(SETTINGS_FILE, 'w') as f:
             json.dump(settings, f, indent=4)
         
+        logger.info(f"Successfully updated power optimization setting to: {enabled}")
         return jsonify({'status': 'success'})
     except Exception as e:
+        logger.error(f"Error updating power optimization setting: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/devices/<name>/state', methods=['GET'])
@@ -524,14 +595,11 @@ def get_device_state(name):
     try:
         logger.debug(f"Getting state for device: {name}")
         devices = Device.load_all(DEVICES_FILE)
-        logger.debug(f"Loaded {len(devices)} devices from file")
         
         device = next((d for d in devices if d.name == name), None)
         if device is None:
-            logger.error(f"Device not found: {name}")
+            logger.info(f"Device not found: {name}")
             return jsonify({'status': 'error', 'message': 'Device not found'}), 404
-
-        logger.debug(f"Found device: {device.name}, switch_entity: {device.switch_entity}")
 
         # Get the current state from Home Assistant
         supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
@@ -544,13 +612,10 @@ def get_device_state(name):
             "Content-Type": "application/json",
         }
 
-        logger.debug(f"Making request to Home Assistant API for entity: {device.switch_entity}")
         response = requests.get(
             f"http://supervisor/core/api/states/{device.switch_entity}",
             headers=headers
         )
-        logger.debug(f"Home Assistant API response status: {response.status_code}")
-        
         response.raise_for_status()
         state = response.json().get('state', 'off')
         logger.debug(f"Retrieved state for device {name}: {state}")
@@ -566,35 +631,174 @@ def get_device_state(name):
 @app.route('/api/devices/<name>/set_state', methods=['POST'])
 def set_device_state(name):
     try:
-        logger.debug(f"Received set_state request for device: {name}")
         data = request.get_json()
-        logger.debug(f"Request data: {data}")
+        logger.debug(f"Setting state for device {name}: {data}")
         
         if not data or 'state' not in data:
-            logger.error(f"Invalid request data: {data}")
+            logger.info(f"Invalid request data: {data}")
             return jsonify({'status': 'error', 'message': 'Invalid request data'}), 400
 
         devices = Device.load_all(DEVICES_FILE)
-        logger.debug(f"Loaded {len(devices)} devices from file")
         device = next((d for d in devices if d.name == name), None)
         
         if device is None:
-            logger.error(f"Device not found: {name}")
+            logger.info(f"Device not found: {name}")
             return jsonify({'status': 'error', 'message': 'Device not found'}), 404
 
-        logger.debug(f"Found device: {device.name}, switch_entity: {device.switch_entity}")
-        logger.debug(f"Attempting to set state to: {data['state']}")
-        
         # Set the device state using the explicit set_state method
         success = device.set_state(data['state'])
         if not success:
             logger.error(f"Failed to set state for device {name}")
             return jsonify({'status': 'error', 'message': 'Failed to set device state'}), 500
 
-        logger.debug(f"Successfully set state for device {name}")
+        logger.info(f"Successfully set state for device {name} to {data['state']}")
         return jsonify({'status': 'success'})
     except Exception as e:
         logger.error(f"Error setting device state for {name}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/states/<entity_id>', methods=['GET'])
+def get_entity_state(entity_id):
+    try:
+        logger.debug(f"Getting state for entity: {entity_id}")
+        supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+        if not supervisor_token:
+            logger.error("No supervisor token available in environment")
+            return jsonify({'status': 'error', 'message': 'No supervisor token available'}), 500
+
+        headers = {
+            "Authorization": f"Bearer {supervisor_token}",
+            "Content-Type": "application/json",
+        }
+
+        response = requests.get(
+            f"http://supervisor/core/api/states/{entity_id}",
+            headers=headers
+        )
+        response.raise_for_status()
+        state = response.json()
+        logger.debug(f"Retrieved state for entity {entity_id}: {state}")
+        return jsonify(state)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error getting entity state for {entity_id}: {e}")
+        return jsonify({'status': 'error', 'message': f'Network error: {str(e)}'}), 400
+    except Exception as e:
+        logger.error(f"Error getting entity state for {entity_id}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/tariff_modes', methods=['GET'])
+def get_tariff_modes():
+    try:
+        logger.debug("Getting tariff modes")
+        # Get the tariff rate entity from config
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            config = {}
+        
+        tariff_rate_entity = config.get('tariff_rate')
+        if not tariff_rate_entity:
+            logger.info("No tariff rate entity configured")
+            return jsonify({
+                'status': 'success',
+                'modes': ['normal', 'cheap', 'free'],
+                'current_modes': {},
+                'options': []
+            })
+
+        # Get the options from Home Assistant
+        supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+        if not supervisor_token:
+            logger.error("No supervisor token available in environment")
+            return jsonify({'status': 'error', 'message': 'No supervisor token available'}), 500
+
+        headers = {
+            "Authorization": f"Bearer {supervisor_token}",
+            "Content-Type": "application/json",
+        }
+
+        response = requests.get(
+            f"http://supervisor/core/api/states/{tariff_rate_entity}",
+            headers=headers
+        )
+        response.raise_for_status()
+        state_data = response.json()
+        
+        # Get the options from the entity's attributes
+        options = state_data.get('attributes', {}).get('options', [])
+        
+        # Get the current mode assignments from config
+        current_modes = config.get('tariff_modes', {})
+        
+        result = {
+            'status': 'success',
+            'modes': ['normal', 'cheap', 'free'],  # The available modes we support
+            'current_modes': current_modes,  # The current mode assignments
+            'options': options  # The tariff rate options from Home Assistant
+        }
+        logger.debug(f"Retrieved tariff modes: {result}")
+        return jsonify(result)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error getting tariff modes: {e}")
+        return jsonify({'status': 'error', 'message': f'Network error: {str(e)}'}), 400
+    except Exception as e:
+        logger.error(f"Error getting tariff modes: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/battery', methods=['GET'])
+def get_battery():
+    try:
+        logger.debug("Getting battery configuration")
+        battery = Battery.load(BATTERY_FILE)
+        if battery is None:
+            logger.info("No battery configuration found")
+            return jsonify({
+                'status': 'success',
+                'config': {}
+            })
+        
+        result = {
+            'status': 'success',
+            'config': battery.to_dict()
+        }
+        logger.debug(f"Retrieved battery configuration: {result}")
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error getting battery configuration: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/battery', methods=['POST'])
+def update_battery():
+    try:
+        data = request.json
+        logger.debug(f"Updating battery configuration: {data}")
+        if not data:
+            logger.info("No data provided for battery update")
+            return jsonify({'status': 'error', 'message': 'No data provided'}), 400
+
+        # Validate required fields
+        if 'size_kwh' not in data or 'battery_percent_entity' not in data:
+            logger.info("Missing required fields for battery update")
+            return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
+
+        # Create battery object
+        battery = Battery(
+            size_kwh=float(data['size_kwh']),
+            battery_percent_entity=data['battery_percent_entity'],
+            max_charging_speed_kw=float(data['max_charging_speed_kw']) if data.get('max_charging_speed_kw') else None,
+            force_charge_entity=data.get('force_charge_entity')
+        )
+
+        # Save configuration
+        if battery.save(BATTERY_FILE):
+            logger.info("Successfully updated battery configuration")
+            return jsonify({'status': 'success'})
+        else:
+            logger.error("Failed to save battery configuration")
+            return jsonify({'status': 'error', 'message': 'Failed to save battery configuration'}), 500
+    except Exception as e:
+        logger.error(f"Error updating battery configuration: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 # Get port from environment
