@@ -514,7 +514,6 @@ class SolarController:
             
             # Get current conditions
             grid_power = self.get_grid_power()
-            available_power = self.get_available_power()
             voltage = self.get_grid_voltage()
             current_time = datetime.now(timezone.utc)
             
@@ -525,7 +524,7 @@ class SolarController:
             # Initialize debug state
             self.debug_state = DebugState(
                 timestamp=current_time,
-                available_power=available_power,
+                available_power=0,  # Will be set by control mode
                 grid_voltage=voltage,
                 grid_power=grid_power,
                 power_optimization_enabled=power_optimization_enabled,
@@ -568,25 +567,15 @@ class SolarController:
                     time_since_change = (current_time - device_state.last_state_change).total_seconds()
                     
                     if device_state.is_on and time_since_change < device.min_on_time:
-                        # Must stay on, but can adjust amperage
+                        # Must stay on
                         power = self.get_device_power(device_state)
-                        available_power -= power
                         mandatory_devices.append({
                             'name': device.name,
                             'power': power,
                             'reason': 'Minimum on time not met'
                         })
                         logger.info(f"Device {device.name} must stay on due to minimum on time")
-                        # If it's a variable amperage device, set to minimum amperage
-                        if device.has_variable_amperage:
-                            min_amperage = device.min_amperage
-                            # Use actual power if device has a power sensor and is drawing low power
-                            if device.current_power_sensor and power < 100:
-                                devices_to_turn_on.append((device_state, power, min_amperage))
-                            else:
-                                devices_to_turn_on.append((device_state, voltage * min_amperage, min_amperage))
-                        else:
-                            devices_to_turn_on.append((device_state, power, device_state.current_amperage))
+                        devices_to_turn_on.append((device_state, power, device_state.current_amperage))
                         continue
                         
                     if not device_state.is_on and time_since_change < device.min_off_time:
@@ -608,9 +597,11 @@ class SolarController:
             if control_mode == 'free':
                 self._run_free_mode(voltage, devices_to_turn_on)
             elif control_mode == 'solar':
+                available_power = self.get_available_power()
+                self.debug_state.available_power = available_power
                 self._run_solar_control(available_power, voltage, devices_to_turn_on)
             else:  # tariff mode
-                self._run_tariff_control(available_power, voltage, devices_to_turn_on)
+                self._run_tariff_control(voltage, devices_to_turn_on)
 
             # Only apply state changes if optimization is enabled
             if self.debug_state.power_optimization_enabled:
@@ -644,9 +635,33 @@ class SolarController:
         logger.info(f"Running solar control mode with {available_power}W available")
         optional_devices = []
         
-        # Sort devices by their order (priority)
+        # First, handle mandatory devices that must stay on
+        for device_state, power, amperage in devices_to_turn_on[:]:
+            device = device_state.device
+            if device.has_variable_amperage:
+                # Calculate minimum power needed
+                min_amperage = device.min_amperage
+                min_power = voltage * min_amperage
+                
+                # If device has a power sensor and is drawing low power, use actual power
+                if device.current_power_sensor and power < 100:
+                    min_power = power
+                
+                # Update the power in devices_to_turn_on
+                for i, (d, p, a) in enumerate(devices_to_turn_on):
+                    if d == device_state:
+                        devices_to_turn_on[i] = (device_state, min_power, min_amperage)
+                        break
+                
+                logger.info(f"Minimizing power for mandatory device {device.name} to {min_power}W at {min_amperage}A")
+                available_power -= min_power
+            else:
+                # For non-variable devices, we can't minimize power
+                available_power -= power
+        
+        # Sort remaining devices by their order (priority)
         sorted_devices = sorted(
-            self.device_states.values(),
+            [d for d in self.device_states.values() if not any(d == x[0] for x in devices_to_turn_on)],
             key=lambda x: x.device.order
         )
         
@@ -733,9 +748,9 @@ class SolarController:
         
         self.debug_state.optional_devices = optional_devices
 
-    def _run_tariff_control(self, available_power: float, voltage: float, devices_to_turn_on: List[Tuple]):
+    def _run_tariff_control(self, voltage: float, devices_to_turn_on: List[Tuple]):
         """Run tariff-based power control logic"""
-        logger.info(f"Running tariff control mode with {available_power}W available")
+        logger.info("Running tariff control mode")
         optional_devices = []
         
         # Check if we're in cheap or free tariff mode
