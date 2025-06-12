@@ -34,18 +34,28 @@ fi
 bashio::log.info "Contents of /data before operations:"
 ls -la /data || true
 
-# Create nginx directories with proper permissions
+# Create required nginx directories
 bashio::log.info "Creating nginx directories..."
-mkdir -p /run/nginx
-mkdir -p /tmp/nginx/client_body
-mkdir -p /tmp/nginx/proxy
-mkdir -p /tmp/nginx/fastcgi
-mkdir -p /tmp/nginx/uwsgi
-mkdir -p /tmp/nginx/scgi
+mkdir -p /data/nginx/logs
+mkdir -p /data/nginx/tmp/client_body
+mkdir -p /data/nginx/tmp/proxy
+mkdir -p /data/nginx/tmp/fastcgi
+mkdir -p /data/nginx/tmp/uwsgi
+mkdir -p /data/nginx/tmp/scgi
 
-# Set permissions for nginx directories
-chmod -R 777 /tmp/nginx
-chmod 777 /run/nginx
+# Set directory permissions (755 for directories)
+bashio::log.info "Setting directory permissions..."
+chown -R root:root /data
+chmod -R 755 /data
+
+# Set file permissions (644 for files)
+bashio::log.info "Setting file permissions..."
+find /data -type f -exec chmod 644 {} \;
+find /data -type f -exec chown root:root {} \;
+
+# Debug: Show final directory state
+bashio::log.info "Final data directory state:"
+ls -la /data || true
 
 # Get Home Assistant URL from supervisor
 HASS_URL=$(bashio::config 'hass_url')
