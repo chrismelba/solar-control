@@ -1,6 +1,6 @@
 # https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
 name: "Solar Control Dev"
-version: "1.4.9"
+version: "1.5.0"
 slug: "solar-control-dev"
 description: "Solar Control add-on"
 url: "https://github.com/chrismelba/solar-control"
@@ -16,8 +16,18 @@ map:
   - share:rw
 options:
   debug_level: "info"
+  mqtt:
+    broker: "auto_broker"
+    port: "auto_port"
+    username: "auto_user"
+    password: "auto_password"
 schema:
   debug_level: "str?"
+  mqtt:
+    broker: "str?"
+    port: "str?"
+    username: "str?"
+    password: "str?"
 image: "ghcr.io/chrismelba/{arch}-addon-solar-control-dev"
 ingress: true
 ingress_port: 8099

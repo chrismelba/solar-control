@@ -46,6 +46,61 @@ def setup_logging():
     logger.info(f"Logging level set to: {debug_level}")
     return logger
 
+def set_mqtt_settings():
+    """Configure MQTT settings from environment variables if running as HA add-on"""
+    try:
+        if os.environ.get("IS_HA_ADDON"):
+            # Read current settings
+            options_file = '/data/options.json'
+            if not os.path.exists(options_file):
+                logger.error("Options file not found")
+                return None
+                
+            with open(options_file, 'r') as f:
+                settings = json.load(f)
+            
+            # Check if MQTT settings are set to auto
+            if settings.get('mqtt', {}).get('broker') != "auto_broker" \
+                    or settings.get('mqtt', {}).get('port') != "auto_port" \
+                    or settings.get('mqtt', {}).get('username') != "auto_user" \
+                    or settings.get('mqtt', {}).get('password') != "auto_password":
+                # If settings were manually set, use the manually set settings
+                return settings.get('mqtt')
+
+            # Get MQTT settings from environment
+            broker_host = os.getenv("MQTTHOST", None)
+            broker_port = os.getenv("MQTTPORT", None)
+            broker_user = os.getenv("MQTTUSER", None)
+            broker_pass = os.getenv("MQTTPASS", None)
+
+            if not broker_host or not broker_port:
+                logger.error("MQTT connection could not be established. Please check if your MQTT Add-On is running!")
+                return None
+
+            logger.debug(f"MQTT Credentials - Host: {broker_host} Port: {broker_port} User: {broker_user} Pass: {'*' * len(broker_pass) if broker_pass else 'None'}")
+
+            # Update settings
+            if 'mqtt' not in settings:
+                settings['mqtt'] = {}
+                
+            settings['mqtt'].update({
+                'broker': broker_host,
+                'port': broker_port,
+                'username': broker_user,
+                'password': broker_pass
+            })
+
+            # Save updated settings
+            with open(options_file, 'w') as f:
+                json.dump(settings, f, indent=4)
+
+            return settings['mqtt']
+            
+        return None
+    except Exception as e:
+        logger.error(f"Error setting MQTT settings: {e}")
+        return None
+
 def get_sunrise_time():
     try:
         supervisor_token = os.environ.get('SUPERVISOR_TOKEN')

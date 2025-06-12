@@ -1,3 +1,7 @@
+## [1.4.6] - 2025-06-13
+### Changed
+Removed nginx logging to file since it was breaking installs. 
+Fixed a bug where variable current devices would charge at minimum current overnight
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
 ## [1.3.70] - 2025-05-25
