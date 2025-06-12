@@ -21,6 +21,8 @@ RUN \
 
 # Set permissions
 RUN \
+    chown -R nginx:nginx /run/nginx && \
+    chown -R nginx:nginx /tmp/nginx && \
     chmod -R 755 /etc/nginx && \
     chmod -R 755 /usr/bin/static && \
     chmod -R 755 /run/nginx && \
