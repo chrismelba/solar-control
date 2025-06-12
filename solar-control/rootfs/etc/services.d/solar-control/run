@@ -42,14 +42,11 @@ mkdir -p /data/nginx/tmp/proxy
 mkdir -p /data/nginx/tmp/fastcgi
 mkdir -p /data/nginx/tmp/uwsgi
 mkdir -p /data/nginx/tmp/scgi
-mkdir -p /var/lib/nginx/logs
 
 # Set directory permissions (755 for directories)
 bashio::log.info "Setting directory permissions..."
 chown -R root:root /data
 chmod -R 755 /data
-chown -R root:root /var/lib/nginx
-chmod -R 755 /var/lib/nginx
 
 # Set file permissions (644 for files)
 bashio::log.info "Setting file permissions..."

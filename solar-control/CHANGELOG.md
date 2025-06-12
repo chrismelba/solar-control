@@ -1,9 +1,5 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
-## [1.4.0] - 2025-05-25
-### Changed
-Added off peak charging
-
 ## [1.3.70] - 2025-05-25
 ### Changed
 Added tooltips

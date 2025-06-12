@@ -480,6 +480,9 @@ class SolarController:
         for device_state in self.device_states.values():
             device = device_state.device
             
+            # Check if device is already in devices_to_turn_on
+            existing_index = next((i for i, (d, _, _) in enumerate(devices_to_turn_on) if d == device_state), None)
+            
             # Skip if device has completed its task
             if device.run_once and device_state.has_completed:
                 optional_devices.append({
@@ -487,16 +490,24 @@ class SolarController:
                     'power': 0,
                     'reason': 'Task completed'
                 })
+                if existing_index is not None:
+                    devices_to_turn_on.pop(existing_index)
                 continue
             
             # For variable amperage devices, set to maximum
             if device.has_variable_amperage:
                 max_amperage = device.max_amperage
                 power_needed = voltage * max_amperage
-                devices_to_turn_on.append((device_state, power_needed, max_amperage))
+                if existing_index is not None:
+                    devices_to_turn_on[existing_index] = (device_state, power_needed, max_amperage)
+                else:
+                    devices_to_turn_on.append((device_state, power_needed, max_amperage))
             else:
                 power_needed = device.typical_power_draw
-                devices_to_turn_on.append((device_state, power_needed, None))
+                if existing_index is not None:
+                    devices_to_turn_on[existing_index] = (device_state, power_needed, None)
+                else:
+                    devices_to_turn_on.append((device_state, power_needed, None))
             
             optional_devices.append({
                 'name': device.name,
@@ -514,7 +525,6 @@ class SolarController:
             
             # Get current conditions
             grid_power = self.get_grid_power()
-            available_power = self.get_available_power()
             voltage = self.get_grid_voltage()
             current_time = datetime.now(timezone.utc)
             
@@ -525,7 +535,7 @@ class SolarController:
             # Initialize debug state
             self.debug_state = DebugState(
                 timestamp=current_time,
-                available_power=available_power,
+                available_power=0,  # Will be set by control mode
                 grid_voltage=voltage,
                 grid_power=grid_power,
                 power_optimization_enabled=power_optimization_enabled,
@@ -568,23 +578,19 @@ class SolarController:
                     time_since_change = (current_time - device_state.last_state_change).total_seconds()
                     
                     if device_state.is_on and time_since_change < device.min_on_time:
-                        # Must stay on, but can adjust amperage
+                        # Must stay on
                         power = self.get_device_power(device_state)
-                        available_power -= power
                         mandatory_devices.append({
                             'name': device.name,
                             'power': power,
                             'reason': 'Minimum on time not met'
                         })
                         logger.info(f"Device {device.name} must stay on due to minimum on time")
-                        # If it's a variable amperage device, set to minimum amperage
-                        if device.has_variable_amperage:
-                            min_amperage = device.min_amperage
-                            # Use actual power if device has a power sensor and is drawing low power
-                            if device.current_power_sensor and power < 100:
-                                devices_to_turn_on.append((device_state, power, min_amperage))
-                            else:
-                                devices_to_turn_on.append((device_state, voltage * min_amperage, min_amperage))
+                        # For variable amperage devices in tariff mode, set to maximum
+                        if device.has_variable_amperage and self.get_current_tariff_mode() in ['cheap', 'free']:
+                            max_amperage = device.max_amperage
+                            power = voltage * max_amperage
+                            devices_to_turn_on.append((device_state, power, max_amperage))
                         else:
                             devices_to_turn_on.append((device_state, power, device_state.current_amperage))
                         continue
@@ -608,9 +614,11 @@ class SolarController:
             if control_mode == 'free':
                 self._run_free_mode(voltage, devices_to_turn_on)
             elif control_mode == 'solar':
+                available_power = self.get_available_power()
+                self.debug_state.available_power = available_power
                 self._run_solar_control(available_power, voltage, devices_to_turn_on)
             else:  # tariff mode
-                self._run_tariff_control(available_power, voltage, devices_to_turn_on)
+                self._run_tariff_control(voltage, devices_to_turn_on)
 
             # Only apply state changes if optimization is enabled
             if self.debug_state.power_optimization_enabled:
@@ -644,9 +652,33 @@ class SolarController:
         logger.info(f"Running solar control mode with {available_power}W available")
         optional_devices = []
         
-        # Sort devices by their order (priority)
+        # First, handle mandatory devices that must stay on
+        for device_state, power, amperage in devices_to_turn_on[:]:
+            device = device_state.device
+            if device.has_variable_amperage:
+                # Calculate optimal amperage based on available power
+                optimal_amperage = self.calculate_optimal_amperage(device, available_power)
+                if optimal_amperage is None:
+                    logger.info(f"Cannot calculate optimal amperage for {device.name}")
+                    continue
+                
+                power_needed = voltage * optimal_amperage
+                
+                # Update the power in devices_to_turn_on
+                for i, (d, p, a) in enumerate(devices_to_turn_on):
+                    if d == device_state:
+                        devices_to_turn_on[i] = (device_state, power_needed, optimal_amperage)
+                        break
+                
+                logger.info(f"Setting power for mandatory device {device.name} to {power_needed}W at {optimal_amperage}A")
+                available_power -= power_needed
+            else:
+                # For non-variable devices, we can't minimize power
+                available_power -= power
+        
+        # Sort remaining devices by their order (priority)
         sorted_devices = sorted(
-            self.device_states.values(),
+            [d for d in self.device_states.values() if not any(d == x[0] for x in devices_to_turn_on)],
             key=lambda x: x.device.order
         )
         
@@ -733,9 +765,9 @@ class SolarController:
         
         self.debug_state.optional_devices = optional_devices
 
-    def _run_tariff_control(self, available_power: float, voltage: float, devices_to_turn_on: List[Tuple]):
+    def _run_tariff_control(self, voltage: float, devices_to_turn_on: List[Tuple]):
         """Run tariff-based power control logic"""
-        logger.info(f"Running tariff control mode with {available_power}W available")
+        logger.info("Running tariff control mode")
         optional_devices = []
         
         # Check if we're in cheap or free tariff mode
@@ -755,6 +787,9 @@ class SolarController:
         for device_state in self.device_states.values():
             device = device_state.device
             logger.debug(f"Processing device {device.name} in tariff control mode")
+            
+            # Check if device is already in devices_to_turn_on
+            existing_index = next((i for i, (d, _, _) in enumerate(devices_to_turn_on) if d == device_state), None)
             
             # Skip if no minimum daily power is specified
             if not device.min_daily_power:
@@ -776,6 +811,8 @@ class SolarController:
                         'power': 0,
                         'reason': 'Task completed'
                     })
+                    if existing_index is not None:
+                        devices_to_turn_on.pop(existing_index)
                     continue
             
             # Check if minimum daily power requirement is met
@@ -786,6 +823,8 @@ class SolarController:
                     'power': 0,
                     'reason': 'Minimum daily power requirement met'
                 })
+                if existing_index is not None:
+                    devices_to_turn_on.pop(existing_index)
                 continue
                 
             # If we get here, we need to turn the device on
@@ -796,11 +835,17 @@ class SolarController:
                 max_amperage = device.max_amperage
                 power_needed = voltage * max_amperage
                 logger.debug(f"Setting {device.name} to maximum amperage: {max_amperage}A ({power_needed}W)")
-                devices_to_turn_on.append((device_state, power_needed, max_amperage))
+                if existing_index is not None:
+                    devices_to_turn_on[existing_index] = (device_state, power_needed, max_amperage)
+                else:
+                    devices_to_turn_on.append((device_state, power_needed, max_amperage))
             else:
                 power_needed = device.typical_power_draw
                 logger.debug(f"Using typical power for {device.name}: {power_needed}W")
-                devices_to_turn_on.append((device_state, power_needed, None))
+                if existing_index is not None:
+                    devices_to_turn_on[existing_index] = (device_state, power_needed, None)
+                else:
+                    devices_to_turn_on.append((device_state, power_needed, None))
                 
             optional_devices.append({
                 'name': device.name,
