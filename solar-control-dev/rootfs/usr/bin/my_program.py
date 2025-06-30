@@ -265,7 +265,9 @@ def static_page(page):
         },
         'configure/battery': {
             'template': 'configure_battery.html',
-            'data': lambda: {}
+            'data': lambda: {
+                'entities': get_entities()
+            }
         },
         'configure/devices': {
             'template': 'configure_devices.html',
@@ -461,8 +463,12 @@ def configure_battery():
     except (FileNotFoundError, json.JSONDecodeError):
         config = {}
     
+    # Get entities for the searchable selects
+    entities = get_entities()
+    
     return make_response(render_template('configure_battery.html',
                          config=config,
+                         entities=entities,
                          ingress_path=ingress_path,
                          basename=ingress_path))
 
