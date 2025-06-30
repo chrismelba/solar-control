@@ -9,7 +9,7 @@
     <style>
         h1 {
             text-align: center;
-            margin: 0;
+            margin: 0 0 0 72px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -17,6 +17,15 @@
         }
     </style>
     
+    <div class="card" id="devices">
+        <h2>Controllable Devices</h2>
+        <div id="deviceList" class="device-list">
+            {% for device in devices %}
+                {{ device_card(device, draggable=true) }}
+            {% endfor %}
+        </div>
+    </div>
+
     <div class="card" id="sensor-values">
         <h2>Current Sensor Values</h2>
         <div class="sensor-grid">
@@ -80,15 +89,6 @@
                     <p class="value">Not available</p>
                 {% endif %}
             </div>
-        </div>
-    </div>
-
-    <div class="card" id="devices">
-        <h2>Controllable Devices</h2>
-        <div id="deviceList" class="device-list">
-            {% for device in devices %}
-                {{ device_card(device, draggable=true) }}
-            {% endfor %}
         </div>
     </div>
 
@@ -466,7 +466,11 @@
                 // Update hours until sunset
                 const hoursUntilSunsetElem = document.getElementById('hoursUntilSunset');
                 if (hoursUntilSunsetElem && data.debug_state && data.debug_state.hours_until_sunset !== null) {
-                    hoursUntilSunsetElem.textContent = `${data.debug_state.hours_until_sunset.toFixed(1)}h`;
+                    if (data.debug_state.hours_until_sunset > 0) {
+                        hoursUntilSunsetElem.textContent = `${data.debug_state.hours_until_sunset.toFixed(1)}h`;
+                    } else {
+                        hoursUntilSunsetElem.textContent = 'Night';
+                    }
                 } else if (hoursUntilSunsetElem) {
                     hoursUntilSunsetElem.textContent = 'Not available';
                 }
