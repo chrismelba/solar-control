@@ -51,9 +51,6 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize searchable selects
-            new SearchableSelect('battery_percent_entity_input', 'battery_percent_entity_options', 'battery_percent_entity');
-
             // Load existing configuration
             apiCall('/api/battery')
                 .then(data => {
@@ -63,12 +60,14 @@
                         document.getElementById('max_charging_speed_kw').value = config.max_charging_speed_kw || '';
                         document.getElementById('expected_kwh_per_hour').value = config.expected_kwh_per_hour || '';
                         
-                        // Set the searchable select values
+                        // Set the searchable select values properly
                         if (config.battery_percent_entity) {
                             const batteryPercentInput = document.getElementById('battery_percent_entity_input');
+                            const batteryPercentHidden = document.getElementById('battery_percent_entity');
                             const batteryPercentOption = document.querySelector(`#battery_percent_entity_options .option[data-value="${config.battery_percent_entity}"]`);
                             if (batteryPercentOption) {
                                 batteryPercentInput.value = batteryPercentOption.textContent;
+                                batteryPercentHidden.value = config.battery_percent_entity;
                             }
                         }
                     }
