@@ -55,8 +55,7 @@
             new SearchableSelect('battery_percent_entity_input', 'battery_percent_entity_options', 'battery_percent_entity');
 
             // Load existing configuration
-            fetch('/api/battery')
-                .then(response => response.json())
+            apiCall('/api/battery')
                 .then(data => {
                     if (data.status === 'success') {
                         const config = data.config;
@@ -109,16 +108,12 @@
 
                 console.log('Sending data to server:', formData);
 
-                fetch('/api/battery', {
+                apiCall('/api/battery', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify(formData)
-                })
-                .then(response => {
-                    console.log('Response status:', response.status);
-                    return response.json();
                 })
                 .then(data => {
                     console.log('Response data:', data);

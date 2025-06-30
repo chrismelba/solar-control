@@ -831,8 +831,13 @@ def get_battery():
 @app.route('/api/battery', methods=['POST'])
 def update_battery():
     try:
+        # Log the raw request data
+        logger.debug(f"Raw request data: {request.get_data()}")
+        logger.debug(f"Request content type: {request.content_type}")
+        logger.debug(f"Request headers: {dict(request.headers)}")
+        
         data = request.json
-        logger.debug(f"Updating battery configuration: {data}")
+        logger.debug(f"Parsed JSON data: {data}")
         if not data:
             logger.info("No data provided for battery update")
             return jsonify({'status': 'error', 'message': 'No data provided'}), 400
