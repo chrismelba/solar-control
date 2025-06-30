@@ -38,6 +38,12 @@
             </div>
 
             <div class="form-group">
+                <label for="expected_kwh_per_hour">Expected kWh used per hour <span class="tooltip">ⓘ<span class="tooltiptext">This value will be subtracted from the solar forecast to determine if there's enough energy left today to fill the battery</span></span></label>
+                <input type="number" id="expected_kwh_per_hour" name="expected_kwh_per_hour" step="0.1" min="0">
+                <small class="form-text text-muted">Optional: Expected household energy consumption per hour</small>
+            </div>
+
+            <div class="form-group">
                 <label for="force_charge_entity">Force Charge Switch</label>
                 <div class="searchable-select">
                     <input type="text" id="force_charge_entity_input" placeholder="Search for a force charge switch..." autocomplete="off">
@@ -76,6 +82,7 @@
                         const config = data.config;
                         document.getElementById('size_kwh').value = config.size_kwh || '';
                         document.getElementById('max_charging_speed_kw').value = config.max_charging_speed_kw || '';
+                        document.getElementById('expected_kwh_per_hour').value = config.expected_kwh_per_hour || '';
                         
                         // Set the searchable select values
                         if (config.battery_percent_entity) {
@@ -106,7 +113,9 @@
                     battery_percent_entity: document.getElementById('battery_percent_entity').value,
                     max_charging_speed_kw: document.getElementById('max_charging_speed_kw').value ? 
                         parseFloat(document.getElementById('max_charging_speed_kw').value) : null,
-                    force_charge_entity: document.getElementById('force_charge_entity').value || null
+                    force_charge_entity: document.getElementById('force_charge_entity').value || null,
+                    expected_kwh_per_hour: document.getElementById('expected_kwh_per_hour').value ? 
+                        parseFloat(document.getElementById('expected_kwh_per_hour').value) : null
                 };
 
                 fetch('/api/battery', {
@@ -131,4 +140,50 @@
             });
         });
     </script>
+
+    <style>
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+            color: #666;
+            font-size: 0.9em;
+            margin-left: 4px;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 10px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
 {% endblock %} 
