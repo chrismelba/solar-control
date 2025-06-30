@@ -664,6 +664,12 @@ def get_status():
             'version': '1.0.0',  # TODO: Get actual version
             'power_optimization_enabled': settings.get('power_optimization_enabled', False)
         }
+        
+        # Add debug state information if available
+        debug_state = controller.get_debug_state()
+        if debug_state:
+            status['debug_state'] = debug_state.to_dict()
+        
         logger.debug(f"System status: {status}")
         return jsonify(status)
     except Exception as e:

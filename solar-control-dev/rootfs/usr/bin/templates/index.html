@@ -50,6 +50,18 @@
                 {% endif %}
             </div>
 
+            <div class="sensor-card">
+                <h3>Expected Energy Remaining</h3>
+                <p class="value" id="expectedEnergyRemaining">Loading...</p>
+                <p class="name">After battery charging</p>
+            </div>
+
+            <div class="sensor-card">
+                <h3>Hours Until Sunset</h3>
+                <p class="value" id="hoursUntilSunset">Loading...</p>
+                <p class="name">Remaining daylight</p>
+            </div>
+
             {% if sensor_values.tariff_rate %}
             <div class="sensor-card">
                 <h3>Current Tariff</h3>
@@ -296,8 +308,10 @@
         // Update status immediately and then periodically
         document.addEventListener('DOMContentLoaded', () => {
             updateStatus();
+            updateForecastInfo();
             runControlLoop(); // Run control loop when page loads
             setInterval(updateStatus, 30000);  // Update every 30 seconds
+            setInterval(updateForecastInfo, 60000);  // Update forecast info every minute
         });
 
         // Handle toggle changes
@@ -430,5 +444,34 @@
         }
         setInterval(updateDeviceCards, 60000); // Update every minute
         updateDeviceCards();
+
+        // Update forecast information
+        async function updateForecastInfo() {
+            try {
+                const data = await apiCall('/api/status');
+                
+                // Update expected energy remaining
+                const expectedEnergyElem = document.getElementById('expectedEnergyRemaining');
+                if (expectedEnergyElem && data.debug_state && data.debug_state.expected_energy_remaining !== null) {
+                    expectedEnergyElem.textContent = `${data.debug_state.expected_energy_remaining.toFixed(2)} kWh`;
+                } else if (expectedEnergyElem) {
+                    expectedEnergyElem.textContent = 'Not available';
+                }
+                
+                // Update hours until sunset
+                const hoursUntilSunsetElem = document.getElementById('hoursUntilSunset');
+                if (hoursUntilSunsetElem && data.debug_state && data.debug_state.hours_until_sunset !== null) {
+                    hoursUntilSunsetElem.textContent = `${data.debug_state.hours_until_sunset.toFixed(1)}h`;
+                } else if (hoursUntilSunsetElem) {
+                    hoursUntilSunsetElem.textContent = 'Not available';
+                }
+            } catch (error) {
+                console.error('Error updating forecast info:', error);
+                const expectedEnergyElem = document.getElementById('expectedEnergyRemaining');
+                const hoursUntilSunsetElem = document.getElementById('hoursUntilSunset');
+                if (expectedEnergyElem) expectedEnergyElem.textContent = 'Error';
+                if (hoursUntilSunsetElem) hoursUntilSunsetElem.textContent = 'Error';
+            }
+        }
     </script>
 {% endblock %} 
