@@ -841,7 +841,6 @@ def update_battery():
             size_kwh=float(data['size_kwh']),
             battery_percent_entity=data['battery_percent_entity'],
             max_charging_speed_kw=float(data['max_charging_speed_kw']) if data.get('max_charging_speed_kw') else None,
-            force_charge_entity=data.get('force_charge_entity'),
             expected_kwh_per_hour=float(data['expected_kwh_per_hour']) if data.get('expected_kwh_per_hour') else None
         )
 

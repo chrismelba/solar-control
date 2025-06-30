@@ -43,25 +43,6 @@
                 <small class="form-text text-muted">Optional: Expected household energy consumption per hour</small>
             </div>
 
-            <div class="form-group">
-                <label for="force_charge_entity">Force Charge Switch</label>
-                <div class="searchable-select">
-                    <input type="text" id="force_charge_entity_input" placeholder="Search for a force charge switch..." autocomplete="off">
-                    <input type="hidden" name="force_charge_entity" id="force_charge_entity" value="{{ config.force_charge_entity if config else '' }}">
-                    <div class="options" id="force_charge_entity_options">
-                        {% for entity in entities %}
-                            {% if entity.entity_id.startswith('switch.') and 'battery' in entity.entity_id.lower() and 'charge' in entity.entity_id.lower() %}
-                                <div class="option" data-value="{{ entity.entity_id }}"
-                                     {% if config and entity.entity_id == config.force_charge_entity %}data-selected="true"{% endif %}>
-                                    {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
-                                </div>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
-                </div>
-                <small class="form-text text-muted">Optional: Switch entity to force battery charging</small>
-            </div>
-
             <div class="form-actions">
                 <button type="submit" class="button">Save Configuration</button>
             </div>
@@ -72,7 +53,6 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize searchable selects
             new SearchableSelect('battery_percent_entity_input', 'battery_percent_entity_options', 'battery_percent_entity');
-            new SearchableSelect('force_charge_entity_input', 'force_charge_entity_options', 'force_charge_entity');
 
             // Load existing configuration
             fetch('/api/battery')
@@ -92,14 +72,6 @@
                                 batteryPercentInput.value = batteryPercentOption.textContent;
                             }
                         }
-                        
-                        if (config.force_charge_entity) {
-                            const forceChargeInput = document.getElementById('force_charge_entity_input');
-                            const forceChargeOption = document.querySelector(`#force_charge_entity_options .option[data-value="${config.force_charge_entity}"]`);
-                            if (forceChargeOption) {
-                                forceChargeInput.value = forceChargeOption.textContent;
-                            }
-                        }
                     }
                 })
                 .catch(error => console.error('Error loading battery configuration:', error));
@@ -113,7 +85,6 @@
                     battery_percent_entity: document.getElementById('battery_percent_entity').value,
                     max_charging_speed_kw: document.getElementById('max_charging_speed_kw').value ? 
                         parseFloat(document.getElementById('max_charging_speed_kw').value) : null,
-                    force_charge_entity: document.getElementById('force_charge_entity').value || null,
                     expected_kwh_per_hour: document.getElementById('expected_kwh_per_hour').value ? 
                         parseFloat(document.getElementById('expected_kwh_per_hour').value) : null
                 };

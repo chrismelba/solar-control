@@ -10,7 +10,6 @@ class Battery:
                  size_kwh: float,
                  battery_percent_entity: str,
                  max_charging_speed_kw: Optional[float] = None,
-                 force_charge_entity: Optional[str] = None,
                  expected_kwh_per_hour: Optional[float] = None):
         """
         Initialize a Battery object.
@@ -19,13 +18,11 @@ class Battery:
             size_kwh (float): Battery size in kWh
             battery_percent_entity (str): Home Assistant entity ID for battery percentage
             max_charging_speed_kw (float, optional): Maximum charging speed in kW
-            force_charge_entity (str, optional): Home Assistant entity ID for force charge switch
             expected_kwh_per_hour (float, optional): Expected kWh used per hour, subtracted from solar forecast
         """
         self.size_kwh = size_kwh
         self.battery_percent_entity = battery_percent_entity
         self.max_charging_speed_kw = max_charging_speed_kw
-        self.force_charge_entity = force_charge_entity
         self.expected_kwh_per_hour = expected_kwh_per_hour
 
     def to_dict(self) -> dict:
@@ -34,7 +31,6 @@ class Battery:
             'size_kwh': self.size_kwh,
             'battery_percent_entity': self.battery_percent_entity,
             'max_charging_speed_kw': self.max_charging_speed_kw,
-            'force_charge_entity': self.force_charge_entity,
             'expected_kwh_per_hour': self.expected_kwh_per_hour
         }
 
@@ -45,7 +41,6 @@ class Battery:
             size_kwh=data['size_kwh'],
             battery_percent_entity=data['battery_percent_entity'],
             max_charging_speed_kw=data.get('max_charging_speed_kw'),
-            force_charge_entity=data.get('force_charge_entity'),
             expected_kwh_per_hour=data.get('expected_kwh_per_hour')
         )
 
