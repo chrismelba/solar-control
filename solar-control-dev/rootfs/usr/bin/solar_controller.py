@@ -582,7 +582,7 @@ class SolarController:
         
         This method:
         1. Gets the solar forecast remaining for today
-        2. Subtracts the expected kWh per hour for battery charging multiplied by hours until sunset
+        2. If battery is configured with expected_kwh_per_hour, subtracts the expected kWh per hour for battery charging multiplied by hours until sunset
         3. Returns the net available energy
         
         Returns:
@@ -594,17 +594,21 @@ class SolarController:
             logger.warning("Unable to get solar forecast - cannot calculate expected energy remaining")
             return None
             
-        # Get hours until sunset
-        hours_until_sunset = self.get_hours_until_sunset()
-        if hours_until_sunset is None:
-            logger.warning("Unable to get hours until sunset - cannot calculate expected energy remaining")
-            return None
-            
-        # Load battery configuration to get expected_kwh_per_hour
+        # Load battery configuration to check if battery is configured
         try:
             battery = Battery.load('/data/battery.json')
-            if not battery or battery.expected_kwh_per_hour is None:
-                logger.debug("No battery configuration or expected_kwh_per_hour not set - using full solar forecast")
+            if not battery:
+                logger.debug("No battery configuration found - using full solar forecast")
+                return solar_forecast
+                
+            if battery.expected_kwh_per_hour is None:
+                logger.debug("Battery configured but expected_kwh_per_hour not set - using full solar forecast")
+                return solar_forecast
+                
+            # Get hours until sunset
+            hours_until_sunset = self.get_hours_until_sunset()
+            if hours_until_sunset is None:
+                logger.warning("Unable to get hours until sunset - using full solar forecast")
                 return solar_forecast
                 
             # Calculate battery energy requirement
@@ -827,12 +831,24 @@ class SolarController:
         logger.info(f"Running solar control mode with {available_power}W available")
         optional_devices = []
         
-        # Get expected energy remaining for today
-        expected_energy_remaining = self.get_expected_energy_remaining()
-        if expected_energy_remaining is not None:
-            logger.info(f"Expected energy remaining today: {expected_energy_remaining}kWh")
+        # Check if battery is configured and has expected_kwh_per_hour set
+        battery_configured = False
+        try:
+            battery = Battery.load('/data/battery.json')
+            battery_configured = battery is not None and battery.expected_kwh_per_hour is not None
+        except Exception as e:
+            logger.debug(f"Error checking battery configuration: {e}")
+        
+        # Get expected energy remaining for today (only if battery is configured)
+        expected_energy_remaining = None
+        if battery_configured:
+            expected_energy_remaining = self.get_expected_energy_remaining()
+            if expected_energy_remaining is not None:
+                logger.info(f"Expected energy remaining today: {expected_energy_remaining}kWh")
+            else:
+                logger.warning("Unable to determine expected energy remaining - proceeding with current available power")
         else:
-            logger.warning("Unable to determine expected energy remaining - proceeding with current available power")
+            logger.debug("No battery configured or expected_kwh_per_hour not set - using current available power only")
         
         # First, handle mandatory devices that must stay on
         for device_state, power, amperage in devices_to_turn_on[:]:
@@ -926,11 +942,11 @@ class SolarController:
                     power_needed = device.typical_power_draw
                     logger.debug(f"Using typical power for {device.name}: {power_needed}W")
             
-            # Check if we have enough power (considering both current available power and expected energy remaining)
+            # Check if we have enough power (considering both current available power and expected energy remaining if battery is configured)
             has_enough_power = power_needed <= available_power
             
-            # If we have expected energy remaining data, also check if turning on this device would leave enough energy for battery charging
-            if expected_energy_remaining is not None and has_enough_power:
+            # If battery is configured and we have expected energy remaining data, also check if turning on this device would leave enough energy for battery charging
+            if battery_configured and expected_energy_remaining is not None and has_enough_power:
                 # Estimate energy consumption for this device over the remaining daylight hours
                 hours_until_sunset = self.get_hours_until_sunset()
                 if hours_until_sunset and hours_until_sunset > 0:
@@ -948,8 +964,8 @@ class SolarController:
                 devices_to_turn_on.append((device_state, power_needed, optimal_amperage if device.has_variable_amperage else None))
                 available_power -= power_needed
                 
-                # Update expected energy remaining if we have that data
-                if expected_energy_remaining is not None:
+                # Update expected energy remaining if we have that data and battery is configured
+                if battery_configured and expected_energy_remaining is not None:
                     hours_until_sunset = self.get_hours_until_sunset()
                     if hours_until_sunset and hours_until_sunset > 0:
                         device_energy_consumption = (power_needed / 1000) * hours_until_sunset
@@ -963,7 +979,7 @@ class SolarController:
                 })
             else:
                 reason = 'Not enough power available'
-                if expected_energy_remaining is not None:
+                if battery_configured and expected_energy_remaining is not None:
                     hours_until_sunset = self.get_hours_until_sunset()
                     if hours_until_sunset and hours_until_sunset > 0:
                         device_energy_consumption = (power_needed / 1000) * hours_until_sunset

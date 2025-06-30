@@ -452,10 +452,15 @@
                 
                 // Update expected energy remaining
                 const expectedEnergyElem = document.getElementById('expectedEnergyRemaining');
-                if (expectedEnergyElem && data.debug_state && data.debug_state.expected_energy_remaining !== null) {
-                    expectedEnergyElem.textContent = `${data.debug_state.expected_energy_remaining.toFixed(2)} kWh`;
-                } else if (expectedEnergyElem) {
-                    expectedEnergyElem.textContent = 'Not available';
+                if (expectedEnergyElem) {
+                    if (data.debug_state && data.debug_state.expected_energy_remaining !== null) {
+                        expectedEnergyElem.textContent = `${data.debug_state.expected_energy_remaining.toFixed(2)} kWh`;
+                    } else if (data.debug_state && data.debug_state.solar_forecast_remaining !== null) {
+                        // If no battery is configured, show the raw solar forecast
+                        expectedEnergyElem.textContent = `${data.debug_state.solar_forecast_remaining.toFixed(2)} kWh (raw forecast)`;
+                    } else {
+                        expectedEnergyElem.textContent = 'Not available';
+                    }
                 }
                 
                 // Update hours until sunset

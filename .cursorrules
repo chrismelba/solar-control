@@ -1,0 +1,146 @@
+# Solar Control Add-on - Cursor Rules
+
+## Project Overview
+This is a Home Assistant add-on for solar power management and device control. The project consists of:
+- A Flask web application for configuration and monitoring
+- A solar controller that manages device states based on available power
+- Integration with Home Assistant API for device control and sensor data
+- Support for both production (`solar-control`) and development (`solar-control-dev`) versions
+
+## Code Structure
+- **Main Application**: `solar-control/rootfs/usr/bin/my_program.py` - Flask web server
+- **Core Logic**: `solar-control/rootfs/usr/bin/solar_controller.py` - Solar power management
+- **Device Management**: `solar-control/rootfs/usr/bin/device.py` - Device abstraction
+- **Battery Management**: `solar-control/rootfs/usr/bin/battery.py` - Battery configuration
+- **Utilities**: `solar-control/rootfs/usr/bin/utils.py` - Helper functions
+- **Web Interface**: `solar-control/rootfs/usr/bin/templates/` - HTML templates
+- **Static Assets**: `solar-control/rootfs/usr/bin/static/` - CSS, JS, images
+
+## Key Technologies
+- **Python 3** with Flask web framework
+- **Home Assistant API** integration via supervisor token
+- **Docker** containerization for add-on deployment
+- **Nginx** as reverse proxy
+- **MQTT** for communication (configurable)
+- **JSON** for configuration and data storage
+
+## API Call Patterns
+
+### Flask API Endpoints (Internal)
+- **Purpose**: Internal communication within the add-on
+- **Usage**: Use `apiCall()` function for calling Flask routes
+- **Examples**: 
+  - `/api/devices` - Device management
+  - `/api/status` - System status
+  - `/api/control/run` - Manual control execution
+- **Context**: These are the add-on's own REST API endpoints
+
+### Supervisor API Calls (External)
+- **Purpose**: Communication with Home Assistant core
+- **Usage**: Direct HTTP requests to supervisor API
+- **Authentication**: Use supervisor token from environment
+- **Base URL**: `http://supervisor/core`
+- **Examples**:
+  - `/api/states/{entity_id}` - Get entity state
+  - `/api/services/switch/turn_on` - Control switches
+  - `/api/services/switch/turn_off` - Control switches
+- **Context**: These are Home Assistant's native API endpoints
+
+### Key Distinction
+- **Flask API**: Internal add-on functionality, use `apiCall()` function
+- **Supervisor API**: External Home Assistant integration, use direct HTTP requests with supervisor token
+- **Never confuse**: Flask routes with supervisor API endpoints - they serve different purposes
+
+## Development Guidelines
+
+### Code Style
+- Follow PEP 8 Python style guidelines
+- Use type hints where appropriate
+- Include comprehensive docstrings for classes and methods
+- Use meaningful variable and function names
+- Add logging statements for debugging and monitoring
+
+### Architecture Patterns
+- **Separation of Concerns**: Keep web interface, business logic, and device management separate
+- **Configuration Management**: Use JSON files for persistent configuration
+- **Error Handling**: Implement proper exception handling with logging
+- **State Management**: Track device states and controller decisions
+- **API Design**: RESTful endpoints for device and configuration management
+
+### Home Assistant Integration
+- Use supervisor token for API authentication
+- Follow Home Assistant entity naming conventions
+- Handle API rate limits and errors gracefully
+- Support both sensor and switch entities
+- Implement proper state synchronization
+
+### Data Persistence
+- Store configuration in `/data/` directory (persistent across restarts)
+- Use JSON format for configuration files
+- Implement file validation and fallback defaults
+- Handle file corruption gracefully
+
+### Security Considerations
+- Validate all user inputs
+- Sanitize data before storing or displaying
+- Use proper authentication for API endpoints
+- Follow Home Assistant add-on security best practices
+
+### Testing and Debugging
+- Include debug endpoints for troubleshooting
+- Log important state changes and decisions
+- Provide configuration validation
+- Support manual override modes for testing
+
+## Common Tasks
+
+### Adding New Features
+1. Update the main Flask application (`my_program.py`)
+2. Add corresponding template files if UI changes needed
+3. Update configuration schema in `config.yaml`
+4. Add any new dependencies to `requirements.txt`
+5. Test in development environment first
+
+### Device Management
+- Devices are defined in JSON format with properties like name, switch_entity, power_entity, etc.
+- Support both mandatory and optional device types
+- Implement power calculation and state management
+- Handle device failures gracefully
+
+### Configuration Management
+- Grid power and voltage sensors
+- Battery configuration and limits
+- Device definitions and priorities
+- Tariff mode settings
+- Power optimization settings
+
+### Web Interface
+- Responsive design for mobile and desktop
+- Real-time status updates
+- Configuration forms with validation
+- Debug information display
+- Device state management interface
+
+## File Organization
+- Keep related functionality in separate modules
+- Use consistent naming conventions
+- Organize templates by feature
+- Maintain clear separation between UI and business logic
+
+## Deployment
+- Development version: `solar-control-dev/`
+- Production version: `solar-control/`
+- Both use similar structure but different configurations
+- Test changes in development before promoting to production
+
+## Error Handling
+- Log all errors with appropriate levels
+- Provide user-friendly error messages
+- Implement fallback behaviors for critical failures
+- Maintain system stability even with configuration errors
+
+## Performance
+- Minimize API calls to Home Assistant
+- Use efficient data structures
+- Implement caching where appropriate
+- Monitor resource usage in containerized environment 
