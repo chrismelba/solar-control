@@ -61,9 +61,17 @@ class Battery:
     def save(self, file_path: str) -> bool:
         """Save battery configuration to file."""
         try:
+            logger.debug(f"Saving battery configuration to {file_path}")
+            logger.debug(f"Battery data to save: {self.to_dict()}")
+            
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            
             with open(file_path, 'w') as f:
                 json.dump(self.to_dict(), f, indent=4)
+            
+            logger.info(f"Successfully saved battery configuration to {file_path}")
             return True
         except Exception as e:
-            logger.error(f"Error saving battery configuration: {e}")
+            logger.error(f"Error saving battery configuration to {file_path}: {e}")
             return False 

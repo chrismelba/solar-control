@@ -840,14 +840,27 @@ def update_battery():
         # Validate required fields
         if 'size_kwh' not in data or 'battery_percent_entity' not in data:
             logger.info("Missing required fields for battery update")
+            logger.info(f"Received fields: {list(data.keys()) if data else 'None'}")
             return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
+
+        # Validate data types
+        try:
+            size_kwh = float(data['size_kwh'])
+            battery_percent_entity = str(data['battery_percent_entity'])
+            max_charging_speed_kw = float(data['max_charging_speed_kw']) if data.get('max_charging_speed_kw') else None
+            expected_kwh_per_hour = float(data['expected_kwh_per_hour']) if data.get('expected_kwh_per_hour') else None
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid data type in battery configuration: {e}")
+            return jsonify({'status': 'error', 'message': f'Invalid data type: {str(e)}'}), 400
+
+        logger.debug(f"Validated data: size_kwh={size_kwh}, battery_percent_entity={battery_percent_entity}, max_charging_speed_kw={max_charging_speed_kw}, expected_kwh_per_hour={expected_kwh_per_hour}")
 
         # Create battery object
         battery = Battery(
-            size_kwh=float(data['size_kwh']),
-            battery_percent_entity=data['battery_percent_entity'],
-            max_charging_speed_kw=float(data['max_charging_speed_kw']) if data.get('max_charging_speed_kw') else None,
-            expected_kwh_per_hour=float(data['expected_kwh_per_hour']) if data.get('expected_kwh_per_hour') else None
+            size_kwh=size_kwh,
+            battery_percent_entity=battery_percent_entity,
+            max_charging_speed_kw=max_charging_speed_kw,
+            expected_kwh_per_hour=expected_kwh_per_hour
         )
 
         # Save configuration

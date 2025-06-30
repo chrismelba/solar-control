@@ -80,14 +80,34 @@
             document.getElementById('batteryForm').addEventListener('submit', function(e) {
                 e.preventDefault();
                 
+                // Get form values
+                const sizeKwh = document.getElementById('size_kwh').value;
+                const batteryPercentEntity = document.getElementById('battery_percent_entity').value;
+                const maxChargingSpeedKw = document.getElementById('max_charging_speed_kw').value;
+                const expectedKwhPerHour = document.getElementById('expected_kwh_per_hour').value;
+                
+                // Debug logging
+                console.log('Form values:', {
+                    size_kwh: sizeKwh,
+                    battery_percent_entity: batteryPercentEntity,
+                    max_charging_speed_kw: maxChargingSpeedKw,
+                    expected_kwh_per_hour: expectedKwhPerHour
+                });
+                
+                // Validate required fields
+                if (!sizeKwh || !batteryPercentEntity) {
+                    alert('Please fill in all required fields (Battery Size and Battery Percentage Sensor)');
+                    return;
+                }
+                
                 const formData = {
-                    size_kwh: parseFloat(document.getElementById('size_kwh').value),
-                    battery_percent_entity: document.getElementById('battery_percent_entity').value,
-                    max_charging_speed_kw: document.getElementById('max_charging_speed_kw').value ? 
-                        parseFloat(document.getElementById('max_charging_speed_kw').value) : null,
-                    expected_kwh_per_hour: document.getElementById('expected_kwh_per_hour').value ? 
-                        parseFloat(document.getElementById('expected_kwh_per_hour').value) : null
+                    size_kwh: parseFloat(sizeKwh),
+                    battery_percent_entity: batteryPercentEntity,
+                    max_charging_speed_kw: maxChargingSpeedKw ? parseFloat(maxChargingSpeedKw) : null,
+                    expected_kwh_per_hour: expectedKwhPerHour ? parseFloat(expectedKwhPerHour) : null
                 };
+
+                console.log('Sending data to server:', formData);
 
                 fetch('/api/battery', {
                     method: 'POST',
@@ -96,17 +116,21 @@
                     },
                     body: JSON.stringify(formData)
                 })
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Response data:', data);
                     if (data.status === 'success') {
                         alert('Battery configuration saved successfully');
                     } else {
-                        alert('Error saving battery configuration: ' + data.message);
+                        alert('Error saving battery configuration: ' + (data.message || 'Unknown error'));
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('Error saving battery configuration');
+                    alert('Error saving battery configuration: ' + error.message);
                 });
             });
         });
