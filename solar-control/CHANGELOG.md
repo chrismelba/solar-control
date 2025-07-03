@@ -1,3 +1,9 @@
+<!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
+
+## [1.6.0] - 2025-01-XX
+### Added
+- Added functionality to ensure battery will fully charge based on forecast solar and usage prior to controlling any loads
+
 ## [1.4.6] - 2025-06-13
 ### Changed
 Removed nginx logging to file since it was breaking installs. 

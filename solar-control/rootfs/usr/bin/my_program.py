@@ -7,6 +7,7 @@ from device import Device
 from battery import Battery
 from solar_controller import SolarController
 from utils import get_sunrise_time, setup_logging
+from mqtt_client import connect as mqtt_connect, disconnect as mqtt_disconnect, publish_message, update_device_state, publish_status
 
 # Set up logging using the centralized configuration
 logger = setup_logging()
@@ -54,9 +55,120 @@ controller = SolarController(
     devices_file="/data/devices.json"
 )
 
+# Initialize MQTT connection
+logger.info("Initializing MQTT connection...")
+if mqtt_connect():
+    logger.info("MQTT connection established successfully")
+    # Publish optimization toggle state
+    try:
+        with open(SETTINGS_FILE, 'r') as f:
+            settings = json.load(f)
+        optimization_enabled = settings.get('power_optimization_enabled', False)
+        publish_message('solar_control/optimization_enabled', str(optimization_enabled).lower(), retain=True)
+    except Exception as e:
+        logger.error(f"Error publishing initial optimization state: {e}")
+else:
+    logger.warning("Failed to establish MQTT connection")
+
 # Start the control loop
 logger.info("Starting solar controller control loop...")
 controller.start_control_loop()
+
+# Function to update device states via MQTT
+def update_device_states_mqtt():
+    try:
+        for device_name, device_state in controller.device_states.items():
+            state = {
+                'is_on': device_state.is_on,
+                'last_state_change': device_state.last_state_change.isoformat() if device_state.last_state_change else None,
+                'current_amperage': device_state.current_amperage,
+                'has_completed': device_state.has_completed
+            }
+            update_device_state(device_name, state)
+    except Exception as e:
+        logger.error(f"Error updating device states via MQTT: {e}")
+
+# Modify the device state endpoints to publish MQTT updates
+@app.route('/api/devices/<name>/state', methods=['GET'])
+def get_device_state(name):
+    try:
+        logger.debug(f"Getting state for device: {name}")
+        devices = Device.load_all(DEVICES_FILE)
+        
+        device = next((d for d in devices if d.name == name), None)
+        if device is None:
+            logger.info(f"Device not found: {name}")
+            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+
+        # Get the current state from Home Assistant
+        supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
+        if not supervisor_token:
+            logger.error("No supervisor token available in environment")
+            return jsonify({'status': 'error', 'message': 'No supervisor token available'}), 500
+
+        headers = {
+            "Authorization": f"Bearer {supervisor_token}",
+            "Content-Type": "application/json",
+        }
+
+        response = requests.get(
+            f"http://supervisor/core/api/states/{device.switch_entity}",
+            headers=headers
+        )
+        response.raise_for_status()
+        state = response.json().get('state', 'off')
+        logger.debug(f"Retrieved state for device {name}: {state}")
+        
+        # Publish state to MQTT
+        update_device_state(name, {'state': state})
+        
+        return jsonify({'state': state})
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error getting device state for {name}: {e}")
+        return jsonify({'status': 'error', 'message': f'Network error: {str(e)}'}), 400
+    except Exception as e:
+        logger.error(f"Error getting device state for {name}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/devices/<name>/set_state', methods=['POST'])
+def set_device_state(name):
+    try:
+        data = request.get_json()
+        logger.debug(f"Setting state for device {name}: {data}")
+        
+        if not data or 'state' not in data:
+            logger.info(f"Invalid request data: {data}")
+            return jsonify({'status': 'error', 'message': 'Invalid request data'}), 400
+
+        devices = Device.load_all(DEVICES_FILE)
+        device = next((d for d in devices if d.name == name), None)
+        
+        if device is None:
+            logger.info(f"Device not found: {name}")
+            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+
+        # Set the device state using the explicit set_state method
+        success = device.set_state(data['state'])
+        if not success:
+            logger.error(f"Failed to set state for device {name}")
+            return jsonify({'status': 'error', 'message': 'Failed to set device state'}), 500
+
+        # Publish state to MQTT
+        update_device_state(name, {'state': data['state']})
+        
+        logger.info(f"Successfully set state for device {name} to {data['state']}")
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Error setting device state for {name}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+# Add cleanup on application shutdown
+@app.teardown_appcontext
+def cleanup(exception=None):
+    try:
+        mqtt_disconnect()
+    except Exception as e:
+        logger.error(f"Error during MQTT cleanup: {e}")
 
 # Log static file configuration
 logger.info('Static folder: %s', app.static_folder)
@@ -153,7 +265,9 @@ def static_page(page):
         },
         'configure/battery': {
             'template': 'configure_battery.html',
-            'data': lambda: {}
+            'data': lambda: {
+                'entities': get_entities()
+            }
         },
         'configure/devices': {
             'template': 'configure_devices.html',
@@ -349,8 +463,12 @@ def configure_battery():
     except (FileNotFoundError, json.JSONDecodeError):
         config = {}
     
+    # Get entities for the searchable selects
+    entities = get_entities()
+    
     return make_response(render_template('configure_battery.html',
                          config=config,
+                         entities=entities,
                          ingress_path=ingress_path,
                          basename=ingress_path))
 
@@ -546,6 +664,12 @@ def get_status():
             'version': '1.0.0',  # TODO: Get actual version
             'power_optimization_enabled': settings.get('power_optimization_enabled', False)
         }
+        
+        # Add debug state information if available
+        debug_state = controller.get_debug_state()
+        if debug_state:
+            status['debug_state'] = debug_state.to_dict()
+        
         logger.debug(f"System status: {status}")
         return jsonify(status)
     except Exception as e:
@@ -584,77 +708,13 @@ def update_power_optimization():
         with open(SETTINGS_FILE, 'w') as f:
             json.dump(settings, f, indent=4)
         
+        # Publish state to MQTT
+        publish_message('solar_control/optimization_enabled', str(enabled).lower(), retain=True)
+        
         logger.info(f"Successfully updated power optimization setting to: {enabled}")
         return jsonify({'status': 'success'})
     except Exception as e:
         logger.error(f"Error updating power optimization setting: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 400
-
-@app.route('/api/devices/<name>/state', methods=['GET'])
-def get_device_state(name):
-    try:
-        logger.debug(f"Getting state for device: {name}")
-        devices = Device.load_all(DEVICES_FILE)
-        
-        device = next((d for d in devices if d.name == name), None)
-        if device is None:
-            logger.info(f"Device not found: {name}")
-            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
-
-        # Get the current state from Home Assistant
-        supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
-        if not supervisor_token:
-            logger.error("No supervisor token available in environment")
-            return jsonify({'status': 'error', 'message': 'No supervisor token available'}), 500
-
-        headers = {
-            "Authorization": f"Bearer {supervisor_token}",
-            "Content-Type": "application/json",
-        }
-
-        response = requests.get(
-            f"http://supervisor/core/api/states/{device.switch_entity}",
-            headers=headers
-        )
-        response.raise_for_status()
-        state = response.json().get('state', 'off')
-        logger.debug(f"Retrieved state for device {name}: {state}")
-        
-        return jsonify({'state': state})
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Network error getting device state for {name}: {e}")
-        return jsonify({'status': 'error', 'message': f'Network error: {str(e)}'}), 400
-    except Exception as e:
-        logger.error(f"Error getting device state for {name}: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 400
-
-@app.route('/api/devices/<name>/set_state', methods=['POST'])
-def set_device_state(name):
-    try:
-        data = request.get_json()
-        logger.debug(f"Setting state for device {name}: {data}")
-        
-        if not data or 'state' not in data:
-            logger.info(f"Invalid request data: {data}")
-            return jsonify({'status': 'error', 'message': 'Invalid request data'}), 400
-
-        devices = Device.load_all(DEVICES_FILE)
-        device = next((d for d in devices if d.name == name), None)
-        
-        if device is None:
-            logger.info(f"Device not found: {name}")
-            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
-
-        # Set the device state using the explicit set_state method
-        success = device.set_state(data['state'])
-        if not success:
-            logger.error(f"Failed to set state for device {name}")
-            return jsonify({'status': 'error', 'message': 'Failed to set device state'}), 500
-
-        logger.info(f"Successfully set state for device {name} to {data['state']}")
-        return jsonify({'status': 'success'})
-    except Exception as e:
-        logger.error(f"Error setting device state for {name}: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/states/<entity_id>', methods=['GET'])
@@ -771,8 +831,13 @@ def get_battery():
 @app.route('/api/battery', methods=['POST'])
 def update_battery():
     try:
+        # Log the raw request data
+        logger.debug(f"Raw request data: {request.get_data()}")
+        logger.debug(f"Request content type: {request.content_type}")
+        logger.debug(f"Request headers: {dict(request.headers)}")
+        
         data = request.json
-        logger.debug(f"Updating battery configuration: {data}")
+        logger.debug(f"Parsed JSON data: {data}")
         if not data:
             logger.info("No data provided for battery update")
             return jsonify({'status': 'error', 'message': 'No data provided'}), 400
@@ -780,14 +845,27 @@ def update_battery():
         # Validate required fields
         if 'size_kwh' not in data or 'battery_percent_entity' not in data:
             logger.info("Missing required fields for battery update")
+            logger.info(f"Received fields: {list(data.keys()) if data else 'None'}")
             return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
+
+        # Validate data types
+        try:
+            size_kwh = float(data['size_kwh'])
+            battery_percent_entity = str(data['battery_percent_entity'])
+            max_charging_speed_kw = float(data['max_charging_speed_kw']) if data.get('max_charging_speed_kw') else None
+            expected_kwh_per_hour = float(data['expected_kwh_per_hour']) if data.get('expected_kwh_per_hour') else None
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid data type in battery configuration: {e}")
+            return jsonify({'status': 'error', 'message': f'Invalid data type: {str(e)}'}), 400
+
+        logger.debug(f"Validated data: size_kwh={size_kwh}, battery_percent_entity={battery_percent_entity}, max_charging_speed_kw={max_charging_speed_kw}, expected_kwh_per_hour={expected_kwh_per_hour}")
 
         # Create battery object
         battery = Battery(
-            size_kwh=float(data['size_kwh']),
-            battery_percent_entity=data['battery_percent_entity'],
-            max_charging_speed_kw=float(data['max_charging_speed_kw']) if data.get('max_charging_speed_kw') else None,
-            force_charge_entity=data.get('force_charge_entity')
+            size_kwh=size_kwh,
+            battery_percent_entity=battery_percent_entity,
+            max_charging_speed_kw=max_charging_speed_kw,
+            expected_kwh_per_hour=expected_kwh_per_hour
         )
 
         # Save configuration

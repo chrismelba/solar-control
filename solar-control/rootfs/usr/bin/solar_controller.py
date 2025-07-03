@@ -9,6 +9,7 @@ import math
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from device import Device
+from battery import Battery
 import json
 from utils import setup_logging
 
@@ -38,6 +39,9 @@ class DebugState:
     optional_devices: List[Dict] = None
     power_optimization_enabled: bool = True
     manual_power_override: Optional[float] = None
+    solar_forecast_remaining: Optional[float] = None
+    expected_energy_remaining: Optional[float] = None
+    hours_until_sunset: Optional[float] = None
 
     def to_dict(self) -> dict:
         return {
@@ -48,7 +52,10 @@ class DebugState:
             'mandatory_devices': self.mandatory_devices or [],
             'optional_devices': self.optional_devices or [],
             'power_optimization_enabled': self.power_optimization_enabled,
-            'manual_power_override': self.manual_power_override
+            'manual_power_override': self.manual_power_override,
+            'solar_forecast_remaining': self.solar_forecast_remaining,
+            'expected_energy_remaining': self.expected_energy_remaining,
+            'hours_until_sunset': self.hours_until_sunset
         }
 
 class SolarController:
@@ -454,6 +461,214 @@ class SolarController:
             logger.error(f"Failed to determine tariff mode: {e}")
             return 'normal'
 
+    def get_sunset_time(self) -> Optional[datetime]:
+        """Get the sunset time for today from the sun.sun entity.
+        
+        Returns:
+            datetime: Sunset time in local timezone, or None if unable to determine
+        """
+        try:
+            response = requests.get(
+                f"{self.hass_url}/api/states/sun.sun",
+                headers=self.get_headers()
+            )
+            response.raise_for_status()
+            sun_data = response.json()
+            
+            # Get sunset time from attributes
+            sunset_str = sun_data.get('attributes', {}).get('next_setting')
+            if not sunset_str:
+                logger.error("No sunset time available from sun.sun entity")
+                return None
+                
+            # Parse the sunset time (it's in ISO format)
+            sunset_time = datetime.fromisoformat(sunset_str.replace('Z', '+00:00'))
+            logger.debug(f"Sunset time: {sunset_time}")
+            return sunset_time
+            
+        except Exception as e:
+            logger.error(f"Failed to get sunset time: {e}")
+            return None
+
+    def get_hours_until_sunset(self) -> Optional[float]:
+        """Calculate the number of hours until sunset.
+        
+        Returns:
+            float: Hours until sunset, or None if unable to determine
+        """
+        sunset_time = self.get_sunset_time()
+        if not sunset_time:
+            return None
+            
+        current_time = datetime.now(timezone.utc)
+        time_until_sunset = sunset_time - current_time
+        hours_until_sunset = time_until_sunset.total_seconds() / 3600
+        
+        logger.debug(f"Hours until sunset: {hours_until_sunset:.2f}")
+        return max(0, hours_until_sunset)  # Don't return negative values
+
+    def get_solar_forecast_remaining(self) -> Optional[float]:
+        """Get the remaining solar forecast energy for today.
+        
+        Returns:
+            float: Remaining solar forecast in kWh, or None if unable to determine
+        """
+        config = self.load_config()
+        if not config.get('solar_forecast'):
+            logger.warning("No solar forecast entity configured")
+            return None
+            
+        try:
+            logger.debug(f"Fetching solar forecast from {config['solar_forecast']}")
+            response = requests.get(
+                f"{self.hass_url}/api/states/{config['solar_forecast']}", 
+                headers=self.get_headers()
+            )
+            response.raise_for_status()
+            forecast_data = response.json()
+            
+            forecast_value = float(forecast_data.get('state', 0))
+            unit = forecast_data.get('attributes', {}).get('unit_of_measurement', 'kWh')
+            
+            # Convert to kWh if needed
+            if unit.lower() == 'wh':
+                forecast_value /= 1000
+            elif unit.lower() == 'mwh':
+                forecast_value *= 1000
+                
+            logger.debug(f"Solar forecast remaining: {forecast_value}kWh")
+            return forecast_value
+            
+        except Exception as e:
+            logger.error(f"Failed to get solar forecast: {e}")
+            return None
+
+    def get_battery_charging_requirement(self) -> Optional[float]:
+        """Calculate the energy required to fully charge the battery.
+        
+        Returns:
+            float: Energy required to charge battery in kWh, or None if unable to determine
+        """
+        try:
+            # Load battery configuration
+            battery = Battery.load('/data/battery.json')
+            if not battery:
+                logger.debug("No battery configuration found")
+                return None
+                
+            # Get current battery percentage
+            response = requests.get(
+                f"{self.hass_url}/api/states/{battery.battery_percent_entity}",
+                headers=self.get_headers()
+            )
+            response.raise_for_status()
+            battery_data = response.json()
+            
+            current_percentage = float(battery_data.get('state', 0))
+            logger.debug(f"Current battery percentage: {current_percentage}%")
+            
+            # Calculate energy needed to charge to 100%
+            energy_needed = battery.size_kwh * (100 - current_percentage) / 100
+            
+            logger.debug(f"Battery charging requirement: {energy_needed}kWh")
+            return energy_needed
+            
+        except Exception as e:
+            logger.error(f"Failed to calculate battery charging requirement: {e}")
+            return None
+
+    def is_battery_full_enough(self) -> bool:
+        """Check if the battery is full enough (>95%) to allow normal device control.
+        
+        Returns:
+            bool: True if battery is >95% charged, False otherwise or if unable to determine
+        """
+        try:
+            # Load battery configuration
+            battery = Battery.load('/data/battery.json')
+            if not battery:
+                logger.debug("No battery configuration found")
+                return True  # No battery means no restrictions
+                
+            # Get current battery percentage
+            response = requests.get(
+                f"{self.hass_url}/api/states/{battery.battery_percent_entity}",
+                headers=self.get_headers()
+            )
+            response.raise_for_status()
+            battery_data = response.json()
+            
+            current_percentage = float(battery_data.get('state', 0))
+            logger.debug(f"Current battery percentage: {current_percentage}%")
+            
+            # Consider battery "full enough" if >95%
+            is_full_enough = current_percentage > 95
+            logger.debug(f"Battery full enough: {is_full_enough}")
+            return is_full_enough
+            
+        except Exception as e:
+            logger.error(f"Failed to check battery fullness: {e}")
+            return True  # Default to allowing control if we can't determine
+
+    def get_expected_energy_remaining(self) -> Optional[float]:
+        """Calculate the expected energy remaining in the forecast today after accounting for household consumption and battery charging.
+        
+        This method:
+        1. Gets the solar forecast remaining for today
+        2. If battery is configured with expected_kwh_per_hour, calculates household energy consumption over remaining daylight hours
+        3. Calculates actual battery charging requirement based on current battery state
+        4. Subtracts both household consumption and battery charging needs from solar forecast
+        5. Returns the net available energy for discretionary devices
+        
+        Returns:
+            float: Expected energy remaining in kWh, or None if unable to determine
+        """
+        # Get solar forecast remaining
+        solar_forecast = self.get_solar_forecast_remaining()
+        if solar_forecast is None:
+            logger.warning("Unable to get solar forecast - cannot calculate expected energy remaining")
+            return None
+            
+        # Load battery configuration to check if battery is configured
+        try:
+            battery = Battery.load('/data/battery.json')
+            if not battery:
+                logger.debug("No battery configuration found - using full solar forecast")
+                return solar_forecast
+                
+            if battery.expected_kwh_per_hour is None:
+                logger.debug("Battery configured but expected_kwh_per_hour not set - using full solar forecast")
+                return solar_forecast
+                
+            # Get hours until sunset
+            hours_until_sunset = self.get_hours_until_sunset()
+            if hours_until_sunset is None:
+                logger.warning("Unable to get hours until sunset - using full solar forecast")
+                return solar_forecast
+                
+            # Calculate house energy consumption
+            house_energy_needed = battery.expected_kwh_per_hour * hours_until_sunset
+            
+            # Calculate battery charging requirement
+            battery_energy_needed = self.get_battery_charging_requirement()
+            if battery_energy_needed is None:
+                logger.warning("Unable to calculate battery charging requirement - using house energy only")
+                battery_energy_needed = 0
+            
+            # Calculate total energy needed
+            total_energy_needed = house_energy_needed + battery_energy_needed
+            
+            # Calculate net available energy
+            net_energy = solar_forecast - total_energy_needed
+            
+            logger.info(f"Solar forecast: {solar_forecast}kWh, House needs: {house_energy_needed}kWh, Battery needs: {battery_energy_needed}kWh, Total: {total_energy_needed}kWh over {hours_until_sunset:.2f}h, Net available: {net_energy}kWh")
+            
+            return max(0, net_energy)  # Don't return negative values
+            
+        except Exception as e:
+            logger.error(f"Failed to calculate expected energy remaining: {e}")
+            return solar_forecast  # Fall back to full solar forecast
+
     def is_between_dawn_and_dusk(self) -> bool:
         """Check if current time is between dawn and dusk using sun.sun entity"""
         try:
@@ -532,6 +747,11 @@ class SolarController:
             settings = self.load_settings()
             power_optimization_enabled = settings.get('power_optimization_enabled', True)
             
+            # Get solar forecast and energy remaining information
+            solar_forecast_remaining = self.get_solar_forecast_remaining()
+            expected_energy_remaining = self.get_expected_energy_remaining()
+            hours_until_sunset = self.get_hours_until_sunset()
+            
             # Initialize debug state
             self.debug_state = DebugState(
                 timestamp=current_time,
@@ -539,7 +759,10 @@ class SolarController:
                 grid_voltage=voltage,
                 grid_power=grid_power,
                 power_optimization_enabled=power_optimization_enabled,
-                manual_power_override=self.manual_power_override
+                manual_power_override=self.manual_power_override,
+                solar_forecast_remaining=solar_forecast_remaining,
+                expected_energy_remaining=expected_energy_remaining,
+                hours_until_sunset=hours_until_sunset
             )
 
             # Phase 1: Handle mandatory devices (common to all control modes)
@@ -652,6 +875,28 @@ class SolarController:
         logger.info(f"Running solar control mode with {available_power}W available")
         optional_devices = []
         
+        # Check battery priority - if battery is full enough or we have excess energy, allow normal control
+        battery_priority_active = False
+        try:
+            battery = Battery.load('/data/battery.json')
+            if battery and battery.expected_kwh_per_hour is not None:
+                # Check if battery is full enough (>95%)
+                if self.is_battery_full_enough():
+                    logger.info("Battery is full enough (>95%) - allowing normal device control")
+                else:
+                    # Check if we have excess energy remaining
+                    expected_energy_remaining = self.get_expected_energy_remaining()
+                    if expected_energy_remaining is not None and expected_energy_remaining > 0:
+                        logger.info(f"Excess energy available ({expected_energy_remaining:.2f}kWh) - allowing normal device control")
+                    else:
+                        logger.info("Battery priority active - reserving solar for battery charging")
+                        battery_priority_active = True
+            else:
+                logger.debug("No battery configured - allowing normal device control")
+        except Exception as e:
+            logger.error(f"Error checking battery priority: {e}")
+            # Default to allowing control if we can't determine battery status
+        
         # First, handle mandatory devices that must stay on
         for device_state, power, amperage in devices_to_turn_on[:]:
             device = device_state.device
@@ -744,23 +989,32 @@ class SolarController:
                     power_needed = device.typical_power_draw
                     logger.debug(f"Using typical power for {device.name}: {power_needed}W")
             
-            # Check if we have enough power
-            if power_needed <= available_power:
+            # Check if we have enough power and battery priority allows it
+            has_enough_power = power_needed <= available_power
+            battery_allows_control = not battery_priority_active
+            
+            if has_enough_power and battery_allows_control:
                 logger.info(f"Turning on {device.name} with {power_needed}W" + 
                           (f" at {optimal_amperage}A" if device.has_variable_amperage else ""))
                 devices_to_turn_on.append((device_state, power_needed, optimal_amperage if device.has_variable_amperage else None))
                 available_power -= power_needed
+                
                 optional_devices.append({
                     'name': device.name,
                     'power': power_needed,
                     'reason': 'Will be turned on'
                 })
             else:
-                logger.info(f"Not enough power for {device.name} (needs {power_needed}W, has {available_power}W)")
+                if not has_enough_power:
+                    reason = 'Not enough power available'
+                else:
+                    reason = 'Battery priority active - reserving solar for battery charging'
+                
+                logger.info(f"Not turning on {device.name} - {reason}")
                 optional_devices.append({
                     'name': device.name,
                     'power': 0,
-                    'reason': 'Not enough power available'
+                    'reason': reason
                 })
         
         self.debug_state.optional_devices = optional_devices

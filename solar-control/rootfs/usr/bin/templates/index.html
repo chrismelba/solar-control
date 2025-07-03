@@ -9,7 +9,7 @@
     <style>
         h1 {
             text-align: center;
-            margin: 0;
+            margin: 0 0 0 72px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -17,6 +17,15 @@
         }
     </style>
     
+    <div class="card" id="devices">
+        <h2>Controllable Devices</h2>
+        <div id="deviceList" class="device-list">
+            {% for device in devices %}
+                {{ device_card(device, draggable=true) }}
+            {% endfor %}
+        </div>
+    </div>
+
     <div class="card" id="sensor-values">
         <h2>Current Sensor Values</h2>
         <div class="sensor-grid">
@@ -50,6 +59,18 @@
                 {% endif %}
             </div>
 
+            <div class="sensor-card">
+                <h3>Expected Energy Remaining</h3>
+                <p class="value" id="expectedEnergyRemaining">Loading...</p>
+                <p class="name">After battery charging</p>
+            </div>
+
+            <div class="sensor-card">
+                <h3>Hours Until Sunset</h3>
+                <p class="value" id="hoursUntilSunset">Loading...</p>
+                <p class="name">Remaining daylight</p>
+            </div>
+
             {% if sensor_values.tariff_rate %}
             <div class="sensor-card">
                 <h3>Current Tariff</h3>
@@ -68,15 +89,6 @@
                     <p class="value">Not available</p>
                 {% endif %}
             </div>
-        </div>
-    </div>
-
-    <div class="card" id="devices">
-        <h2>Controllable Devices</h2>
-        <div id="deviceList" class="device-list">
-            {% for device in devices %}
-                {{ device_card(device, draggable=true) }}
-            {% endfor %}
         </div>
     </div>
 
@@ -296,8 +308,10 @@
         // Update status immediately and then periodically
         document.addEventListener('DOMContentLoaded', () => {
             updateStatus();
+            updateForecastInfo();
             runControlLoop(); // Run control loop when page loads
             setInterval(updateStatus, 30000);  // Update every 30 seconds
+            setInterval(updateForecastInfo, 60000);  // Update forecast info every minute
         });
 
         // Handle toggle changes
@@ -430,5 +444,43 @@
         }
         setInterval(updateDeviceCards, 60000); // Update every minute
         updateDeviceCards();
+
+        // Update forecast information
+        async function updateForecastInfo() {
+            try {
+                const data = await apiCall('/api/status');
+                
+                // Update expected energy remaining
+                const expectedEnergyElem = document.getElementById('expectedEnergyRemaining');
+                if (expectedEnergyElem) {
+                    if (data.debug_state && data.debug_state.expected_energy_remaining !== null) {
+                        expectedEnergyElem.textContent = `${data.debug_state.expected_energy_remaining.toFixed(2)} kWh`;
+                    } else if (data.debug_state && data.debug_state.solar_forecast_remaining !== null) {
+                        // If no battery is configured, show the raw solar forecast
+                        expectedEnergyElem.textContent = `${data.debug_state.solar_forecast_remaining.toFixed(2)} kWh (raw forecast)`;
+                    } else {
+                        expectedEnergyElem.textContent = 'Not available';
+                    }
+                }
+                
+                // Update hours until sunset
+                const hoursUntilSunsetElem = document.getElementById('hoursUntilSunset');
+                if (hoursUntilSunsetElem && data.debug_state && data.debug_state.hours_until_sunset !== null) {
+                    if (data.debug_state.hours_until_sunset > 0) {
+                        hoursUntilSunsetElem.textContent = `${data.debug_state.hours_until_sunset.toFixed(1)}h`;
+                    } else {
+                        hoursUntilSunsetElem.textContent = 'Night';
+                    }
+                } else if (hoursUntilSunsetElem) {
+                    hoursUntilSunsetElem.textContent = 'Not available';
+                }
+            } catch (error) {
+                console.error('Error updating forecast info:', error);
+                const expectedEnergyElem = document.getElementById('expectedEnergyRemaining');
+                const hoursUntilSunsetElem = document.getElementById('hoursUntilSunset');
+                if (expectedEnergyElem) expectedEnergyElem.textContent = 'Error';
+                if (hoursUntilSunsetElem) hoursUntilSunsetElem.textContent = 'Error';
+            }
+        }
     </script>
 {% endblock %} 
