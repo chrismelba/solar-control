@@ -1131,8 +1131,21 @@ class SolarController:
                 continue
                 
             # Check if device has completed its task
-            if device.run_once and device_state.is_on:
-                if self.check_device_completion(device_state):
+            if device.completion_sensor:
+                # First check if we already know it's completed
+                if device_state.has_completed:
+                    logger.info(f"Skipping {device.name} - task already completed")
+                    optional_devices.append({
+                        'name': device.name,
+                        'power': 0,
+                        'reason': 'Task completed'
+                    })
+                    if existing_index is not None:
+                        devices_to_turn_on.pop(existing_index)
+                    continue
+                
+                # Check completion sensor if device is currently on
+                if device_state.is_on and self.check_device_completion(device_state):
                     logger.info(f"Turning off {device.name} - task completed")
                     device_state.has_completed = True
                     optional_devices.append({
