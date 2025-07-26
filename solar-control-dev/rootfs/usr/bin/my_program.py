@@ -336,6 +336,27 @@ def get_sensor_values():
             logger.error(f"Error determining tariff mode: {e}")
             sensor_values['tariff_mode'] = 'error'
     
+    # Add bring forward power and battery configuration
+    try:
+        # Get debug state to access bring forward power
+        debug_state = controller.get_debug_state()
+        if debug_state and debug_state.bring_forward_power is not None:
+            sensor_values['bring_forward_power'] = {
+                'state': f"{debug_state.bring_forward_power:.0f}",
+                'unit': 'W',
+                'friendly_name': 'Bring Forward Power'
+            }
+        
+        # Get battery configuration to check bring forward mode
+        battery = Battery.load(BATTERY_FILE)
+        if battery:
+            sensor_values['bring_forward_mode'] = {
+                'state': 'enabled' if battery.bring_forward_mode else 'disabled',
+                'friendly_name': 'Bring Forward Mode'
+            }
+    except Exception as e:
+        logger.error(f"Error getting bring forward information: {e}")
+    
     return sensor_values
 
 

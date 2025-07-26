@@ -89,6 +89,23 @@
                     <p class="value">Not available</p>
                 {% endif %}
             </div>
+
+            <div class="sensor-card">
+                <h3>Bring Forward Power</h3>
+                {% if sensor_values.bring_forward_power %}
+                    <p class="value">{{ sensor_values.bring_forward_power.state }} {{ sensor_values.bring_forward_power.unit }}</p>
+                    <p class="name">{{ sensor_values.bring_forward_power.friendly_name }}</p>
+                    {% if sensor_values.bring_forward_mode %}
+                        <p class="mode">Mode: {{ sensor_values.bring_forward_mode.state }}</p>
+                    {% endif %}
+                {% else %}
+                    <p class="value">Not available</p>
+                    <p class="name">Bring Forward Power</p>
+                    {% if sensor_values.bring_forward_mode %}
+                        <p class="mode">Mode: {{ sensor_values.bring_forward_mode.state }}</p>
+                    {% endif %}
+                {% endif %}
+            </div>
         </div>
     </div>
 
@@ -115,7 +132,7 @@
         }
         @media (min-width: 1200px) {
             .sensor-grid {
-                grid-template-columns: repeat(4, 1fr);
+                grid-template-columns: repeat(5, 1fr);
             }
         }
         @media (max-width: 768px) {
@@ -473,6 +490,21 @@
                     }
                 } else if (hoursUntilSunsetElem) {
                     hoursUntilSunsetElem.textContent = 'Not available';
+                }
+                
+                // Update bring forward power
+                const bringForwardCards = document.querySelectorAll('.sensor-card');
+                for (const card of bringForwardCards) {
+                    const title = card.querySelector('h3');
+                    if (title && title.textContent === 'Bring Forward Power') {
+                        if (data.debug_state && data.debug_state.bring_forward_power !== null) {
+                            const valueElem = card.querySelector('.value');
+                            if (valueElem) {
+                                valueElem.textContent = `${data.debug_state.bring_forward_power.toFixed(0)} W`;
+                            }
+                        }
+                        break;
+                    }
                 }
             } catch (error) {
                 console.error('Error updating forecast info:', error);
