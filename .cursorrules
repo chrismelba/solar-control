@@ -7,14 +7,23 @@ This is a Home Assistant add-on for solar power management and device control. T
 - Integration with Home Assistant API for device control and sensor data
 - Support for both production (`solar-control`) and development (`solar-control-dev`) versions
 
-## Code Structure
-- **Main Application**: `solar-control/rootfs/usr/bin/my_program.py` - Flask web server
-- **Core Logic**: `solar-control/rootfs/usr/bin/solar_controller.py` - Solar power management
-- **Device Management**: `solar-control/rootfs/usr/bin/device.py` - Device abstraction
-- **Battery Management**: `solar-control/rootfs/usr/bin/battery.py` - Battery configuration
-- **Utilities**: `solar-control/rootfs/usr/bin/utils.py` - Helper functions
-- **Web Interface**: `solar-control/rootfs/usr/bin/templates/` - HTML templates
-- **Static Assets**: `solar-control/rootfs/usr/bin/static/` - CSS, JS, images
+## CRITICAL: Development Workflow
+- **ONLY work in the `solar-control-dev/` folder**
+- **NEVER edit files in the `solar-control/` (production) folder**
+- Production deployments are handled by automated scripts
+- All development, testing, and changes must be made in the development version
+- The production version is for deployment only, not for direct editing
+
+## Code Structure (Development Version)
+- **Main Application**: `solar-control-dev/rootfs/usr/bin/my_program.py` - Flask web server
+- **Core Logic**: `solar-control-dev/rootfs/usr/bin/solar_controller.py` - Solar power management
+- **Device Management**: `solar-control-dev/rootfs/usr/bin/device.py` - Device abstraction
+- **Battery Management**: `solar-control-dev/rootfs/usr/bin/battery.py` - Battery configuration
+- **Utilities**: `solar-control-dev/rootfs/usr/bin/utils.py` - Helper functions
+- **Web Interface**: `solar-control-dev/rootfs/usr/bin/templates/` - HTML templates
+- **Static Assets**: `solar-control-dev/rootfs/usr/bin/static/` - CSS, JS, images
+
+**Note**: All file paths shown are for the development version. Never edit files in the production `solar-control/` folder.
 
 ## Key Technologies
 - **Python 3** with Flask web framework
@@ -95,11 +104,12 @@ This is a Home Assistant add-on for solar power management and device control. T
 ## Common Tasks
 
 ### Adding New Features
-1. Update the main Flask application (`my_program.py`)
+1. Update the main Flask application (`solar-control-dev/rootfs/usr/bin/my_program.py`)
 2. Add corresponding template files if UI changes needed
-3. Update configuration schema in `config.yaml`
-4. Add any new dependencies to `requirements.txt`
+3. Update configuration schema in `solar-control-dev/config.yaml`
+4. Add any new dependencies to `solar-control-dev/requirements.txt`
 5. Test in development environment first
+6. **Remember**: Only work in `solar-control-dev/` folder
 
 ### Device Management
 - Devices are defined in JSON format with properties like name, switch_entity, power_entity, etc.
@@ -128,10 +138,11 @@ This is a Home Assistant add-on for solar power management and device control. T
 - Maintain clear separation between UI and business logic
 
 ## Deployment
-- Development version: `solar-control-dev/`
-- Production version: `solar-control/`
+- **Development version**: `solar-control-dev/` - This is where ALL development work happens
+- **Production version**: `solar-control/` - This is for deployment only, NEVER edit directly
 - Both use similar structure but different configurations
 - Test changes in development before promoting to production
+- Production deployments are automated via scripts - never manually edit production files
 
 ## Error Handling
 - Log all errors with appropriate levels
