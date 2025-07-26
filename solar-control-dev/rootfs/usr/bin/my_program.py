@@ -854,18 +854,20 @@ def update_battery():
             battery_percent_entity = str(data['battery_percent_entity'])
             max_charging_speed_kw = float(data['max_charging_speed_kw']) if data.get('max_charging_speed_kw') else None
             expected_kwh_per_hour = float(data['expected_kwh_per_hour']) if data.get('expected_kwh_per_hour') else None
+            bring_forward_mode = bool(data.get('bring_forward_mode', False))
         except (ValueError, TypeError) as e:
             logger.error(f"Invalid data type in battery configuration: {e}")
             return jsonify({'status': 'error', 'message': f'Invalid data type: {str(e)}'}), 400
 
-        logger.debug(f"Validated data: size_kwh={size_kwh}, battery_percent_entity={battery_percent_entity}, max_charging_speed_kw={max_charging_speed_kw}, expected_kwh_per_hour={expected_kwh_per_hour}")
+        logger.debug(f"Validated data: size_kwh={size_kwh}, battery_percent_entity={battery_percent_entity}, max_charging_speed_kw={max_charging_speed_kw}, expected_kwh_per_hour={expected_kwh_per_hour}, bring_forward_mode={bring_forward_mode}")
 
         # Create battery object
         battery = Battery(
             size_kwh=size_kwh,
             battery_percent_entity=battery_percent_entity,
             max_charging_speed_kw=max_charging_speed_kw,
-            expected_kwh_per_hour=expected_kwh_per_hour
+            expected_kwh_per_hour=expected_kwh_per_hour,
+            bring_forward_mode=bring_forward_mode
         )
 
         # Save configuration

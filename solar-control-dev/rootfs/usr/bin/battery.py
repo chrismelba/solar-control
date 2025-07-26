@@ -10,7 +10,8 @@ class Battery:
                  size_kwh: float,
                  battery_percent_entity: str,
                  max_charging_speed_kw: Optional[float] = None,
-                 expected_kwh_per_hour: Optional[float] = None):
+                 expected_kwh_per_hour: Optional[float] = None,
+                 bring_forward_mode: bool = False):
         """
         Initialize a Battery object.
         
@@ -19,11 +20,13 @@ class Battery:
             battery_percent_entity (str): Home Assistant entity ID for battery percentage
             max_charging_speed_kw (float, optional): Maximum charging speed in kW
             expected_kwh_per_hour (float, optional): Expected kWh used per hour, subtracted from solar forecast
+            bring_forward_mode (bool): Experimental mode to shift load forward in the day if battery is sufficiently charged
         """
         self.size_kwh = size_kwh
         self.battery_percent_entity = battery_percent_entity
         self.max_charging_speed_kw = max_charging_speed_kw
         self.expected_kwh_per_hour = expected_kwh_per_hour
+        self.bring_forward_mode = bring_forward_mode
 
     def to_dict(self) -> dict:
         """Convert battery object to dictionary."""
@@ -31,7 +34,8 @@ class Battery:
             'size_kwh': self.size_kwh,
             'battery_percent_entity': self.battery_percent_entity,
             'max_charging_speed_kw': self.max_charging_speed_kw,
-            'expected_kwh_per_hour': self.expected_kwh_per_hour
+            'expected_kwh_per_hour': self.expected_kwh_per_hour,
+            'bring_forward_mode': self.bring_forward_mode
         }
 
     @classmethod
@@ -41,7 +45,8 @@ class Battery:
             size_kwh=data['size_kwh'],
             battery_percent_entity=data['battery_percent_entity'],
             max_charging_speed_kw=data.get('max_charging_speed_kw'),
-            expected_kwh_per_hour=data.get('expected_kwh_per_hour')
+            expected_kwh_per_hour=data.get('expected_kwh_per_hour'),
+            bring_forward_mode=data.get('bring_forward_mode', False)  # Default to False for backward compatibility
         )
 
     @classmethod

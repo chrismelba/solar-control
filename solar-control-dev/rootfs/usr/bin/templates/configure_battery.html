@@ -43,6 +43,15 @@
                 <small class="form-text text-muted">Optional: Expected household energy consumption per hour</small>
             </div>
 
+            <div class="form-group">
+                <label for="bring_forward_mode">Bring Forward Mode <span class="tooltip">ⓘ<span class="tooltiptext">Experimental mode, this will attempt to shift load forward in the day if your battery is sufficently charged and there is enough sun to fill it. It will start to charge a car off the battery so that if you drive away the battery can take the excees solar</span></span></label>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="bring_forward_mode" name="bring_forward_mode">
+                    <label for="bring_forward_mode" class="toggle-label"></label>
+                </div>
+                <small class="form-text text-muted">Experimental: Shift load forward when battery is sufficiently charged</small>
+            </div>
+
             <div class="form-actions">
                 <button type="submit" class="button">Save Configuration</button>
             </div>
@@ -59,6 +68,7 @@
                         document.getElementById('size_kwh').value = config.size_kwh || '';
                         document.getElementById('max_charging_speed_kw').value = config.max_charging_speed_kw || '';
                         document.getElementById('expected_kwh_per_hour').value = config.expected_kwh_per_hour || '';
+                        document.getElementById('bring_forward_mode').checked = config.bring_forward_mode || false;
                         
                         // Set the searchable select values properly
                         if (config.battery_percent_entity) {
@@ -83,13 +93,15 @@
                 const batteryPercentEntity = document.getElementById('battery_percent_entity').value;
                 const maxChargingSpeedKw = document.getElementById('max_charging_speed_kw').value;
                 const expectedKwhPerHour = document.getElementById('expected_kwh_per_hour').value;
+                const bringForwardMode = document.getElementById('bring_forward_mode').checked;
                 
                 // Debug logging
                 console.log('Form values:', {
                     size_kwh: sizeKwh,
                     battery_percent_entity: batteryPercentEntity,
                     max_charging_speed_kw: maxChargingSpeedKw,
-                    expected_kwh_per_hour: expectedKwhPerHour
+                    expected_kwh_per_hour: expectedKwhPerHour,
+                    bring_forward_mode: bringForwardMode
                 });
                 
                 // Validate required fields
@@ -102,7 +114,8 @@
                     size_kwh: parseFloat(sizeKwh),
                     battery_percent_entity: batteryPercentEntity,
                     max_charging_speed_kw: maxChargingSpeedKw ? parseFloat(maxChargingSpeedKw) : null,
-                    expected_kwh_per_hour: expectedKwhPerHour ? parseFloat(expectedKwhPerHour) : null
+                    expected_kwh_per_hour: expectedKwhPerHour ? parseFloat(expectedKwhPerHour) : null,
+                    bring_forward_mode: bringForwardMode
                 };
 
                 console.log('Sending data to server:', formData);
@@ -173,6 +186,52 @@
         .tooltip:hover .tooltiptext {
             visibility: visible;
             opacity: 1;
+        }
+
+        /* Toggle Switch Styles */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-label {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .toggle-label:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-label {
+            background-color: #2196F3;
+        }
+
+        input:checked + .toggle-label:before {
+            transform: translateX(26px);
         }
     </style>
 {% endblock %} 
