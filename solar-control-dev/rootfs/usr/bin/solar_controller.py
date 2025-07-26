@@ -42,6 +42,7 @@ class DebugState:
     solar_forecast_remaining: Optional[float] = None
     expected_energy_remaining: Optional[float] = None
     hours_until_sunset: Optional[float] = None
+    bring_forward_power: Optional[float] = None
 
     def to_dict(self) -> dict:
         return {
@@ -55,7 +56,8 @@ class DebugState:
             'manual_power_override': self.manual_power_override,
             'solar_forecast_remaining': self.solar_forecast_remaining,
             'expected_energy_remaining': self.expected_energy_remaining,
-            'hours_until_sunset': self.hours_until_sunset
+            'hours_until_sunset': self.hours_until_sunset,
+            'bring_forward_power': self.bring_forward_power
         }
 
 class SolarController:
@@ -827,6 +829,16 @@ class SolarController:
             expected_energy_remaining = self.get_expected_energy_remaining()
             hours_until_sunset = self.get_hours_until_sunset()
             
+            # Get bring forward power for solar control mode
+            bring_forward_power = None
+            try:
+                battery = Battery.load('/data/battery.json')
+                if battery and battery.bring_forward_mode:
+                    bring_forward_power = self.get_bring_forward_power()
+                    logger.debug(f"Bring forward power calculated: {bring_forward_power}W")
+            except Exception as e:
+                logger.error(f"Error getting bring forward power: {e}")
+            
             # Initialize debug state
             self.debug_state = DebugState(
                 timestamp=current_time,
@@ -837,7 +849,8 @@ class SolarController:
                 manual_power_override=self.manual_power_override,
                 solar_forecast_remaining=solar_forecast_remaining,
                 expected_energy_remaining=expected_energy_remaining,
-                hours_until_sunset=hours_until_sunset
+                hours_until_sunset=hours_until_sunset,
+                bring_forward_power=bring_forward_power
             )
 
             # Phase 1: Handle mandatory devices (common to all control modes)
@@ -949,6 +962,15 @@ class SolarController:
         """Run solar-based power control logic"""
         logger.info(f"Running solar control mode with {available_power}W available")
         optional_devices = []
+        
+        # Check if bring forward mode is enabled and add bring forward power to available power
+        bring_forward_power = self.debug_state.bring_forward_power
+        if bring_forward_power is not None and bring_forward_power > 0:
+            original_available_power = available_power
+            available_power += bring_forward_power
+            logger.info(f"Bring forward mode enabled - adding {bring_forward_power}W to available power: {original_available_power}W + {bring_forward_power}W = {available_power}W")
+        else:
+            logger.debug("Bring forward mode not enabled or no bring forward power available")
         
         # Check battery priority - if battery is full enough or we have excess energy, allow normal control
         battery_priority_active = False
