@@ -659,7 +659,7 @@ class SolarController:
             logger.debug(f"Bring forward battery factor: {bring_forward_battery}")
             
             # Get solar forecast remaining
-            solar_forecast = self.get_solar_forecast_remaining()
+            solar_forecast = self.get_expected_energy_remaining()
             if solar_forecast is None:
                 logger.debug("Unable to get solar forecast")
                 return None
