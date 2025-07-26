@@ -610,6 +610,81 @@ class SolarController:
             logger.error(f"Failed to check battery fullness: {e}")
             return True  # Default to allowing control if we can't determine
 
+    def get_bring_forward_power(self) -> Optional[float]:
+        """Calculate the bring forward power based on battery level and solar forecast.
+        
+        This method calculates a power value that represents how much power should be
+        "brought forward" from the current solar generation to power devices from the battery.
+        
+        The calculation uses two factors:
+        1. Battery level factor: 0 when battery is at 50%, 1 when battery is at 100%
+        2. Forecast factor: 0 when solar forecast is 0, 1 when solar forecast is 10kWh or greater
+        
+        Returns:
+            float: Bring forward power in watts, or None if unable to determine
+        """
+        try:
+            # Load battery configuration
+            battery = Battery.load('/data/battery.json')
+            if not battery:
+                logger.debug("No battery configuration found")
+                return None
+                
+            if battery.max_charging_speed_kw is None:
+                logger.debug("No maximum charging speed configured for battery")
+                return None
+                
+            # Get current battery percentage
+            response = requests.get(
+                f"{self.hass_url}/api/states/{battery.battery_percent_entity}",
+                headers=self.get_headers()
+            )
+            response.raise_for_status()
+            battery_data = response.json()
+            
+            current_percentage = float(battery_data.get('state', 0))
+            logger.debug(f"Current battery percentage: {current_percentage}%")
+            
+            # Calculate bring_forward_battery factor (0 at 50%, 1 at 100%)
+            if current_percentage <= 50:
+                bring_forward_battery = 0.0
+            elif current_percentage >= 100:
+                bring_forward_battery = 1.0
+            else:
+                # Linear interpolation between 50% and 100%
+                bring_forward_battery = (current_percentage - 50) / 50
+                
+            logger.debug(f"Bring forward battery factor: {bring_forward_battery}")
+            
+            # Get solar forecast remaining
+            solar_forecast = self.get_solar_forecast_remaining()
+            if solar_forecast is None:
+                logger.debug("Unable to get solar forecast")
+                return None
+                
+            # Calculate bring_forward_forecast factor (0 at 0kWh, 1 at 10kWh or greater)
+            if solar_forecast <= 0:
+                bring_forward_forecast = 0.0
+            elif solar_forecast >= 10:
+                bring_forward_forecast = 1.0
+            else:
+                # Linear interpolation between 0kWh and 10kWh
+                bring_forward_forecast = solar_forecast / 10
+                
+            logger.debug(f"Bring forward forecast factor: {bring_forward_forecast}")
+            
+            # Calculate final bring forward power
+            bring_forward_power_kw = bring_forward_battery * bring_forward_forecast * battery.max_charging_speed_kw
+            bring_forward_power_w = bring_forward_power_kw * 1000  # Convert kW to W
+            
+            logger.info(f"Bring forward power: {bring_forward_power_w}W (battery factor: {bring_forward_battery:.2f}, forecast factor: {bring_forward_forecast:.2f}, max charging speed: {battery.max_charging_speed_kw}kW)")
+            
+            return bring_forward_power_w
+            
+        except Exception as e:
+            logger.error(f"Failed to calculate bring forward power: {e}")
+            return None
+
     def get_expected_energy_remaining(self) -> Optional[float]:
         """Calculate the expected energy remaining in the forecast today after accounting for household consumption and battery charging.
         
