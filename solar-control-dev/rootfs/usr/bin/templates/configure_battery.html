@@ -19,10 +19,19 @@
                     <input type="hidden" name="battery_percent_entity" id="battery_percent_entity" value="{{ config.battery_percent_entity if config else '' }}">
                     <div class="options" id="battery_percent_entity_options">
                         {% for entity in entities %}
-                            {% if entity.entity_id.startswith('sensor.') and 'battery' in entity.entity_id.lower() and 'percentage' in entity.entity_id.lower() %}
+                            {% if entity.entity_id.startswith('sensor.') and 'battery' in entity.entity_id.lower() and (
+                                'percentage' in entity.entity_id.lower() or
+                                'percent' in entity.entity_id.lower() or
+                                'level' in entity.entity_id.lower() or
+                                'soc' in entity.entity_id.lower() or
+                                'state_of_charge' in entity.entity_id.lower() or
+                                'capacity' in entity.entity_id.lower() or
+                                (entity.attributes and entity.attributes.get('device_class') == 'battery') or
+                                (entity.attributes and entity.attributes.get('unit_of_measurement') == '%')
+                            ) %}
                                 <div class="option" data-value="{{ entity.entity_id }}"
                                      {% if config and entity.entity_id == config.battery_percent_entity %}data-selected="true"{% endif %}>
-                                    {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
+                                    {{ entity.attributes.friendly_name if entity.attributes and entity.attributes.friendly_name else entity.entity_id }} ({{ entity.entity_id }})
                                 </div>
                             {% endif %}
                         {% endfor %}
