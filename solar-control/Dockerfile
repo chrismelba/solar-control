@@ -10,7 +10,11 @@ RUN \
         py3-pip \
         nginx \
     && \
-    pip3 install --break-system-packages flask requests pytz paho-mqtt
+    python3 -m venv /opt/venv \
+    && \
+    /opt/venv/bin/pip install --no-cache-dir flask requests pytz paho-mqtt
+
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Create required directories
 RUN \
