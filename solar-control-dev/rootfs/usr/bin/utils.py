@@ -5,6 +5,9 @@ from datetime import datetime
 from logging.handlers import RotatingFileHandler
 import json
 
+# Module-level logger (used by set_mqtt_settings and get_sunrise_time)
+logger = logging.getLogger(__name__)
+
 def setup_logging():
     """Centralized logging configuration for the application"""
     try:
@@ -13,14 +16,10 @@ def setup_logging():
         if os.path.exists(options_file):
             with open(options_file, 'r') as f:
                 config = json.load(f)
-            print(f"Retrieved config from options.json: {config}")
             debug_level = config.get('debug_level', 'info').upper()
-            print(f"Debug level from config: {debug_level}")
         else:
-            print(f"Options file not found at {options_file}")
             debug_level = 'INFO'
     except Exception as e:
-        print(f"Error reading options file: {str(e)}")
         debug_level = 'INFO'  # Default to INFO level
 
     # Create logs directory if it doesn't exist

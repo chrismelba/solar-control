@@ -49,10 +49,16 @@ def before_request():
     app.static_url_path = f'{ingress_path}/static'
     logger.debug(f"Set static URL path to: {app.static_url_path}")
 
+# Configuration file paths (defined here so they're available from startup)
+CONFIG_FILE = '/data/solar_config.json'
+DEVICES_FILE = '/data/devices.json'
+SETTINGS_FILE = '/data/settings.json'
+BATTERY_FILE = '/data/battery.json'
+
 # Create controller instance
 controller = SolarController(
-    config_file="/data/solar_config.json",
-    devices_file="/data/devices.json"
+    config_file=CONFIG_FILE,
+    devices_file=DEVICES_FILE
 )
 
 # Initialize MQTT connection
@@ -177,12 +183,6 @@ logger.info('Static files available:')
 for root, dirs, files in os.walk(static_dir):
     for file in files:
         logger.info('  %s', os.path.join(root, file))
-
-# Configuration file paths
-CONFIG_FILE = '/data/solar_config.json'
-DEVICES_FILE = '/data/devices.json'
-SETTINGS_FILE = '/data/settings.json'
-BATTERY_FILE = '/data/battery.json'
 
 # Debug: Log data directory state
 logger.info("Checking data directory state...")

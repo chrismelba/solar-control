@@ -19,17 +19,22 @@
                     <input type="hidden" name="battery_percent_entity" id="battery_percent_entity" value="{{ config.battery_percent_entity if config else '' }}">
                     <div class="options" id="battery_percent_entity_options">
                         {% for entity in entities %}
-                            {% if entity.entity_id.startswith('sensor.') and 'battery' in entity.entity_id.lower() and (
-                                'percentage' in entity.entity_id.lower() or
-                                'percent' in entity.entity_id.lower() or
-                                'level' in entity.entity_id.lower() or
-                                'soc' in entity.entity_id.lower() or
-                                'state_of_charge' in entity.entity_id.lower() or
-                                'capacity' in entity.entity_id.lower() or
-                                (entity.attributes and entity.attributes.get('device_class') == 'battery') or
-                                (entity.attributes and entity.attributes.get('unit_of_measurement') == '%')
-                            ) %}
-                                <div class="option" data-value="{{ entity.entity_id }}"
+                            {% if entity.entity_id.startswith('sensor.') %}
+                                {% set is_battery = (
+                                    (entity.attributes and entity.attributes.get('device_class') == 'battery') or
+                                    ('battery' in entity.entity_id.lower() and (
+                                        'percentage' in entity.entity_id.lower() or
+                                        'percent' in entity.entity_id.lower() or
+                                        'level' in entity.entity_id.lower() or
+                                        'soc' in entity.entity_id.lower() or
+                                        'state_of_charge' in entity.entity_id.lower() or
+                                        'capacity' in entity.entity_id.lower() or
+                                        (entity.attributes and entity.attributes.get('unit_of_measurement') == '%')
+                                    ))
+                                ) %}
+                                <div class="option{% if not is_battery %} extended-option{% endif %}"
+                                     {% if not is_battery %}style="display:none"{% endif %}
+                                     data-value="{{ entity.entity_id }}"
                                      {% if config and entity.entity_id == config.battery_percent_entity %}data-selected="true"{% endif %}>
                                     {{ entity.attributes.friendly_name if entity.attributes and entity.attributes.friendly_name else entity.entity_id }} ({{ entity.entity_id }})
                                 </div>
@@ -37,7 +42,10 @@
                         {% endfor %}
                     </div>
                 </div>
-                <small class="form-text text-muted">Select a sensor that reports battery percentage (0-100%)</small>
+                <small class="form-text text-muted">
+                    Select a sensor that reports battery percentage (0-100%).
+                    <a href="#" id="showAllSensors" style="margin-left:6px">Can't find yours? Show all sensors.</a>
+                </small>
             </div>
 
             <div class="form-group">
@@ -69,6 +77,15 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Show all sensors toggle
+            document.getElementById('showAllSensors').addEventListener('click', function(e) {
+                e.preventDefault();
+                document.querySelectorAll('#battery_percent_entity_options .extended-option').forEach(function(el) {
+                    el.style.display = '';
+                });
+                this.style.display = 'none';
+            });
+
             // Load existing configuration
             apiCall('/api/battery')
                 .then(data => {
@@ -152,95 +169,4 @@
         });
     </script>
 
-    <style>
-        .tooltip {
-            position: relative;
-            display: inline-block;
-            cursor: help;
-            color: #666;
-            font-size: 0.9em;
-            margin-left: 4px;
-        }
-
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            width: 250px;
-            background-color: #333;
-            color: #fff;
-            text-align: left;
-            border-radius: 6px;
-            padding: 10px;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            transform: translateX(-50%);
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 0.9em;
-            line-height: 1.4;
-        }
-
-        .tooltip .tooltiptext::after {
-            content: "";
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            margin-left: -5px;
-            border-width: 5px;
-            border-style: solid;
-            border-color: #333 transparent transparent transparent;
-        }
-
-        .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
-        }
-
-        /* Toggle Switch Styles */
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 60px;
-            height: 34px;
-        }
-
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .toggle-label {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 34px;
-        }
-
-        .toggle-label:before {
-            position: absolute;
-            content: "";
-            height: 26px;
-            width: 26px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-
-        input:checked + .toggle-label {
-            background-color: #2196F3;
-        }
-
-        input:checked + .toggle-label:before {
-            transform: translateX(26px);
-        }
-    </style>
 {% endblock %} 

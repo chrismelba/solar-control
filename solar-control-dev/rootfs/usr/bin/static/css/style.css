@@ -270,4 +270,502 @@ tr:hover {
 .modal-close:hover {
     opacity: 1;
     transform: rotate(90deg);
-} 
+}
+
+/* ── Layout (from base.html) ── */
+html {
+    height: 100%;
+}
+
+body {
+    height: 100%;
+    margin: 0;
+    font-family: Roboto, 'Inter', 'Segoe UI', system-ui, sans-serif;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-font-smoothing: antialiased;
+    background: linear-gradient(135deg, #121212, #1a1a1a);
+    color: var(--text-color);
+}
+
+a {
+    text-decoration: none;
+    color: var(--primary-color);
+}
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    font-size: 20px;
+    height: 65px;
+    background-color: #1e1e1e;
+    border-bottom: 2px solid var(--primary-color);
+    font-weight: 400;
+    color: #fff;
+    box-sizing: border-box;
+    padding: 0 16px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+}
+
+.toolbar h1 {
+    font-size: 20px;
+    font-weight: 400;
+    letter-spacing: 0;
+    margin: 0 0 0 72px;
+    color: var(--text-color);
+    min-height: unset;
+    text-align: left;
+}
+
+.flex {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding-top: 65px;
+}
+
+.content {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    align-items: center;
+    padding: 16px;
+}
+
+/* ── Navigation Drawer ── */
+.nav-drawer {
+    height: 100%;
+    width: 0;
+    position: fixed;
+    z-index: 1000;
+    top: 0;
+    left: 0;
+    background-color: #1e1e1e;
+    border-right: 1px solid #333;
+    overflow-x: hidden;
+    transition: 0.3s;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.5);
+}
+
+.nav-drawer.open {
+    width: 250px;
+}
+
+.nav-drawer-content {
+    padding: 20px;
+    padding-top: 80px;
+}
+
+.nav-drawer a {
+    display: block;
+    padding: 10px 15px;
+    text-decoration: none;
+    color: var(--text-color);
+    font-size: 16px;
+    transition: 0.2s;
+    border-radius: 4px;
+    margin-bottom: 5px;
+}
+
+.nav-drawer a:hover {
+    background-color: #2a2a2a;
+    color: var(--primary-color);
+}
+
+.hamburger {
+    position: fixed;
+    left: 16px;
+    top: 20px;
+    cursor: pointer;
+    padding: 10px;
+    z-index: 1001;
+}
+
+.hamburger span {
+    display: block;
+    width: 25px;
+    height: 3px;
+    background-color: #fff;
+    margin: 5px 0;
+    transition: 0.3s;
+}
+
+.hamburger.active span:nth-child(1) {
+    transform: rotate(-45deg) translate(-5px, 6px);
+}
+
+.hamburger.active span:nth-child(2) {
+    opacity: 0;
+}
+
+.hamburger.active span:nth-child(3) {
+    transform: rotate(45deg) translate(-5px, -6px);
+}
+
+.overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    z-index: 999;
+}
+
+.overlay.active {
+    display: block;
+}
+
+/* ── Tooltip (shared across configure pages) ── */
+.tooltip {
+    position: relative;
+    display: inline-block;
+    cursor: help;
+    color: #888;
+    font-size: 0.9em;
+    margin-left: 4px;
+}
+
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 250px;
+    background-color: #2a2a2a;
+    color: var(--text-color);
+    text-align: left;
+    border-radius: 6px;
+    padding: 10px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 0.9em;
+    line-height: 1.4;
+    border: 1px solid #444;
+}
+
+.tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #2a2a2a transparent transparent transparent;
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* ── Toggle Switch (shared) ── */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-label {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #444;
+    transition: 0.4s;
+    border-radius: 34px;
+}
+
+.toggle-label:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: #ccc;
+    transition: 0.4s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-label {
+    background-color: var(--primary-color);
+}
+
+input:checked + .toggle-label:before {
+    background-color: white;
+    transform: translateX(26px);
+}
+
+/* ── Form helpers ── */
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-text {
+    font-size: 0.85rem;
+    color: #888;
+    margin-top: 4px;
+    display: block;
+}
+
+.form-actions {
+    margin-top: 1.5rem;
+}
+
+/* ── Device cards (dashboard) ── */
+.device-list {
+    margin-top: 1rem;
+}
+
+.device-card {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: move;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.device-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+}
+
+.device-card.dragging {
+    opacity: 0.5;
+}
+
+.device-info {
+    flex-grow: 1;
+}
+
+.device-name {
+    font-weight: bold;
+    margin: 0;
+    color: var(--text-color);
+}
+
+.device-power {
+    margin: 0.25rem 0 0 0;
+    color: #888;
+    font-size: 0.9rem;
+}
+
+.device-status {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-weight: bold;
+    margin-left: 1rem;
+    font-size: 0.85rem;
+}
+
+.status-off {
+    background: #5a1a1a;
+    color: #ef9a9a;
+}
+
+.status-on {
+    background: #1a4a1a;
+    color: #81c784;
+}
+
+/* ── Power Optimization toggle (dashboard) ── */
+.toggle-container {
+    display: flex;
+    align-items: center;
+    margin-top: 1rem;
+}
+
+.toggle-container .toggle-label {
+    margin-left: 1rem;
+    font-weight: 500;
+    color: var(--text-color);
+    position: static;
+    cursor: default;
+    background: none;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    transition: none;
+}
+
+.toggle-container .toggle-label:before {
+    display: none;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #444;
+    transition: 0.4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: #ccc;
+    transition: 0.4s;
+}
+
+input:checked + .slider {
+    background-color: var(--primary-color);
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.2);
+}
+
+input:checked + .slider:before {
+    background-color: white;
+    transform: translateX(26px);
+}
+
+.slider.round {
+    border-radius: 34px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+/* ── Sensor card .mode line ── */
+.sensor-card .mode {
+    font-size: 0.8rem;
+    color: #888;
+    margin: 0;
+}
+
+/* ── Tariff mode configuration (configure_grid) ── */
+.tariff-mode-container {
+    background: #2a2a2a;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-top: 1rem;
+    border: 1px solid #444;
+}
+
+.tariff-modes-grid {
+    background: #1e1e1e;
+    border: 1px solid #444;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.tariff-mode-header {
+    display: flex;
+    background: #333;
+    padding: 0.75rem;
+    border-bottom: 1px solid #444;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+.tariff-name {
+    flex: 1;
+    padding-right: 1rem;
+}
+
+.tariff-mode-options {
+    display: flex;
+    gap: 1rem;
+    min-width: 200px;
+    justify-content: center;
+}
+
+.mode-label {
+    font-weight: bold;
+}
+
+.mode-option {
+    padding: 0.25rem 0.75rem;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 60px;
+    text-align: center;
+    color: var(--text-color);
+}
+
+.mode-option:hover {
+    background-color: #333;
+    border-color: var(--primary-color);
+}
+
+.mode-option.selected {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.tariff-mode-item {
+    display: flex;
+    padding: 0.75rem;
+    border-bottom: 1px solid #333;
+    align-items: center;
+    color: var(--text-color);
+}
+
+.tariff-mode-item:last-child {
+    border-bottom: none;
+}
+
+.error-message {
+    color: #ef9a9a;
+    padding: 1rem;
+    text-align: center;
+    background-color: #5a1a1a;
+    border: 1px solid #7a2a2a;
+    border-radius: 4px;
+    margin: 1rem 0;
+}
+
+.help-text {
+    color: #888;
+    font-size: 0.9em;
+    margin: 0.5rem 0;
+}
+
