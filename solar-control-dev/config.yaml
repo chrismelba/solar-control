@@ -32,5 +32,3 @@ image: "ghcr.io/chrismelba/{arch}-addon-solar-control-dev"
 ingress: true
 ingress_port: 8099
 homeassistant_api: true
-# Add data persistence configuration
-data: true
