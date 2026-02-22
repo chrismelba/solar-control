@@ -15,14 +15,15 @@ HASS_URL = os.environ.get('HASS_URL', 'http://supervisor/core')
 logger = setup_logging()
 
 # Create static directory if it doesn't exist
-static_dir = '/usr/bin/static'
+static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 if not os.path.exists(static_dir):
     logger.info(f"Creating static directory: {static_dir}")
     os.makedirs(static_dir)
 
-app = Flask(__name__, 
+_base_dir = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__,
            static_folder=static_dir,
-           template_folder='templates')
+           template_folder=os.path.join(_base_dir, 'templates'))
 
 # Add a context processor to make the ingress path available in templates
 @app.context_processor
