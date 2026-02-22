@@ -10,7 +10,7 @@ RUN \
         py3-pip \
         nginx \
     && \
-    pip3 install flask requests pytz paho-mqtt
+    pip3 install --break-system-packages flask requests pytz paho-mqtt
 
 # Create required directories
 RUN \
