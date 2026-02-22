@@ -45,7 +45,6 @@ COPY rootfs /
 RUN \
     chmod +x /usr/bin/my_program.py && \
     chmod a+x /etc/services.d/solar-control/run && \
-    chmod a+x /etc/services.d/solar-control/finish
-
-# Launch nginx with debug options
-CMD [ "nginx", "-g", "daemon off;error_log /dev/stdout debug;" ]
+    chmod a+x /etc/services.d/solar-control/finish && \
+    chmod a+x /etc/services.d/nginx/run && \
+    chmod a+x /etc/services.d/nginx/finish

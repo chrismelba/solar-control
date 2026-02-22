@@ -1,0 +1,20 @@
+#!/usr/bin/with-contenv bashio
+# ==============================================================================
+# Start nginx, ensuring required runtime directories exist first
+# /data is a mounted volume so dirs created in Dockerfile don't persist
+# ==============================================================================
+
+bashio::log.info "Creating nginx runtime directories..."
+mkdir -p /data/nginx/logs
+mkdir -p /data/nginx/tmp/client_body
+mkdir -p /data/nginx/tmp/proxy
+mkdir -p /data/nginx/tmp/fastcgi
+mkdir -p /data/nginx/tmp/uwsgi
+mkdir -p /data/nginx/tmp/scgi
+
+# Pre-create default error log to suppress nginx startup alert
+mkdir -p /var/lib/nginx/logs
+touch /var/lib/nginx/logs/error.log
+
+bashio::log.info "Starting nginx..."
+exec nginx -g "daemon off;"
