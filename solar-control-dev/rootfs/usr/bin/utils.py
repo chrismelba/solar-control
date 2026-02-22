@@ -12,7 +12,7 @@ def setup_logging():
     """Centralized logging configuration for the application"""
     try:
         # Read debug level directly from options.json
-        options_file = '/data/options.json'
+        options_file = os.path.join(os.environ.get('DATA_DIR', '/data'), 'options.json')
         if os.path.exists(options_file):
             with open(options_file, 'r') as f:
                 config = json.load(f)
@@ -23,7 +23,7 @@ def setup_logging():
         debug_level = 'INFO'  # Default to INFO level
 
     # Create logs directory if it doesn't exist
-    log_dir = '/data/logs'
+    log_dir = os.path.join(os.environ.get('DATA_DIR', '/data'), 'logs')
     os.makedirs(log_dir, exist_ok=True)
 
     # Configure logging
@@ -50,7 +50,7 @@ def set_mqtt_settings():
     try:
         if os.environ.get("IS_HA_ADDON"):
             # Read current settings
-            options_file = '/data/options.json'
+            options_file = os.path.join(os.environ.get('DATA_DIR', '/data'), 'options.json')
             if not os.path.exists(options_file):
                 logger.error("Options file not found")
                 return None

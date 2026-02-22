@@ -51,11 +51,13 @@ def before_request():
     app.static_url_path = f'{ingress_path}/static'
     logger.debug(f"Set static URL path to: {app.static_url_path}")
 
+DATA_DIR = os.environ.get('DATA_DIR', '/data')
+
 # Configuration file paths (defined here so they're available from startup)
-CONFIG_FILE = '/data/solar_config.json'
-DEVICES_FILE = '/data/devices.json'
-SETTINGS_FILE = '/data/settings.json'
-BATTERY_FILE = '/data/battery.json'
+CONFIG_FILE = f'{DATA_DIR}/solar_config.json'
+DEVICES_FILE = f'{DATA_DIR}/devices.json'
+SETTINGS_FILE = f'{DATA_DIR}/settings.json'
+BATTERY_FILE = f'{DATA_DIR}/battery.json'
 
 # Create controller instance
 controller = SolarController(
@@ -188,13 +190,13 @@ for root, dirs, files in os.walk(static_dir):
 
 # Debug: Log data directory state
 logger.info("Checking data directory state...")
-logger.info(f"Data directory exists: {os.path.exists('/data')}")
-logger.info(f"Data directory permissions: {oct(os.stat('/data').st_mode)[-3:]}")
-logger.info(f"Data directory owner: {os.stat('/data').st_uid}")
+logger.info(f"Data directory exists: {os.path.exists(DATA_DIR)}")
+logger.info(f"Data directory permissions: {oct(os.stat(DATA_DIR).st_mode)[-3:]}")
+logger.info(f"Data directory owner: {os.stat(DATA_DIR).st_uid}")
 
 # Ensure data directory exists
 logger.info("Ensuring data directory exists...")
-os.makedirs('/data', exist_ok=True)
+os.makedirs(DATA_DIR, exist_ok=True)
 
 # Initialize files if they don't exist
 def initialize_files():
@@ -399,7 +401,7 @@ def get_entities():
 
 def get_nginx_log(log_type):
     try:
-        with open(f'/data/nginx/logs/{log_type}.log', 'r') as f:
+        with open(f'{DATA_DIR}/nginx/logs/{log_type}.log', 'r') as f:
             return f.read()
     except Exception as e:
         return f"Error reading Nginx {log_type} log: {str(e)}"

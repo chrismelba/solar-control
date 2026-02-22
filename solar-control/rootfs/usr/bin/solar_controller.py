@@ -64,7 +64,7 @@ class SolarController:
     def __init__(self, config_file: str, devices_file: str):
         self.config_file = config_file
         self.devices_file = devices_file
-        self.settings_file = '/data/settings.json'
+        self.settings_file = os.environ.get('DATA_DIR', '/data') + '/settings.json'
         self.device_states: Dict[str, DeviceState] = {}
         self.supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
         self.hass_url = os.environ.get('HASS_URL', 'http://supervisor/core')
@@ -554,7 +554,7 @@ class SolarController:
         try:
             # Use provided battery or load from file
             if battery is None:
-                battery = Battery.load('/data/battery.json')
+                battery = Battery.load(os.environ.get('DATA_DIR', '/data') + '/battery.json')
             if not battery:
                 logger.debug("No battery configuration found")
                 return None
@@ -588,7 +588,7 @@ class SolarController:
         """
         try:
             if battery is None:
-                battery = Battery.load('/data/battery.json')
+                battery = Battery.load(os.environ.get('DATA_DIR', '/data') + '/battery.json')
             if not battery:
                 logger.debug("No battery configuration found")
                 return True  # No battery means no restrictions
@@ -625,7 +625,7 @@ class SolarController:
         """
         try:
             if battery is None:
-                battery = Battery.load('/data/battery.json')
+                battery = Battery.load(os.environ.get('DATA_DIR', '/data') + '/battery.json')
             if not battery:
                 logger.debug("No battery configuration found")
                 return None
@@ -700,7 +700,7 @@ class SolarController:
 
         try:
             if battery is None:
-                battery = Battery.load('/data/battery.json')
+                battery = Battery.load(os.environ.get('DATA_DIR', '/data') + '/battery.json')
             if not battery:
                 logger.debug("No battery configuration found - using full solar forecast")
                 return solar_forecast
@@ -815,7 +815,7 @@ class SolarController:
             
             # Load battery config once for the whole loop iteration
             try:
-                self._current_battery = Battery.load('/data/battery.json')
+                self._current_battery = Battery.load(os.environ.get('DATA_DIR', '/data') + '/battery.json')
             except Exception as e:
                 logger.error(f"Error loading battery config: {e}")
                 self._current_battery = None
@@ -1293,7 +1293,7 @@ class SolarController:
 
 if __name__ == "__main__":
     controller = SolarController(
-        config_file="/data/solar_config.json",
-        devices_file="/data/devices.json"
+        config_file=os.environ.get('DATA_DIR', '/data') + "/solar_config.json",
+        devices_file=os.environ.get('DATA_DIR', '/data') + "/devices.json"
     )
     controller.start_control_loop() 
