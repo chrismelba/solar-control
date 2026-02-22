@@ -116,7 +116,7 @@ class Device:
                 "Content-Type": "application/json",
             }
             
-            hass_url = "http://supervisor/core"
+            hass_url = os.environ.get('HASS_URL', 'http://supervisor/core')
             
             # Get sunrise time using existing function
             sunrise_time = get_sunrise_time()
@@ -264,7 +264,7 @@ class Device:
                 "Content-Type": "application/json",
             }
             
-            hass_url = "http://supervisor/core"
+            hass_url = os.environ.get('HASS_URL', 'http://supervisor/core')
             
             # First, get the entity state to determine its type
             logger.debug(f"Fetching entity state for {self.switch_entity}")

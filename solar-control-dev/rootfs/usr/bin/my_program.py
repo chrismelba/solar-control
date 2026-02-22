@@ -9,6 +9,8 @@ from solar_controller import SolarController
 from utils import get_sunrise_time, setup_logging
 from mqtt_client import connect as mqtt_connect, disconnect as mqtt_disconnect, publish_message, update_device_state, publish_status
 
+HASS_URL = os.environ.get('HASS_URL', 'http://supervisor/core')
+
 # Set up logging using the centralized configuration
 logger = setup_logging()
 
@@ -118,7 +120,7 @@ def get_device_state(name):
         }
 
         response = requests.get(
-            f"http://supervisor/core/api/states/{device.switch_entity}",
+            f"{HASS_URL}/api/states/{device.switch_entity}",
             headers=headers
         )
         response.raise_for_status()
@@ -320,7 +322,7 @@ def get_sensor_values():
         if entity_id in config and config[entity_id]:
             try:
                 response = requests.get(
-                    f'http://supervisor/core/api/states/{config[entity_id]}',
+                    f'{HASS_URL}/api/states/{config[entity_id]}',
                     headers=headers
                 )
                 response.raise_for_status()  # Raise exception for non-200 status codes
@@ -365,7 +367,7 @@ def get_entities():
         supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
         headers = {"Authorization": f"Bearer {supervisor_token}", "Content-Type": "application/json"} if supervisor_token else {}
         logger.info("Attempting to fetch entities from supervisor API")
-        response = requests.get('http://supervisor/core/api/states', headers=headers)
+        response = requests.get(f'{HASS_URL}/api/states', headers=headers)
         logger.info(f"Supervisor API response status: {response.status_code}")
         
         if response.status_code != 200:
@@ -753,7 +755,7 @@ def get_entity_state(entity_id):
         }
 
         response = requests.get(
-            f"http://supervisor/core/api/states/{entity_id}",
+            f"{HASS_URL}/api/states/{entity_id}",
             headers=headers
         )
         response.raise_for_status()
@@ -800,7 +802,7 @@ def get_tariff_modes():
         }
 
         response = requests.get(
-            f"http://supervisor/core/api/states/{tariff_rate_entity}",
+            f"{HASS_URL}/api/states/{tariff_rate_entity}",
             headers=headers
         )
         response.raise_for_status()

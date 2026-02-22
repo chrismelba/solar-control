@@ -42,6 +42,7 @@ class DebugState:
     solar_forecast_remaining: Optional[float] = None
     expected_energy_remaining: Optional[float] = None
     hours_until_sunset: Optional[float] = None
+    bring_forward_power: Optional[float] = None
 
     def to_dict(self) -> dict:
         return {
@@ -55,7 +56,8 @@ class DebugState:
             'manual_power_override': self.manual_power_override,
             'solar_forecast_remaining': self.solar_forecast_remaining,
             'expected_energy_remaining': self.expected_energy_remaining,
-            'hours_until_sunset': self.hours_until_sunset
+            'hours_until_sunset': self.hours_until_sunset,
+            'bring_forward_power': self.bring_forward_power
         }
 
 class SolarController:
@@ -65,7 +67,7 @@ class SolarController:
         self.settings_file = '/data/settings.json'
         self.device_states: Dict[str, DeviceState] = {}
         self.supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
-        self.hass_url = "http://supervisor/core"
+        self.hass_url = os.environ.get('HASS_URL', 'http://supervisor/core')
         self.debug_state: Optional[DebugState] = None
         self.manual_power_override: Optional[float] = None
         
@@ -543,15 +545,16 @@ class SolarController:
             logger.error(f"Failed to get solar forecast: {e}")
             return None
 
-    def get_battery_charging_requirement(self) -> Optional[float]:
+    def get_battery_charging_requirement(self, battery=None) -> Optional[float]:
         """Calculate the energy required to fully charge the battery.
-        
+
         Returns:
             float: Energy required to charge battery in kWh, or None if unable to determine
         """
         try:
-            # Load battery configuration
-            battery = Battery.load('/data/battery.json')
+            # Use provided battery or load from file
+            if battery is None:
+                battery = Battery.load('/data/battery.json')
             if not battery:
                 logger.debug("No battery configuration found")
                 return None
@@ -577,15 +580,15 @@ class SolarController:
             logger.error(f"Failed to calculate battery charging requirement: {e}")
             return None
 
-    def is_battery_full_enough(self) -> bool:
+    def is_battery_full_enough(self, battery=None) -> bool:
         """Check if the battery is full enough (>95%) to allow normal device control.
-        
+
         Returns:
             bool: True if battery is >95% charged, False otherwise or if unable to determine
         """
         try:
-            # Load battery configuration
-            battery = Battery.load('/data/battery.json')
+            if battery is None:
+                battery = Battery.load('/data/battery.json')
             if not battery:
                 logger.debug("No battery configuration found")
                 return True  # No battery means no restrictions
@@ -610,16 +613,82 @@ class SolarController:
             logger.error(f"Failed to check battery fullness: {e}")
             return True  # Default to allowing control if we can't determine
 
-    def get_expected_energy_remaining(self) -> Optional[float]:
-        """Calculate the expected energy remaining in the forecast today after accounting for household consumption and battery charging.
-        
-        This method:
-        1. Gets the solar forecast remaining for today
-        2. If battery is configured with expected_kwh_per_hour, calculates household energy consumption over remaining daylight hours
-        3. Calculates actual battery charging requirement based on current battery state
-        4. Subtracts both household consumption and battery charging needs from solar forecast
-        5. Returns the net available energy for discretionary devices
-        
+    def get_bring_forward_power(self, battery=None) -> Optional[float]:
+        """Calculate the bring forward power based on battery level and solar forecast.
+
+        The calculation uses two factors:
+        1. Battery level factor: 0 when battery is at 50%, 1 when battery is at 100%
+        2. Forecast factor: 0 when solar forecast is 0, 1 when solar forecast is 10kWh or greater
+
+        Returns:
+            float: Bring forward power in watts, or None if unable to determine
+        """
+        try:
+            if battery is None:
+                battery = Battery.load('/data/battery.json')
+            if not battery:
+                logger.debug("No battery configuration found")
+                return None
+                
+            if battery.max_charging_speed_kw is None:
+                logger.debug("No maximum charging speed configured for battery")
+                return None
+                
+            # Get current battery percentage
+            response = requests.get(
+                f"{self.hass_url}/api/states/{battery.battery_percent_entity}",
+                headers=self.get_headers()
+            )
+            response.raise_for_status()
+            battery_data = response.json()
+            
+            current_percentage = float(battery_data.get('state', 0))
+            logger.debug(f"Current battery percentage: {current_percentage}%")
+            
+            # Calculate bring_forward_battery factor (0 at 50%, 1 at 100%)
+            if current_percentage <= 50:
+                bring_forward_battery = 0.0
+            elif current_percentage >= 100:
+                bring_forward_battery = 1.0
+            else:
+                # Linear interpolation between 50% and 100%
+                bring_forward_battery = (current_percentage - 50) / 50
+                
+            logger.debug(f"Bring forward battery factor: {bring_forward_battery}")
+            
+            # Get solar forecast remaining
+            solar_forecast = self.get_expected_energy_remaining(battery)
+            if solar_forecast is None:
+                logger.debug("Unable to get solar forecast")
+                return None
+                
+            # Calculate bring_forward_forecast factor (0 at 0kWh, 1 at 10kWh or greater)
+            if solar_forecast <= 0:
+                bring_forward_forecast = 0.0
+            elif solar_forecast >= 10:
+                bring_forward_forecast = 1.0
+            else:
+                # Linear interpolation between 0kWh and 10kWh
+                bring_forward_forecast = solar_forecast / 10
+                
+            logger.debug(f"Bring forward forecast factor: {bring_forward_forecast}")
+            
+            # Calculate final bring forward power
+            bring_forward_power_kw = bring_forward_battery * bring_forward_forecast * battery.max_charging_speed_kw
+            bring_forward_power_w = bring_forward_power_kw * 1000  # Convert kW to W
+            
+            logger.info(f"Bring forward power: {bring_forward_power_w}W (battery factor: {bring_forward_battery:.2f}, forecast factor: {bring_forward_forecast:.2f}, max charging speed: {battery.max_charging_speed_kw}kW)")
+            
+            return bring_forward_power_w
+            
+        except Exception as e:
+            logger.error(f"Failed to calculate bring forward power: {e}")
+            return None
+
+    def get_expected_energy_remaining(self, battery=None) -> Optional[float]:
+        """Calculate the expected energy remaining in the forecast today after accounting
+        for household consumption and battery charging.
+
         Returns:
             float: Expected energy remaining in kWh, or None if unable to determine
         """
@@ -628,43 +697,40 @@ class SolarController:
         if solar_forecast is None:
             logger.warning("Unable to get solar forecast - cannot calculate expected energy remaining")
             return None
-            
-        # Load battery configuration to check if battery is configured
+
         try:
-            battery = Battery.load('/data/battery.json')
+            if battery is None:
+                battery = Battery.load('/data/battery.json')
             if not battery:
                 logger.debug("No battery configuration found - using full solar forecast")
                 return solar_forecast
-                
+
             if battery.expected_kwh_per_hour is None:
                 logger.debug("Battery configured but expected_kwh_per_hour not set - using full solar forecast")
                 return solar_forecast
-                
+
             # Get hours until sunset
             hours_until_sunset = self.get_hours_until_sunset()
             if hours_until_sunset is None:
                 logger.warning("Unable to get hours until sunset - using full solar forecast")
                 return solar_forecast
-                
+
             # Calculate house energy consumption
             house_energy_needed = battery.expected_kwh_per_hour * hours_until_sunset
-            
+
             # Calculate battery charging requirement
-            battery_energy_needed = self.get_battery_charging_requirement()
+            battery_energy_needed = self.get_battery_charging_requirement(battery)
             if battery_energy_needed is None:
                 logger.warning("Unable to calculate battery charging requirement - using house energy only")
                 battery_energy_needed = 0
-            
-            # Calculate total energy needed
+
             total_energy_needed = house_energy_needed + battery_energy_needed
-            
-            # Calculate net available energy
             net_energy = solar_forecast - total_energy_needed
-            
+
             logger.info(f"Solar forecast: {solar_forecast}kWh, House needs: {house_energy_needed}kWh, Battery needs: {battery_energy_needed}kWh, Total: {total_energy_needed}kWh over {hours_until_sunset:.2f}h, Net available: {net_energy}kWh")
-            
-            return max(0, net_energy)  # Don't return negative values
-            
+
+            return max(0, net_energy)
+
         except Exception as e:
             logger.error(f"Failed to calculate expected energy remaining: {e}")
             return solar_forecast  # Fall back to full solar forecast
@@ -747,10 +813,27 @@ class SolarController:
             settings = self.load_settings()
             power_optimization_enabled = settings.get('power_optimization_enabled', True)
             
+            # Load battery config once for the whole loop iteration
+            try:
+                self._current_battery = Battery.load('/data/battery.json')
+            except Exception as e:
+                logger.error(f"Error loading battery config: {e}")
+                self._current_battery = None
+
             # Get solar forecast and energy remaining information
             solar_forecast_remaining = self.get_solar_forecast_remaining()
-            expected_energy_remaining = self.get_expected_energy_remaining()
+            expected_energy_remaining = self.get_expected_energy_remaining(self._current_battery)
             hours_until_sunset = self.get_hours_until_sunset()
+
+            # Get bring forward power for solar control mode
+            bring_forward_power = None
+            try:
+                battery = self._current_battery
+                if battery and battery.bring_forward_mode:
+                    bring_forward_power = self.get_bring_forward_power(battery)
+                    logger.debug(f"Bring forward power calculated: {bring_forward_power}W")
+            except Exception as e:
+                logger.error(f"Error getting bring forward power: {e}")
             
             # Initialize debug state
             self.debug_state = DebugState(
@@ -762,7 +845,8 @@ class SolarController:
                 manual_power_override=self.manual_power_override,
                 solar_forecast_remaining=solar_forecast_remaining,
                 expected_energy_remaining=expected_energy_remaining,
-                hours_until_sunset=hours_until_sunset
+                hours_until_sunset=hours_until_sunset,
+                bring_forward_power=bring_forward_power
             )
 
             # Phase 1: Handle mandatory devices (common to all control modes)
@@ -875,17 +959,26 @@ class SolarController:
         logger.info(f"Running solar control mode with {available_power}W available")
         optional_devices = []
         
+        # Check if bring forward mode is enabled and add bring forward power to available power
+        bring_forward_power = self.debug_state.bring_forward_power
+        if bring_forward_power is not None and bring_forward_power > 0:
+            original_available_power = available_power
+            available_power += bring_forward_power
+            logger.info(f"Bring forward mode enabled - adding {bring_forward_power}W to available power: {original_available_power}W + {bring_forward_power}W = {available_power}W")
+        else:
+            logger.debug("Bring forward mode not enabled or no bring forward power available")
+        
         # Check battery priority - if battery is full enough or we have excess energy, allow normal control
         battery_priority_active = False
         try:
-            battery = Battery.load('/data/battery.json')
+            battery = self._current_battery
             if battery and battery.expected_kwh_per_hour is not None:
                 # Check if battery is full enough (>95%)
-                if self.is_battery_full_enough():
+                if self.is_battery_full_enough(battery):
                     logger.info("Battery is full enough (>95%) - allowing normal device control")
                 else:
                     # Check if we have excess energy remaining
-                    expected_energy_remaining = self.get_expected_energy_remaining()
+                    expected_energy_remaining = self.get_expected_energy_remaining(battery)
                     if expected_energy_remaining is not None and expected_energy_remaining > 0:
                         logger.info(f"Excess energy available ({expected_energy_remaining:.2f}kWh) - allowing normal device control")
                     else:
@@ -1056,8 +1149,29 @@ class SolarController:
                 continue
                 
             # Check if device has completed its task
-            if device.run_once and device_state.is_on:
-                if self.check_device_completion(device_state):
+            if device.completion_sensor:
+                # Always check completion sensor to see if status has changed
+                completion_status = self.check_device_completion(device_state)
+                
+                # If device was previously completed but completion sensor is now off, reset the flag
+                if device_state.has_completed and not completion_status:
+                    logger.info(f"Resetting completion status for {device.name} - completion sensor is now off")
+                    device_state.has_completed = False
+                
+                # If device is currently completed, skip it
+                if device_state.has_completed:
+                    logger.info(f"Skipping {device.name} - task already completed")
+                    optional_devices.append({
+                        'name': device.name,
+                        'power': 0,
+                        'reason': 'Task completed'
+                    })
+                    if existing_index is not None:
+                        devices_to_turn_on.pop(existing_index)
+                    continue
+                
+                # Check if device just completed its task
+                if device_state.is_on and completion_status:
                     logger.info(f"Turning off {device.name} - task completed")
                     device_state.has_completed = True
                     optional_devices.append({

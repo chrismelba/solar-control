@@ -114,7 +114,7 @@ def get_sunrise_time():
 
         # Get history for the past 24 hours
         response = requests.get(
-            'http://supervisor/core/api/history/period',
+            f'{os.environ.get("HASS_URL", "http://supervisor/core")}/api/history/period',
             params={
                 'filter_entity_id': 'sun.sun',
                 'minimal_response': 'true'

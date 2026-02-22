@@ -67,7 +67,7 @@ class SolarController:
         self.settings_file = '/data/settings.json'
         self.device_states: Dict[str, DeviceState] = {}
         self.supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
-        self.hass_url = "http://supervisor/core"
+        self.hass_url = os.environ.get('HASS_URL', 'http://supervisor/core')
         self.debug_state: Optional[DebugState] = None
         self.manual_power_override: Optional[float] = None
         

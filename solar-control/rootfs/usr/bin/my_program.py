@@ -9,6 +9,8 @@ from solar_controller import SolarController
 from utils import get_sunrise_time, setup_logging
 from mqtt_client import connect as mqtt_connect, disconnect as mqtt_disconnect, publish_message, update_device_state, publish_status
 
+HASS_URL = os.environ.get('HASS_URL', 'http://supervisor/core')
+
 # Set up logging using the centralized configuration
 logger = setup_logging()
 
@@ -49,10 +51,16 @@ def before_request():
     app.static_url_path = f'{ingress_path}/static'
     logger.debug(f"Set static URL path to: {app.static_url_path}")
 
+# Configuration file paths (defined here so they're available from startup)
+CONFIG_FILE = '/data/solar_config.json'
+DEVICES_FILE = '/data/devices.json'
+SETTINGS_FILE = '/data/settings.json'
+BATTERY_FILE = '/data/battery.json'
+
 # Create controller instance
 controller = SolarController(
-    config_file="/data/solar_config.json",
-    devices_file="/data/devices.json"
+    config_file=CONFIG_FILE,
+    devices_file=DEVICES_FILE
 )
 
 # Initialize MQTT connection
@@ -112,7 +120,7 @@ def get_device_state(name):
         }
 
         response = requests.get(
-            f"http://supervisor/core/api/states/{device.switch_entity}",
+            f"{HASS_URL}/api/states/{device.switch_entity}",
             headers=headers
         )
         response.raise_for_status()
@@ -177,12 +185,6 @@ logger.info('Static files available:')
 for root, dirs, files in os.walk(static_dir):
     for file in files:
         logger.info('  %s', os.path.join(root, file))
-
-# Configuration file paths
-CONFIG_FILE = '/data/solar_config.json'
-DEVICES_FILE = '/data/devices.json'
-SETTINGS_FILE = '/data/settings.json'
-BATTERY_FILE = '/data/battery.json'
 
 # Debug: Log data directory state
 logger.info("Checking data directory state...")
@@ -320,7 +322,7 @@ def get_sensor_values():
         if entity_id in config and config[entity_id]:
             try:
                 response = requests.get(
-                    f'http://supervisor/core/api/states/{config[entity_id]}',
+                    f'{HASS_URL}/api/states/{config[entity_id]}',
                     headers=headers
                 )
                 response.raise_for_status()  # Raise exception for non-200 status codes
@@ -336,6 +338,27 @@ def get_sensor_values():
             logger.error(f"Error determining tariff mode: {e}")
             sensor_values['tariff_mode'] = 'error'
     
+    # Add bring forward power and battery configuration
+    try:
+        # Get debug state to access bring forward power
+        debug_state = controller.get_debug_state()
+        if debug_state and debug_state.bring_forward_power is not None:
+            sensor_values['bring_forward_power'] = {
+                'state': f"{debug_state.bring_forward_power:.0f}",
+                'unit': 'W',
+                'friendly_name': 'Bring Forward Power'
+            }
+        
+        # Get battery configuration to check bring forward mode
+        battery = Battery.load(BATTERY_FILE)
+        if battery:
+            sensor_values['bring_forward_mode'] = {
+                'state': 'enabled' if battery.bring_forward_mode else 'disabled',
+                'friendly_name': 'Bring Forward Mode'
+            }
+    except Exception as e:
+        logger.error(f"Error getting bring forward information: {e}")
+    
     return sensor_values
 
 
@@ -344,7 +367,7 @@ def get_entities():
         supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
         headers = {"Authorization": f"Bearer {supervisor_token}", "Content-Type": "application/json"} if supervisor_token else {}
         logger.info("Attempting to fetch entities from supervisor API")
-        response = requests.get('http://supervisor/core/api/states', headers=headers)
+        response = requests.get(f'{HASS_URL}/api/states', headers=headers)
         logger.info(f"Supervisor API response status: {response.status_code}")
         
         if response.status_code != 200:
@@ -732,7 +755,7 @@ def get_entity_state(entity_id):
         }
 
         response = requests.get(
-            f"http://supervisor/core/api/states/{entity_id}",
+            f"{HASS_URL}/api/states/{entity_id}",
             headers=headers
         )
         response.raise_for_status()
@@ -779,7 +802,7 @@ def get_tariff_modes():
         }
 
         response = requests.get(
-            f"http://supervisor/core/api/states/{tariff_rate_entity}",
+            f"{HASS_URL}/api/states/{tariff_rate_entity}",
             headers=headers
         )
         response.raise_for_status()
@@ -854,18 +877,20 @@ def update_battery():
             battery_percent_entity = str(data['battery_percent_entity'])
             max_charging_speed_kw = float(data['max_charging_speed_kw']) if data.get('max_charging_speed_kw') else None
             expected_kwh_per_hour = float(data['expected_kwh_per_hour']) if data.get('expected_kwh_per_hour') else None
+            bring_forward_mode = bool(data.get('bring_forward_mode', False))
         except (ValueError, TypeError) as e:
             logger.error(f"Invalid data type in battery configuration: {e}")
             return jsonify({'status': 'error', 'message': f'Invalid data type: {str(e)}'}), 400
 
-        logger.debug(f"Validated data: size_kwh={size_kwh}, battery_percent_entity={battery_percent_entity}, max_charging_speed_kw={max_charging_speed_kw}, expected_kwh_per_hour={expected_kwh_per_hour}")
+        logger.debug(f"Validated data: size_kwh={size_kwh}, battery_percent_entity={battery_percent_entity}, max_charging_speed_kw={max_charging_speed_kw}, expected_kwh_per_hour={expected_kwh_per_hour}, bring_forward_mode={bring_forward_mode}")
 
         # Create battery object
         battery = Battery(
             size_kwh=size_kwh,
             battery_percent_entity=battery_percent_entity,
             max_charging_speed_kw=max_charging_speed_kw,
-            expected_kwh_per_hour=expected_kwh_per_hour
+            expected_kwh_per_hour=expected_kwh_per_hour,
+            bring_forward_mode=bring_forward_mode
         )
 
         # Save configuration
