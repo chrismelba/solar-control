@@ -35,7 +35,7 @@ def inject_ingress_path():
     ingress_path = request.headers.get('X-Ingress-Path', '')
     logger.debug(f"Using ingress path from header: {ingress_path}")
     logger.debug(f"All request headers: {dict(request.headers)}")
-    return dict(ingress_path=ingress_path, basename=ingress_path)
+    return dict(ingress_path=ingress_path, basename=ingress_path, app_version=APP_VERSION)
 
 # Override url_for to include ingress path for all URLs
 @app.template_global()
@@ -56,6 +56,20 @@ def before_request():
     logger.debug(f"Set static URL path to: {app.static_url_path}")
 
 DATA_DIR = os.environ.get('DATA_DIR', '/data')
+
+# Read add-on version for cache-busting static assets
+def _read_addon_version():
+    try:
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', 'config.yaml')
+        with open(config_path) as f:
+            for line in f:
+                if line.startswith('version:'):
+                    return line.split(':', 1)[1].strip().strip('"')
+    except Exception:
+        pass
+    return 'dev'
+
+APP_VERSION = _read_addon_version()
 
 # Configuration file paths (defined here so they're available from startup)
 CONFIG_FILE = f'{DATA_DIR}/solar_config.json'
@@ -84,6 +98,13 @@ if mqtt_connect():
         logger.error(f"Error publishing initial optimization state: {e}")
 else:
     logger.warning("Failed to establish MQTT connection")
+
+# Initialise device states synchronously so load_one_off_state() can restore them
+logger.info("Initialising device states...")
+try:
+    controller.initialize_device_states()
+except Exception as e:
+    logger.warning(f"Could not initialise device states at startup: {e}")
 
 # Start the control loop
 logger.info("Starting solar controller control loop...")

@@ -7,9 +7,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/searchable-select.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/sensor-cards.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ app_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/searchable-select.css') }}?v={{ app_version }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/sensor-cards.css') }}?v={{ app_version }}">
     <style>
         /* ── Embedded: modal + form CSS guaranteed in HA ingress iframe ── */
         .modal {
@@ -223,6 +223,6 @@
             observer.observe(document.body, { childList: true, subtree: true });
         });
     </script>
-    <script src="{{ url_for('static', filename='js/searchable-select.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/searchable-select.js') }}?v={{ app_version }}"></script>
 </body>
 </html>
