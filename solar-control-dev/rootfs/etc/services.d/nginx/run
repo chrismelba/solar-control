@@ -12,9 +12,5 @@ mkdir -p /data/nginx/tmp/fastcgi
 mkdir -p /data/nginx/tmp/uwsgi
 mkdir -p /data/nginx/tmp/scgi
 
-# Pre-create default error log to suppress nginx startup alert
-mkdir -p /var/lib/nginx/logs
-touch /var/lib/nginx/logs/error.log
-
 bashio::log.info "Starting nginx..."
 exec nginx -g "daemon off;"
