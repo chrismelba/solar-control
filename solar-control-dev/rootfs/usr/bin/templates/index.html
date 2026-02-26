@@ -302,6 +302,14 @@
                         if (deliveredElem) {
                             deliveredElem.textContent = `Energy Delivered: ${device.energy_delivered_today.toFixed(2)} Wh`;
                         }
+                        const powerElem = card.querySelector('.device-power-value');
+                        if (powerElem) {
+                            if (device.is_on && device.current_power_sensor && device.current_power > 0) {
+                                powerElem.textContent = `${Math.round(device.current_power)}W`;
+                            } else {
+                                powerElem.textContent = `${device.typical_power_draw}W (assumed)`;
+                            }
+                        }
                     }
                 });
             } catch (error) {

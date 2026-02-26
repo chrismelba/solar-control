@@ -3,11 +3,7 @@
     <div class="device-info">
         <p class="device-name">{{ device.name }}</p>
         <p class="device-power">
-            {% if device.current_power_sensor %}
-                {{ device.typical_power_draw }}W (sensor: {{ device.current_power_sensor }})
-            {% else %}
-                {{ device.typical_power_draw }}W
-            {% endif %}
+            <span class="device-power-value">{{ device.typical_power_draw }}W (assumed)</span>
         </p>
         {% if device.energy_consumption %}
         <p class="device-energy">

@@ -559,7 +559,8 @@ def get_devices():
                 'is_on': device_state.is_on,
                 'last_state_change': device_state.last_state_change.isoformat() if device_state.last_state_change else None,
                 'current_amperage': device_state.current_amperage,
-                'has_completed': device_state.has_completed
+                'has_completed': device_state.has_completed,
+                'current_power': controller.get_device_power(device_state)
             })
             devices_data.append(device_data)
         
