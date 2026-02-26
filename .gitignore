@@ -27,6 +27,7 @@ wheels/
 
 # Local development data
 data/
+run_local.sh
 
 # IDE
 .idea/

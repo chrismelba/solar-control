@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/entity_selector.html" import entity_field %}
 
 {% block title %}Configure Battery - Solar Control{% endblock %}
 
@@ -12,41 +13,14 @@
                 <input type="number" id="size_kwh" name="size_kwh" step="0.1" min="0" required>
             </div>
 
-            <div class="form-group">
-                <label for="battery_percent_entity">Battery Percentage Sensor</label>
-                <div class="searchable-select">
-                    <input type="text" id="battery_percent_entity_input" placeholder="Search for a battery percentage sensor..." autocomplete="off">
-                    <input type="hidden" name="battery_percent_entity" id="battery_percent_entity" value="{{ config.battery_percent_entity if config else '' }}">
-                    <div class="options" id="battery_percent_entity_options">
-                        {% for entity in entities %}
-                            {% if entity.entity_id.startswith('sensor.') %}
-                                {% set is_battery = (
-                                    (entity.attributes and entity.attributes.get('device_class') == 'battery') or
-                                    ('battery' in entity.entity_id.lower() and (
-                                        'percentage' in entity.entity_id.lower() or
-                                        'percent' in entity.entity_id.lower() or
-                                        'level' in entity.entity_id.lower() or
-                                        'soc' in entity.entity_id.lower() or
-                                        'state_of_charge' in entity.entity_id.lower() or
-                                        'capacity' in entity.entity_id.lower() or
-                                        (entity.attributes and entity.attributes.get('unit_of_measurement') == '%')
-                                    ))
-                                ) %}
-                                <div class="option{% if not is_battery %} extended-option{% endif %}"
-                                     {% if not is_battery %}style="display:none"{% endif %}
-                                     data-value="{{ entity.entity_id }}"
-                                     {% if config and entity.entity_id == config.battery_percent_entity %}data-selected="true"{% endif %}>
-                                    {{ entity.attributes.friendly_name if entity.attributes and entity.attributes.friendly_name else entity.entity_id }} ({{ entity.entity_id }})
-                                </div>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
-                </div>
-                <small class="form-text text-muted">
-                    Select a sensor that reports battery percentage (0-100%).
-                    <a href="#" id="showAllSensors" style="margin-left:6px">Can't find yours? Show all sensors.</a>
-                </small>
-            </div>
+            {{ entity_field(
+                'battery_percent_entity', entities,
+                label='Battery Percentage Sensor',
+                filter_type='sensor_battery',
+                placeholder='Search for a battery percentage sensor...',
+                help_text='Select a sensor that reports battery percentage (0-100%).',
+                selected_value=(config.battery_percent_entity or '') if config else ''
+            ) }}
 
             <div class="form-group">
                 <label for="max_charging_speed_kw">Maximum Charging Speed (kW)</label>
@@ -77,15 +51,6 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Show all sensors toggle
-            document.getElementById('showAllSensors').addEventListener('click', function(e) {
-                e.preventDefault();
-                document.querySelectorAll('#battery_percent_entity_options .extended-option').forEach(function(el) {
-                    el.style.display = '';
-                });
-                this.style.display = 'none';
-            });
-
             // Load existing configuration
             apiCall('/api/battery')
                 .then(data => {
@@ -95,17 +60,6 @@
                         document.getElementById('max_charging_speed_kw').value = config.max_charging_speed_kw || '';
                         document.getElementById('expected_kwh_per_hour').value = config.expected_kwh_per_hour || '';
                         document.getElementById('bring_forward_mode').checked = config.bring_forward_mode || false;
-                        
-                        // Set the searchable select values properly
-                        if (config.battery_percent_entity) {
-                            const batteryPercentInput = document.getElementById('battery_percent_entity_input');
-                            const batteryPercentHidden = document.getElementById('battery_percent_entity');
-                            const batteryPercentOption = document.querySelector(`#battery_percent_entity_options .option[data-value="${config.battery_percent_entity}"]`);
-                            if (batteryPercentOption) {
-                                batteryPercentInput.value = batteryPercentOption.textContent;
-                                batteryPercentHidden.value = config.battery_percent_entity;
-                            }
-                        }
                     }
                 })
                 .catch(error => console.error('Error loading battery configuration:', error));
@@ -113,29 +67,20 @@
             // Handle form submission
             document.getElementById('batteryForm').addEventListener('submit', function(e) {
                 e.preventDefault();
-                
+
                 // Get form values
                 const sizeKwh = document.getElementById('size_kwh').value;
                 const batteryPercentEntity = document.getElementById('battery_percent_entity').value;
                 const maxChargingSpeedKw = document.getElementById('max_charging_speed_kw').value;
                 const expectedKwhPerHour = document.getElementById('expected_kwh_per_hour').value;
                 const bringForwardMode = document.getElementById('bring_forward_mode').checked;
-                
-                // Debug logging
-                console.log('Form values:', {
-                    size_kwh: sizeKwh,
-                    battery_percent_entity: batteryPercentEntity,
-                    max_charging_speed_kw: maxChargingSpeedKw,
-                    expected_kwh_per_hour: expectedKwhPerHour,
-                    bring_forward_mode: bringForwardMode
-                });
-                
+
                 // Validate required fields
                 if (!sizeKwh || !batteryPercentEntity) {
                     alert('Please fill in all required fields (Battery Size and Battery Percentage Sensor)');
                     return;
                 }
-                
+
                 const formData = {
                     size_kwh: parseFloat(sizeKwh),
                     battery_percent_entity: batteryPercentEntity,
@@ -143,8 +88,6 @@
                     expected_kwh_per_hour: expectedKwhPerHour ? parseFloat(expectedKwhPerHour) : null,
                     bring_forward_mode: bringForwardMode
                 };
-
-                console.log('Sending data to server:', formData);
 
                 apiCall('/api/battery', {
                     method: 'POST',
@@ -154,7 +97,6 @@
                     body: JSON.stringify(formData)
                 })
                 .then(data => {
-                    console.log('Response data:', data);
                     if (data.status === 'success') {
                         alert('Battery configuration saved successfully');
                     } else {
@@ -169,4 +111,4 @@
         });
     </script>
 
-{% endblock %} 
+{% endblock %}

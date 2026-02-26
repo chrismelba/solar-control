@@ -995,7 +995,13 @@ class SolarController:
             device = device_state.device
             if device.has_variable_amperage:
                 # Calculate optimal amperage based on available power
-                optimal_amperage = self.calculate_optimal_amperage(device, available_power)
+                if device_state.current_amperage is None:
+                    # Not started by us — use max so we don't fight manual control
+                    optimal_amperage = device.max_amperage
+                    logger.info(f"Mandatory device {device.name} is externally controlled "
+                                f"(no amperage tracked) - using max_amperage {optimal_amperage}A")
+                else:
+                    optimal_amperage = self.calculate_optimal_amperage(device, available_power)
                 if optimal_amperage is None:
                     logger.info(f"Cannot calculate optimal amperage for {device.name}")
                     continue
@@ -1050,7 +1056,13 @@ class SolarController:
             # Calculate power needed based on current state of devices_to_turn_on
             if device.has_variable_amperage:
                 # Calculate optimal amperage considering current load
-                optimal_amperage = self.calculate_optimal_amperage(device, available_power)
+                if device_state.is_on and device_state.current_amperage is None:
+                    # Device is on but we didn't set the amperage — externally controlled
+                    optimal_amperage = device.max_amperage
+                    logger.info(f"Device {device.name} is externally controlled "
+                                f"(no amperage tracked) - using max_amperage {optimal_amperage}A")
+                else:
+                    optimal_amperage = self.calculate_optimal_amperage(device, available_power)
                 logger.debug(f"Calculated optimal amperage for {device.name}: {optimal_amperage}A")
                 if optimal_amperage is None:
                     logger.info(f"Cannot calculate optimal amperage for {device.name}")

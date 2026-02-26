@@ -1,6 +1,7 @@
 class SearchableSelect {
     // Single shared document click handler registered once for all instances
     static _instances = [];
+    static _instanceMap = new Map();
     static _documentHandlerRegistered = false;
 
     static _registerDocumentHandler() {
@@ -15,14 +16,25 @@ class SearchableSelect {
         SearchableSelect._documentHandlerRegistered = true;
     }
 
+    // Returns existing instance for inputId if one exists, otherwise creates a new one.
+    // Use this instead of `new SearchableSelect(...)` to prevent double-init.
+    static getOrCreate(inputId, optionsId, hiddenInputId) {
+        if (SearchableSelect._instanceMap.has(inputId)) {
+            return SearchableSelect._instanceMap.get(inputId);
+        }
+        return new SearchableSelect(inputId, optionsId, hiddenInputId);
+    }
+
     constructor(inputId, optionsId, hiddenInputId) {
         this.input = document.getElementById(inputId);
         this.options = document.getElementById(optionsId);
         this.hiddenInput = document.getElementById(hiddenInputId);
         this.onSelectCallback = null;
         this.currentFocus = -1;
+        this._showingAll = false;
 
         SearchableSelect._instances.push(this);
+        SearchableSelect._instanceMap.set(inputId, this);
         SearchableSelect._registerDocumentHandler();
 
         this.setupEventListeners();
@@ -32,6 +44,9 @@ class SearchableSelect {
     setInitialValue() {
         const selectedOption = this.options.querySelector('[data-selected="true"]');
         if (selectedOption) {
+            if (selectedOption.hasAttribute('data-extended')) {
+                this._showAll();
+            }
             this.input.value = selectedOption.textContent.trim();
             if (this.onSelectCallback) {
                 this.onSelectCallback(selectedOption.dataset.value, selectedOption.textContent.trim());
@@ -51,17 +66,52 @@ class SearchableSelect {
         return Array.from(this.options.querySelectorAll('.option')).filter(o => o.style.display !== 'none');
     }
 
+    _showAll() {
+        this._showingAll = true;
+        this.options.querySelectorAll('[data-extended]').forEach(opt => {
+            opt.style.display = '';
+        });
+        const footer = this.options.querySelector('.options-footer');
+        if (footer) footer.style.display = 'none';
+    }
+
     setupEventListeners() {
+        // Wire "Show all" footer button before other events
+        const showAllBtn = this.options.querySelector('.options-show-all');
+        if (showAllBtn) {
+            showAllBtn.addEventListener('click', () => {
+                this._showAll();
+                this.options.classList.add('active');
+            });
+        }
+
         this.input.addEventListener('focus', () => {
             this.options.classList.add('active');
         });
 
         this.input.addEventListener('input', this._debounce(() => {
             const searchText = this.input.value.toLowerCase();
-            this.options.querySelectorAll('.option').forEach(option => {
-                const text = option.textContent.toLowerCase();
-                option.style.display = text.includes(searchText) ? '' : 'none';
-            });
+            const footer = this.options.querySelector('.options-footer');
+
+            if (searchText === '') {
+                // Reset to primary-only view unless "Show all" was clicked
+                this.options.querySelectorAll('.option').forEach(option => {
+                    if (option.hasAttribute('data-extended') && !this._showingAll) {
+                        option.style.display = 'none';
+                    } else {
+                        option.style.display = '';
+                    }
+                });
+                if (footer && !this._showingAll) footer.style.display = '';
+            } else {
+                // Search across all options including extended; hide footer
+                this.options.querySelectorAll('.option').forEach(option => {
+                    const text = option.textContent.toLowerCase();
+                    option.style.display = text.includes(searchText) ? '' : 'none';
+                });
+                if (footer) footer.style.display = 'none';
+            }
+
             this.options.classList.add('active');
             this.currentFocus = -1;
         }, 150));
@@ -141,12 +191,15 @@ class SearchableSelect {
     }
 }
 
-// Initialize all searchable selects on the page
+// Auto-initialize all searchable selects on the page.
+// Uses getOrCreate so manual inits in page scripts don't create duplicates.
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.searchable-select').forEach(select => {
-        const inputId = select.querySelector('input[type="text"]').id;
-        const optionsId = select.querySelector('.options').id;
-        const hiddenInputId = select.querySelector('input[type="hidden"]').id;
-        new SearchableSelect(inputId, optionsId, hiddenInputId);
+        const inputEl = select.querySelector('input[type="text"]');
+        const optionsEl = select.querySelector('.options');
+        const hiddenEl = select.querySelector('input[type="hidden"]');
+        if (inputEl && optionsEl && hiddenEl) {
+            SearchableSelect.getOrCreate(inputEl.id, optionsEl.id, hiddenEl.id);
+        }
     });
 });

@@ -1,0 +1,141 @@
+{#
+  entity_widget — renders just the .searchable-select div.
+    field_name     : base for HTML id/name attributes
+    entities       : full entity list from Flask context
+    filter_type    : 'switch' | 'sensor_power' | 'sensor_battery' | 'sensor_forecast'
+                     | 'sensor' | 'number' | 'binary_sensor' | 'select' | 'all'
+    placeholder    : overrides auto placeholder
+    selected_value : currently saved entity_id
+    required       : adds required attr to hidden input
+    input_name     : overrides name attr on hidden input (defaults to field_name)
+#}
+{% macro entity_widget(field_name, entities, filter_type='all', placeholder=none, selected_value='', required=false, input_name=none) %}
+{%- set _name = input_name if input_name else field_name -%}
+{%- set _selected = selected_value if selected_value else '' -%}
+{%- set _placeholders = {
+    'switch':           'Search switches...',
+    'sensor_power':     'Search power and energy sensors...',
+    'sensor_battery':   'Search battery sensors...',
+    'sensor_forecast':  'Search forecast sensors...',
+    'sensor':           'Search sensors...',
+    'number':           'Search number entities...',
+    'binary_sensor':    'Search binary sensors...',
+    'select':           'Search select entities...',
+    'all':              'Search entities...'
+} -%}
+{%- set _placeholder = placeholder if placeholder else _placeholders.get(filter_type, 'Search entities...') -%}
+{%- set ns = namespace(primary_count=0, extended_count=0) -%}
+<div class="searchable-select">
+    <input type="text" id="{{ field_name }}_input" placeholder="{{ _placeholder }}" autocomplete="off">
+    <input type="hidden" name="{{ _name }}" id="{{ field_name }}"{% if required %} required{% endif %} value="{{ _selected }}">
+    <div class="options" id="{{ field_name }}_options">
+        {%- for entity in entities -%}
+            {%- set eid = entity.entity_id -%}
+            {%- set attrs = entity.attributes if entity.attributes else {} -%}
+            {%- set fname = attrs.friendly_name if attrs.friendly_name else eid -%}
+            {%- set unit = (attrs.unit_of_measurement | lower) if attrs.unit_of_measurement else '' -%}
+            {%- set dc = attrs.device_class if attrs.device_class else '' -%}
+            {%- set eid_lower = eid | lower -%}
+            {%- set is_primary = false -%}
+            {%- set is_extended = false -%}
+
+            {%- if filter_type == 'switch' -%}
+                {%- if eid.startswith('switch.') or eid.startswith('input_boolean.') -%}
+                    {%- set is_primary = true -%}
+                {%- endif -%}
+
+            {%- elif filter_type == 'sensor_power' -%}
+                {%- if eid.startswith('sensor.') -%}
+                    {%- if 'power' in eid_lower or 'energy' in eid_lower or 'consumption' in eid_lower
+                           or 'usage' in eid_lower or 'wattage' in eid_lower or 'current' in eid_lower
+                           or 'amperage' in eid_lower or unit in ['w', 'kw', 'wh', 'kwh', 'a', 'ma'] -%}
+                        {%- set is_primary = true -%}
+                    {%- else -%}
+                        {%- set is_extended = true -%}
+                    {%- endif -%}
+                {%- endif -%}
+
+            {%- elif filter_type == 'sensor_battery' -%}
+                {%- if eid.startswith('sensor.') -%}
+                    {%- if dc == 'battery' or ('battery' in eid_lower and (
+                            'percentage' in eid_lower or 'percent' in eid_lower or 'level' in eid_lower
+                            or 'soc' in eid_lower or 'state_of_charge' in eid_lower or 'capacity' in eid_lower
+                            or unit == '%')) -%}
+                        {%- set is_primary = true -%}
+                    {%- else -%}
+                        {%- set is_extended = true -%}
+                    {%- endif -%}
+                {%- endif -%}
+
+            {%- elif filter_type == 'sensor_forecast' -%}
+                {%- if eid.startswith('sensor.') -%}
+                    {%- if 'forecast' in eid_lower or 'energy_production' in eid_lower -%}
+                        {%- set is_primary = true -%}
+                    {%- else -%}
+                        {%- set is_extended = true -%}
+                    {%- endif -%}
+                {%- endif -%}
+
+            {%- elif filter_type == 'sensor' -%}
+                {%- if eid.startswith('sensor.') -%}
+                    {%- set is_primary = true -%}
+                {%- else -%}
+                    {%- set is_extended = true -%}
+                {%- endif -%}
+
+            {%- elif filter_type == 'number' -%}
+                {%- if eid.startswith('number.') or eid.startswith('input_number.') -%}
+                    {%- set is_primary = true -%}
+                {%- endif -%}
+
+            {%- elif filter_type == 'binary_sensor' -%}
+                {%- if eid.startswith('binary_sensor.') or eid.startswith('input_boolean.') -%}
+                    {%- set is_primary = true -%}
+                {%- endif -%}
+
+            {%- elif filter_type == 'select' -%}
+                {%- if eid.startswith('select.') -%}
+                    {%- set is_primary = true -%}
+                {%- else -%}
+                    {%- set is_extended = true -%}
+                {%- endif -%}
+
+            {%- else -%}
+                {%- set is_primary = true -%}
+            {%- endif -%}
+
+            {%- if is_primary -%}
+                {%- set ns.primary_count = ns.primary_count + 1 -%}
+                <div class="option" data-value="{{ eid }}"{% if eid == _selected %} data-selected="true"{% endif %}>{{ fname }} ({{ eid }})</div>
+            {%- elif is_extended -%}
+                {%- set ns.extended_count = ns.extended_count + 1 -%}
+                <div class="option" data-value="{{ eid }}" data-extended style="display:none"{% if eid == _selected %} data-selected="true"{% endif %}>{{ fname }} ({{ eid }})</div>
+            {%- endif -%}
+        {%- endfor -%}
+        {%- if ns.extended_count > 0 -%}
+        <div class="options-footer">
+            <span class="options-footer-text">{{ ns.primary_count }} best match{% if ns.primary_count != 1 %}es{% endif %}</span>
+            <button type="button" class="options-show-all">Show all {{ ns.primary_count + ns.extended_count }} &#x2192;</button>
+        </div>
+        {%- endif -%}
+    </div>
+</div>
+{% endmacro %}
+
+
+{#
+  entity_field — wraps entity_widget in a .form-group with label and optional help text.
+    label     : label text
+    tooltip   : tooltip text for the ⓘ icon (optional)
+    help_text : small text below the field (optional)
+    All other params forwarded to entity_widget.
+#}
+{% macro entity_field(field_name, entities, label, filter_type='all', placeholder=none, tooltip=none, help_text=none, selected_value='', required=false, input_name=none) %}
+<div class="form-group">
+    <label for="{{ field_name }}_input">{{ label }}{% if tooltip %} <span class="tooltip">ⓘ<span class="tooltiptext">{{ tooltip }}</span></span>{% endif %}</label>
+    {{ entity_widget(field_name, entities, filter_type, placeholder, selected_value, required, input_name) }}
+    {%- if help_text %}
+    <small class="form-text text-muted">{{ help_text }}</small>
+    {%- endif %}
+</div>
+{% endmacro %}
