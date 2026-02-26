@@ -588,7 +588,8 @@ def add_device():
         device = Device(**device_data)
         devices.append(device)
         Device.save_all(devices, DEVICES_FILE)
-        
+        controller.initialize_device_states()
+
         logger.info(f"Successfully added device: {device.name}")
         return jsonify(device.to_dict())
     except Exception as e:
@@ -615,7 +616,8 @@ def update_device(name):
         # Update device
         devices[device_index] = Device(**device_data)
         Device.save_all(devices, DEVICES_FILE)
-        
+        controller.initialize_device_states()
+
         logger.info(f"Successfully updated device: {name}")
         return jsonify(devices[device_index].to_dict())
     except Exception as e:
@@ -631,7 +633,8 @@ def delete_device(name):
         # Find and remove device
         devices = [d for d in devices if d.name != name]
         Device.save_all(devices, DEVICES_FILE)
-        
+        controller.initialize_device_states()
+
         logger.info(f"Successfully deleted device: {name}")
         return jsonify({'status': 'success'})
     except Exception as e:
@@ -662,6 +665,7 @@ def reorder_devices():
         
         # Save updated devices
         Device.save_all(list(device_dict.values()), DEVICES_FILE)
+        controller.initialize_device_states()
         logger.info("Successfully reordered devices")
         return jsonify({'status': 'success'})
     except Exception as e:
