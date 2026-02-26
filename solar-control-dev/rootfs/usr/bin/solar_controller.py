@@ -43,6 +43,7 @@ class DebugState:
     expected_energy_remaining: Optional[float] = None
     hours_until_sunset: Optional[float] = None
     bring_forward_power: Optional[float] = None
+    control_mode: str = 'unknown'
 
     def to_dict(self) -> dict:
         return {
@@ -57,7 +58,8 @@ class DebugState:
             'solar_forecast_remaining': self.solar_forecast_remaining,
             'expected_energy_remaining': self.expected_energy_remaining,
             'hours_until_sunset': self.hours_until_sunset,
-            'bring_forward_power': self.bring_forward_power
+            'bring_forward_power': self.bring_forward_power,
+            'control_mode': self.control_mode
         }
 
 class SolarController:
@@ -918,6 +920,7 @@ class SolarController:
             control_mode = self._determine_control_mode()
             logger.info(f"Selected control mode: {control_mode}")
             
+            self.debug_state.control_mode = control_mode
             if control_mode == 'free':
                 self._run_free_mode(voltage, devices_to_turn_on)
             elif control_mode == 'solar':
