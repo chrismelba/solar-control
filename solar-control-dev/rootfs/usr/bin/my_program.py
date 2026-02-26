@@ -482,16 +482,13 @@ def configure_battery():
     ingress_path = request.headers.get('X-Ingress-Path', '')
     logger.info(f"Serving configure battery page with ingress path: {ingress_path}")
     
-    # Load current configuration
-    try:
-        with open(CONFIG_FILE, 'r') as f:
-            config = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        config = {}
-    
+    # Load battery configuration
+    battery = Battery.load(BATTERY_FILE)
+    config = battery.to_dict() if battery else {}
+
     # Get entities for the searchable selects
     entities = get_entities()
-    
+
     return make_response(render_template('configure_battery.html',
                          config=config,
                          entities=entities,
