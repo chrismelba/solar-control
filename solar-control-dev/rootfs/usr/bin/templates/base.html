@@ -11,54 +11,63 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/searchable-select.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/sensor-cards.css') }}">
     <style>
-        /* Modal — embedded to guarantee load in HA ingress iframe */
+        /* ── Embedded: modal + form CSS guaranteed in HA ingress iframe ── */
         .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: 1000;
-            background-color: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(4px);
-            align-items: flex-start;
-            justify-content: center;
-            overflow-y: auto;
-            padding: 2rem 1rem;
-            box-sizing: border-box;
+            display: none; position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%; z-index: 1000;
+            background-color: rgba(0,0,0,0.75); backdrop-filter: blur(4px);
+            align-items: flex-start; justify-content: center;
+            overflow-y: auto; padding: 2rem 1rem; box-sizing: border-box;
         }
         .modal.active { display: flex; }
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(-12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
         .modal-content {
-            background-color: #1e1e1e;
-            border-radius: 12px;
-            padding: 1.75rem;
-            max-width: 700px;
-            width: 100%;
-            margin: auto;
-            border: 1px solid #333;
-            position: relative;
+            background-color: #1e1e1e; border-radius: 12px; padding: 1.75rem;
+            max-width: 700px; width: 100%; margin: auto;
+            border: 1px solid #333; position: relative;
+            animation: modalFadeIn 0.2s ease;
         }
         .modal-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 1.25rem;
-            padding-bottom: 0.75rem;
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 1.25rem; padding-bottom: 0.75rem;
             border-bottom: 1px solid rgba(255,255,255,0.06);
         }
+        .modal-title { font-size: 0.7rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #555; margin: 0; }
+        .modal-close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #555; padding: 0; line-height: 1; }
+        .modal-close:hover { color: #e0e0e0; }
         .modal-footer {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-top: 1.5rem;
-            padding-top: 1rem;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-top: 1.5rem; padding-top: 1rem; gap: 0.5rem;
             border-top: 1px solid rgba(255,255,255,0.06);
         }
-        .modal-footer-right { display: flex; gap: 0.75rem; }
-        .modal-close {
-            background: none; border: none;
-            font-size: 1.2rem; cursor: pointer;
-            color: #888; padding: 0.25rem;
-        }
+        .modal-footer-right { display: flex; gap: 0.5rem; }
+        .modal-footer .button { padding: 0.55rem 1.1rem; font-size: 0.9rem; }
+        .modal input[type="text"], .modal input[type="number"],
+        .modal input[type="email"], .modal select { border-radius: 5px; padding: 0.45rem 0.65rem; font-size: 0.9rem; margin: 0; }
+        .modal .searchable-select input { padding: 0.45rem 0.65rem; font-size: 0.9rem; border-radius: 5px; margin: 0; }
+        .modal .searchable-select { margin-bottom: 0; }
+        .modal label:not(.checkbox-row) { display: block; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #888; margin-bottom: 0.3rem; }
+        .modal .form-group { margin-bottom: 0.875rem; }
+        .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .field-with-unit { display: flex; align-items: center; gap: 0.5rem; }
+        .field-with-unit input { flex: 1; min-width: 0; }
+        .field-with-unit .unit-label { color: #888; font-size: 0.85rem; white-space: nowrap; flex-shrink: 0; }
+        .checkbox-row { display: flex; align-items: center; gap: 0.6rem; cursor: pointer; padding: 0.25rem 0; margin-bottom: 0.35rem; }
+        .checkbox-row input[type="checkbox"] { width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; margin: 0; }
+        .checkbox-row .checkbox-label { font-weight: 600; font-size: 0.95rem; color: #e0e0e0; }
+        .optional-label { font-weight: 400; font-size: 0.8rem; color: #666; margin-left: 0.3rem; }
+        .form-section-divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 1.25rem 0; }
+        .help-text { display: block; color: #666; font-size: 0.8rem; margin-top: 0.25rem; margin-bottom: 0; line-height: 1.4; }
+        .tabs { margin-bottom: 1.5rem; }
+        .tab-buttons { display: flex; gap: 0.25rem; border-bottom: 1px solid #333; margin-bottom: 1.25rem; }
+        .tab-button { padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; font-weight: 600; font-size: 0.85rem; color: #555; border-radius: 4px 4px 0 0; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+        .tab-button:hover { background-color: #2a2a2a; color: #e0e0e0; }
+        .tab-button.active { color: #2196f3; border-bottom-color: #2196f3; }
+        .tab-content { display: none; padding: 0.5rem 0; }
+        .tab-content.active { display: block; }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
