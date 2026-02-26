@@ -204,9 +204,7 @@ class SolarController:
     def initialize_device_states(self):
         """Initialize or update device states"""
         devices = Device.load_all(self.devices_file)
-        current_time = datetime.now(timezone.utc)
-        initial_time = 0 
-        
+
         # Update existing states
         for device in devices:
             if device.name not in self.device_states:
@@ -215,13 +213,17 @@ class SolarController:
                 self.device_states[device.name] = DeviceState(
                     device=device,
                     is_on=is_on,
-                    last_state_change=initial_time
+                    last_state_change=None
                 )
             else:
                 # Update device reference in case it changed
                 self.device_states[device.name].device = device
-                # Update current state from Home Assistant
-                self.device_states[device.name].is_on = self.get_device_state_from_hass(device)
+                # Sync state from HA; if it changed externally, reset the timer
+                new_is_on = self.get_device_state_from_hass(device)
+                if self.device_states[device.name].is_on != new_is_on:
+                    logger.info(f"External state change detected for {device.name}: {new_is_on}")
+                    self.device_states[device.name].is_on = new_is_on
+                    self.device_states[device.name].last_state_change = datetime.now(timezone.utc)
                 
         # Remove states for devices that no longer exist
         self.device_states = {
@@ -776,7 +778,19 @@ class SolarController:
                 if existing_index is not None:
                     devices_to_turn_on.pop(existing_index)
                 continue
-            
+
+            # Skip if device is in minimum off time (and not already locked on by Phase 1)
+            if existing_index is None and not device_state.is_on and device_state.last_state_change:
+                time_since_change = (datetime.now(timezone.utc) - device_state.last_state_change).total_seconds()
+                if time_since_change < device.min_off_time:
+                    logger.info(f"Skipping {device.name} in free mode - minimum off time not met")
+                    optional_devices.append({
+                        'name': device.name,
+                        'power': 0,
+                        'reason': 'Minimum off time not met'
+                    })
+                    continue
+
             # For variable amperage devices, set to maximum
             if device.has_variable_amperage:
                 max_amperage = device.max_amperage
@@ -860,17 +874,6 @@ class SolarController:
                 device = device_state.device
                 if device.energy_sensor:
                     device.update_energy_delivered()
-            
-            # Sync all device states with Home Assistant before processing
-            for device_state in self.device_states.values():
-                device = device_state.device
-                # Get current state from Home Assistant
-                hass_state = self.get_device_state_from_hass(device)
-                # Update our local state if it differs from Home Assistant
-                if device_state.is_on != hass_state:
-                    logger.info(f"Syncing state for {device.name} with Home Assistant: {hass_state}")
-                    device_state.is_on = hass_state
-                    device_state.last_state_change = current_time
             
             for device_state in self.device_states.values():
                 device = device_state.device
@@ -1198,6 +1201,18 @@ class SolarController:
                         devices_to_turn_on.pop(existing_index)
                     continue
             
+            # Skip if device is in minimum off time (and not already locked on by Phase 1)
+            if existing_index is None and not device_state.is_on and device_state.last_state_change:
+                time_since_change = (datetime.now(timezone.utc) - device_state.last_state_change).total_seconds()
+                if time_since_change < device.min_off_time:
+                    logger.info(f"Skipping {device.name} in tariff mode - minimum off time not met")
+                    optional_devices.append({
+                        'name': device.name,
+                        'power': 0,
+                        'reason': 'Minimum off time not met'
+                    })
+                    continue
+
             # Check if minimum daily power requirement is met
             if device.energy_delivered_today >= device.min_daily_power:
                 logger.info(f"Turning off {device.name} - minimum daily power requirement met")
