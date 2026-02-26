@@ -6,280 +6,149 @@
 {% block heading %}Solar Control Dashboard{% endblock %}
 
 {% block content %}
-    <style>
-        h1 {
-            text-align: center;
-            margin: 0 0 0 72px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 60px;
-        }
-    </style>
-    
-    <div class="card" id="devices">
-        <h2>Controllable Devices</h2>
-        <div id="deviceList" class="device-list">
-            {% for device in devices %}
-                {{ device_card(device, draggable=true) }}
-            {% endfor %}
-        </div>
-    </div>
+    <div class="dashboard-grid">
 
-    <div class="card" id="sensor-values">
-        <h2>Current Sensor Values</h2>
-        <div class="sensor-grid">
-            <div class="sensor-card">
-                <h3>Solar Generation</h3>
-                {% if sensor_values.solar_generation %}
-                    <p class="value">{{ sensor_values.solar_generation.state }} {{ sensor_values.solar_generation.unit }}</p>
-                    <p class="name">{{ sensor_values.solar_generation.friendly_name }}</p>
+        <div class="card" id="devices">
+            <h2>Controllable Devices</h2>
+            <div id="deviceList" class="device-list">
+                {% if devices %}
+                    {% for device in devices %}
+                        {{ device_card(device, draggable=true) }}
+                    {% endfor %}
                 {% else %}
-                    <p class="value">Not configured</p>
-                {% endif %}
-            </div>
-            
-            <div class="sensor-card">
-                <h3>Grid Power</h3>
-                {% if sensor_values.grid_power %}
-                    <p class="value">{{ sensor_values.grid_power.state }} {{ sensor_values.grid_power.unit }}</p>
-                    <p class="name">{{ sensor_values.grid_power.friendly_name }}</p>
-                {% else %}
-                    <p class="value">Not configured</p>
-                {% endif %}
-            </div>
-            
-            <div class="sensor-card">
-                <h3>Solar Forecast</h3>
-                {% if sensor_values.solar_forecast %}
-                    <p class="value">{{ sensor_values.solar_forecast.state }} {{ sensor_values.solar_forecast.unit }}</p>
-                    <p class="name">{{ sensor_values.solar_forecast.friendly_name }}</p>
-                {% else %}
-                    <p class="value">Not configured</p>
-                {% endif %}
-            </div>
-
-            <div class="sensor-card">
-                <h3>Expected Energy Remaining</h3>
-                <p class="value" id="expectedEnergyRemaining">Loading...</p>
-                <p class="name">After battery charging</p>
-            </div>
-
-            <div class="sensor-card">
-                <h3>Hours Until Sunset</h3>
-                <p class="value" id="hoursUntilSunset">Loading...</p>
-                <p class="name">Remaining daylight</p>
-            </div>
-
-            {% if sensor_values.tariff_rate %}
-            <div class="sensor-card">
-                <h3>Current Tariff</h3>
-                <p class="value">{{ sensor_values.tariff_rate.state }}</p>
-                <p class="name">{{ sensor_values.tariff_rate.friendly_name }}</p>
-                <p class="mode">Mode: {{ sensor_values.tariff_mode|default('error') }}</p>
-            </div>
-            {% endif %}
-
-            <div class="sensor-card">
-                <h3>Last Sunrise</h3>
-                {% if sunrise_time %}
-                    <p class="value">{{ sunrise_time.split('T')[1].split(':')[0] }}:{{ sunrise_time.split('T')[1].split(':')[1] }}</p>
-                    <p class="name">Today's Sunrise (Local Time)</p>
-                {% else %}
-                    <p class="value">Not available</p>
+                    <div class="empty-state">
+                        <p>No devices configured yet.</p>
+                        <a href="{{ url_for('configure_devices') }}" class="button">Configure Devices</a>
+                    </div>
                 {% endif %}
             </div>
         </div>
-    </div>
 
-    <div class="card" id="status">
-        <h2>System Status</h2>
-        <div class="status-content">
-            <p>Loading status...</p>
-            <div class="toggle-container">
-                <label class="switch">
-                    <input type="checkbox" id="powerOptimizationToggle">
-                    <span class="slider round"></span>
-                </label>
-                <span class="toggle-label">Power Optimization</span>
+        <div class="dashboard-right">
+
+            <div class="card" id="sensor-values">
+                <h2>Current Sensor Values</h2>
+                <div class="sensor-grid">
+                    <div class="sensor-card solar">
+                        <h3>&#9728; Solar Generation</h3>
+                        {% if sensor_values.solar_generation %}
+                            <p class="value">{{ sensor_values.solar_generation.state }} {{ sensor_values.solar_generation.unit }}</p>
+                            <p class="name">{{ sensor_values.solar_generation.friendly_name }}</p>
+                        {% else %}
+                            <p class="value not-configured">Not configured</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="sensor-card grid">
+                        <h3>&#9889; Grid Power</h3>
+                        {% if sensor_values.grid_power %}
+                            <p class="value">{{ sensor_values.grid_power.state }} {{ sensor_values.grid_power.unit }}</p>
+                            <p class="name">{{ sensor_values.grid_power.friendly_name }}</p>
+                        {% else %}
+                            <p class="value not-configured">Not configured</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="sensor-card forecast">
+                        <h3>&#128197; Solar Forecast</h3>
+                        {% if sensor_values.solar_forecast %}
+                            <p class="value">{{ sensor_values.solar_forecast.state }} {{ sensor_values.solar_forecast.unit }}</p>
+                            <p class="name">{{ sensor_values.solar_forecast.friendly_name }}</p>
+                        {% else %}
+                            <p class="value not-configured">Not configured</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="sensor-card battery">
+                        <h3>&#128267; Expected Energy Remaining</h3>
+                        <p class="value" id="expectedEnergyRemaining">Loading...</p>
+                        <p class="name">After battery charging</p>
+                    </div>
+
+                    <div class="sensor-card sunset">
+                        <h3>&#127749; Hours Until Sunset</h3>
+                        <p class="value" id="hoursUntilSunset">Loading...</p>
+                        <p class="name">Remaining daylight</p>
+                    </div>
+
+                    {% if sensor_values.tariff_rate %}
+                    <div class="sensor-card tariff">
+                        <h3>&#128178; Current Tariff</h3>
+                        <p class="value">{{ sensor_values.tariff_rate.state }}</p>
+                        <p class="name">{{ sensor_values.tariff_rate.friendly_name }}</p>
+                        <p class="mode">Mode: {{ sensor_values.tariff_mode|default('error') }}</p>
+                    </div>
+                    {% endif %}
+
+                    <div class="sensor-card sunrise">
+                        <h3>&#127748; Last Sunrise</h3>
+                        {% if sunrise_time %}
+                            <p class="value">{{ sunrise_time.split('T')[1].split(':')[0] }}:{{ sunrise_time.split('T')[1].split(':')[1] }}</p>
+                            <p class="name">Today's Sunrise (Local Time)</p>
+                        {% else %}
+                            <p class="value not-configured">Not configured</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="sensor-card bring-forward">
+                        <h3>&#8679; Bring Forward Power</h3>
+                        {% if sensor_values.bring_forward_power %}
+                            <p class="value">{{ sensor_values.bring_forward_power.state }} {{ sensor_values.bring_forward_power.unit }}</p>
+                            <p class="name">{{ sensor_values.bring_forward_power.friendly_name }}</p>
+                            {% if sensor_values.bring_forward_mode %}
+                                <p class="mode">Mode: {{ sensor_values.bring_forward_mode.state }}</p>
+                            {% endif %}
+                        {% else %}
+                            <p class="value not-configured">Not configured</p>
+                            <p class="name">Bring Forward Power</p>
+                            {% if sensor_values.bring_forward_mode %}
+                                <p class="mode">Mode: {{ sensor_values.bring_forward_mode.state }}</p>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
             </div>
+
+            <div class="card" id="status">
+                <h2>System Status</h2>
+                <div class="status-content">
+                    <div class="status-row">
+                        <span class="status-label">Status:</span>
+                        <span id="statusText" class="status-value">Loading...</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-label">Mode:</span>
+                        <span id="statusMode" class="status-value">—</span>
+                    </div>
+                    <div class="toggle-container" style="margin-top: 1rem;">
+                        <label class="switch">
+                            <input type="checkbox" id="powerOptimizationToggle">
+                            <span class="slider round"></span>
+                        </label>
+                        <span class="toggle-label">Power Optimization</span>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
-
-    <style>
-        .sensor-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin: 1rem 0;
-        }
-        @media (min-width: 1200px) {
-            .sensor-grid {
-                grid-template-columns: repeat(4, 1fr);
-            }
-        }
-        @media (max-width: 768px) {
-            .sensor-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        .sensor-card {
-            background: #f5f5f5;
-            padding: 1rem;
-            border-radius: 8px;
-            text-align: center;
-        }
-        .sensor-card h3 {
-            margin: 0 0 0.5rem 0;
-            color: #333;
-        }
-        .sensor-card .value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            margin: 0.5rem 0;
-            color: #2196F3;
-        }
-        .sensor-card .name {
-            font-size: 0.9rem;
-            color: #666;
-            margin: 0;
-        }
-        .sensor-card .mode {
-            font-size: 0.9rem;
-            color: #666;
-            margin: 0;
-        }
-        .device-list {
-            margin-top: 1rem;
-        }
-
-        /* New device card styles */
-        .device-card {
-            background: white;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 0.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: move;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .device-card:hover {
-            border-color: #2196F3;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }
-
-        .device-card.dragging {
-            opacity: 0.5;
-            background: #f5f5f5;
-        }
-
-        .device-info {
-            flex-grow: 1;
-        }
-
-        .device-name {
-            font-weight: bold;
-            margin: 0;
-            color: #333;
-        }
-
-        .device-power {
-            margin: 0.25rem 0 0 0;
-            color: #666;
-            font-size: 0.9rem;
-        }
-
-        .device-status {
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            font-weight: bold;
-            margin-left: 1rem;
-        }
-
-        .status-off {
-            background: #f44336;
-            color: white;
-        }
-
-        .status-on {
-            background: #4CAF50;
-            color: white;
-        }
-
-        /* Toggle switch styles */
-        .toggle-container {
-            display: flex;
-            align-items: center;
-            margin-top: 1rem;
-        }
-        .toggle-label {
-            margin-left: 1rem;
-            font-weight: 500;
-        }
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 60px;
-            height: 34px;
-        }
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-        }
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 26px;
-            width: 26px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-        }
-        input:checked + .slider {
-            background-color: #2196F3;
-        }
-        input:focus + .slider {
-            box-shadow: 0 0 1px #2196F3;
-        }
-        input:checked + .slider:before {
-            transform: translateX(26px);
-        }
-        .slider.round {
-            border-radius: 34px;
-        }
-        .slider.round:before {
-            border-radius: 50%;
-        }
-    </style>
 
     <script>
         // Fetch status from API
         async function updateStatus() {
             try {
                 const data = await apiCall('/api/status');
-                
-                const statusContent = document.querySelector('#status .status-content p');
-                if (statusContent) {
-                    statusContent.textContent = `Status: ${data.status}, Version: ${data.version}`;
+
+                const statusText = document.getElementById('statusText');
+                if (statusText) {
+                    statusText.textContent = `${data.status} (v${data.version})`;
                 }
-                    
+
+                const statusMode = document.getElementById('statusMode');
+                if (statusMode && data.debug_state) {
+                    statusMode.textContent = data.debug_state.control_mode || '—';
+                }
+
                 // Update toggle state
                 const toggle = document.getElementById('powerOptimizationToggle');
                 if (toggle) {
@@ -287,9 +156,9 @@
                 }
             } catch (error) {
                 console.error('Error updating status:', error);
-                const statusContent = document.querySelector('#status .status-content p');
-                if (statusContent) {
-                    statusContent.textContent = 'Error loading status';
+                const statusText = document.getElementById('statusText');
+                if (statusText) {
+                    statusText.textContent = 'Error loading status';
                 }
             }
         }
@@ -337,13 +206,13 @@
         function initializeDragAndDrop() {
             const deviceList = document.getElementById('deviceList');
             const items = deviceList.querySelectorAll('.device-card.draggable');
-            
+
             items.forEach(item => {
                 item.addEventListener('dragstart', (e) => {
                     e.dataTransfer.effectAllowed = 'move';
                     item.classList.add('dragging');
                 });
-                
+
                 item.addEventListener('dragend', async () => {
                     item.classList.remove('dragging');
                     try {
@@ -355,21 +224,21 @@
                     }
                 });
             });
-            
+
             deviceList.addEventListener('dragover', e => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
                 const draggingItem = deviceList.querySelector('.dragging');
                 if (!draggingItem) return;
-                
+
                 const siblings = [...deviceList.querySelectorAll('.device-card:not(.dragging)')];
-                
+
                 const nextSibling = siblings.find(sibling => {
                     const box = sibling.getBoundingClientRect();
                     const offset = e.clientY - box.top - box.height / 2;
                     return offset < 0;
                 });
-                
+
                 deviceList.insertBefore(draggingItem, nextSibling);
             });
 
@@ -378,15 +247,15 @@
                 e.preventDefault();
                 const draggingItem = deviceList.querySelector('.dragging');
                 if (!draggingItem) return;
-                
+
                 const siblings = [...deviceList.querySelectorAll('.device-card:not(.dragging)')];
-                
+
                 const nextSibling = siblings.find(sibling => {
                     const box = sibling.getBoundingClientRect();
                     const offset = e.clientY - box.top - box.height / 2;
                     return offset < 0;
                 });
-                
+
                 deviceList.insertBefore(draggingItem, nextSibling);
             });
         }
@@ -397,7 +266,7 @@
                 name: item.dataset.deviceName,
                 order: index
             }));
-            
+
             try {
                 const result = await apiCall('/api/devices/reorder', {
                     method: 'POST',
@@ -406,13 +275,10 @@
                     },
                     body: JSON.stringify(orderData)
                 });
-                
+
                 if (result.status === 'error') {
                     throw new Error(result.message || 'Failed to update device order');
                 }
-                
-                // Reload devices to ensure order is correct
-                window.location.reload();
             } catch (error) {
                 console.error('Error updating device order:', error);
                 alert('Failed to update device order. Please try again.');
@@ -436,6 +302,31 @@
                         if (deliveredElem) {
                             deliveredElem.textContent = `Energy Delivered: ${device.energy_delivered_today.toFixed(2)} Wh`;
                         }
+                        const powerElem = card.querySelector('.device-power-value');
+                        if (powerElem) {
+                            if (device.is_on && device.current_power_sensor && device.current_power > 0) {
+                                powerElem.textContent = `${Math.round(device.current_power)}W`;
+                            } else {
+                                powerElem.textContent = `${device.typical_power_draw}W (assumed)`;
+                            }
+                        }
+                        const chargeSection = card.querySelector('.one-off-charge-section');
+                        if (chargeSection) {
+                            const statusEl = chargeSection.querySelector('.one-off-charge-status');
+                            const btnEl = chargeSection.querySelector('.one-off-charge-btn');
+                            const inputRow = chargeSection.querySelector('.one-off-charge-input-row');
+                            if (device.one_off_charge_target != null) {
+                                const delivered = (device.one_off_charge_delivered || 0).toFixed(1);
+                                const target = device.one_off_charge_target.toFixed(1);
+                                statusEl.innerHTML = `⚡ ${delivered} / ${target} kWh <button class="one-off-charge-cancel" data-device-name="${device.name}">✕</button>`;
+                                statusEl.style.display = '';
+                                btnEl.style.display = 'none';
+                                inputRow.style.display = 'none';
+                            } else {
+                                statusEl.style.display = 'none';
+                                btnEl.style.display = '';
+                            }
+                        }
                     }
                 });
             } catch (error) {
@@ -445,11 +336,48 @@
         setInterval(updateDeviceCards, 60000); // Update every minute
         updateDeviceCards();
 
+        // One-off charge button interactions
+        document.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('one-off-charge-btn')) {
+                const section = e.target.closest('.one-off-charge-section');
+                e.target.style.display = 'none';
+                section.querySelector('.one-off-charge-input-row').style.display = '';
+                section.querySelector('.one-off-charge-input').focus();
+            }
+            if (e.target.classList.contains('one-off-charge-cancel-input')) {
+                const section = e.target.closest('.one-off-charge-section');
+                section.querySelector('.one-off-charge-input-row').style.display = 'none';
+                section.querySelector('.one-off-charge-btn').style.display = '';
+            }
+            if (e.target.classList.contains('one-off-charge-submit')) {
+                const section = e.target.closest('.one-off-charge-section');
+                const name = section.dataset.deviceName;
+                const kwh = parseFloat(section.querySelector('.one-off-charge-input').value);
+                if (!isNaN(kwh) && kwh > 0) {
+                    await apiCall(`/api/devices/${encodeURIComponent(name)}/one_off_charge`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ target_kwh: kwh })
+                    });
+                    updateDeviceCards();
+                }
+            }
+            if (e.target.classList.contains('one-off-charge-cancel')) {
+                const name = e.target.dataset.deviceName;
+                await apiCall(`/api/devices/${encodeURIComponent(name)}/one_off_charge`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ target_kwh: null })
+                });
+                updateDeviceCards();
+            }
+        });
+
         // Update forecast information
         async function updateForecastInfo() {
             try {
                 const data = await apiCall('/api/status');
-                
+
                 // Update expected energy remaining
                 const expectedEnergyElem = document.getElementById('expectedEnergyRemaining');
                 if (expectedEnergyElem) {
@@ -462,7 +390,7 @@
                         expectedEnergyElem.textContent = 'Not available';
                     }
                 }
-                
+
                 // Update hours until sunset
                 const hoursUntilSunsetElem = document.getElementById('hoursUntilSunset');
                 if (hoursUntilSunsetElem && data.debug_state && data.debug_state.hours_until_sunset !== null) {
@@ -474,6 +402,22 @@
                 } else if (hoursUntilSunsetElem) {
                     hoursUntilSunsetElem.textContent = 'Not available';
                 }
+
+                // Update bring forward power
+                const bringForwardCards = document.querySelectorAll('.sensor-card');
+                for (const card of bringForwardCards) {
+                    const title = card.querySelector('h3');
+                    if (title && title.textContent.includes('Bring Forward Power')) {
+                        if (data.debug_state && data.debug_state.bring_forward_power !== null) {
+                            const valueElem = card.querySelector('.value');
+                            if (valueElem) {
+                                valueElem.textContent = `${data.debug_state.bring_forward_power.toFixed(0)} W`;
+                                valueElem.classList.remove('not-configured');
+                            }
+                        }
+                        break;
+                    }
+                }
             } catch (error) {
                 console.error('Error updating forecast info:', error);
                 const expectedEnergyElem = document.getElementById('expectedEnergyRemaining');
@@ -483,4 +427,4 @@
             }
         }
     </script>
-{% endblock %} 
+{% endblock %}

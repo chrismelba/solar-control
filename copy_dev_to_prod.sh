@@ -60,14 +60,14 @@ if [ ! -f "$PROD_CONFIG" ]; then
     exit 1
 fi
 
-# Extract current version from dev config
-CURRENT_VERSION=$(grep "^version:" "$DEV_CONFIG" | sed 's/version: //' | tr -d ' "')
+# Extract current version from prod config (base for the bump)
+CURRENT_VERSION=$(grep "^version:" "$PROD_CONFIG" | sed 's/version: //' | tr -d ' "')
 if [ -z "$CURRENT_VERSION" ]; then
-    print_error "Could not find version in $DEV_CONFIG"
+    print_error "Could not find version in $PROD_CONFIG"
     exit 1
 fi
 
-print_status "Current version: $CURRENT_VERSION"
+print_status "Current prod version: $CURRENT_VERSION"
 
 # Parse version components
 IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
@@ -78,31 +78,32 @@ fi
 
 MAJOR=${VERSION_PARTS[0]}
 MINOR=${VERSION_PARTS[1]}
-PATCH=${VERSION_PARTS[2]}
 
-# Increment minor version
+# Increment minor version, reset patch to 0
 NEW_MINOR=$((MINOR + 1))
 NEW_VERSION="$MAJOR.$NEW_MINOR.0"
 
 print_status "New version: $NEW_VERSION"
 
-# Update version in production config
+# Update version in both prod and dev configs
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS version of sed
     sed -i '' "s/^version:.*/version: \"$NEW_VERSION\"/" "$PROD_CONFIG"
+    sed -i '' "s/^version:.*/version: \"$NEW_VERSION\"/" "$DEV_CONFIG"
 else
-    # Linux version of sed
     sed -i "s/^version:.*/version: \"$NEW_VERSION\"/" "$PROD_CONFIG"
+    sed -i "s/^version:.*/version: \"$NEW_VERSION\"/" "$DEV_CONFIG"
 fi
 
 print_success "Version updated to $NEW_VERSION in $PROD_CONFIG"
+print_success "Version updated to $NEW_VERSION in $DEV_CONFIG"
 
-# Verify the change
-UPDATED_VERSION=$(grep "^version:" "$PROD_CONFIG" | sed 's/version: //' | tr -d ' "')
-if [ "$UPDATED_VERSION" = "$NEW_VERSION" ]; then
+# Verify the changes
+UPDATED_PROD=$(grep "^version:" "$PROD_CONFIG" | sed 's/version: //' | tr -d ' "')
+UPDATED_DEV=$(grep "^version:" "$DEV_CONFIG" | sed 's/version: //' | tr -d ' "')
+if [ "$UPDATED_PROD" = "$NEW_VERSION" ] && [ "$UPDATED_DEV" = "$NEW_VERSION" ]; then
     print_success "Version update verified successfully"
 else
-    print_error "Version update verification failed. Expected: $NEW_VERSION, Got: $UPDATED_VERSION"
+    print_error "Version update verification failed. Expected: $NEW_VERSION, Got prod: $UPDATED_PROD, dev: $UPDATED_DEV"
     exit 1
 fi
 

@@ -9,17 +9,202 @@
     --hover-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
     --border-radius: 12px;
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --sidebar-width: 220px;
+    --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+}
+
+html {
+    height: 100%;
 }
 
 body {
-    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem;
-    background: linear-gradient(135deg, #121212, #1a1a1a);
-    min-height: 100vh;
+    height: 100%;
+    margin: 0;
+    font-family: 'Outfit', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-font-smoothing: antialiased;
+    background-color: #121212;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 28px 28px;
     color: var(--text-color);
     line-height: 1.6;
+}
+
+a {
+    text-decoration: none;
+    color: var(--primary-color);
+}
+
+/* ── Sidebar Navigation ── */
+.sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: var(--sidebar-width);
+    height: 100vh;
+    background-color: #1e1e1e;
+    border-right: 1px solid #333;
+    z-index: 1000;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar::before {
+    content: '';
+    display: block;
+    height: 2px;
+    background: linear-gradient(90deg, #f59e0b 0%, #2196f3 65%, transparent 100%);
+    flex-shrink: 0;
+}
+
+.sidebar-title {
+    padding: 1rem 1.25rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--primary-light);
+    border-bottom: 1px solid #333;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.sidebar nav {
+    padding: 0.5rem;
+    flex-grow: 1;
+}
+
+.sidebar nav a {
+    display: block;
+    padding: 0.65rem 0.9rem;
+    color: var(--text-color);
+    text-decoration: none;
+    font-size: 0.9rem;
+    border-radius: 6px;
+    margin-bottom: 0.15rem;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.sidebar nav a:hover {
+    background-color: #2a2a2a;
+    color: var(--primary-color);
+}
+
+.sidebar nav a.active {
+    background-color: var(--primary-dark);
+    color: white;
+}
+
+/* ── Main Wrapper ── */
+.main-wrapper {
+    margin-left: var(--sidebar-width);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* ── Toolbar ── */
+.toolbar {
+    display: flex;
+    align-items: center;
+    height: 56px;
+    background-color: #1e1e1e;
+    border-bottom: 1px solid #333;
+    color: #fff;
+    box-sizing: border-box;
+    padding: 0 1.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.toolbar h1 {
+    font-size: 1.1rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    margin: 0;
+    color: var(--text-color);
+    min-height: unset;
+    text-align: left;
+}
+
+/* ── Content Area ── */
+.content {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    padding: 1.5rem;
+    align-items: stretch;
+}
+
+/* ── Dashboard Grid ── */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.dashboard-right {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.dashboard-grid > .card,
+.dashboard-right > .card {
+    margin: 0;
+}
+
+/* ── Empty State ── */
+.empty-state {
+    text-align: center;
+    padding: 2.5rem 1.5rem;
+    color: #888;
+}
+
+.empty-state p {
+    margin-bottom: 1rem;
+}
+
+/* ── Status card rows ── */
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.status-label {
+    color: #888;
+    font-size: 0.9rem;
+    min-width: 60px;
+}
+
+.status-value {
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+/* ── Card ── */
+.card {
+    background-color: var(--card-background);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    box-shadow: var(--shadow);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* ── Card section headers ── */
+.card > h2 {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #555;
+    margin: 0 0 1.25rem 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .back-link {
@@ -55,21 +240,6 @@ h1 {
     align-items: center;
     justify-content: center;
     min-height: 60px;
-}
-
-.card {
-    background-color: var(--card-background);
-    border-radius: var(--border-radius);
-    padding: 1.5rem;
-    margin: 1.5rem 0;
-    box-shadow: var(--shadow);
-    transition: var(--transition);
-    border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--hover-shadow);
 }
 
 .button {
@@ -178,7 +348,7 @@ tr:hover {
     border: 1px solid #c62828;
 }
 
-/* Navigation styles */
+/* Navigation styles (legacy, for non-sidebar pages) */
 .nav-menu {
     display: flex;
     gap: 1rem;
@@ -270,4 +440,504 @@ tr:hover {
 .modal-close:hover {
     opacity: 1;
     transform: rotate(90deg);
-} 
+}
+
+/* ── Tooltip (shared across configure pages) ── */
+.tooltip {
+    position: relative;
+    display: inline-block;
+    cursor: help;
+    color: #888;
+    font-size: 0.9em;
+    margin-left: 4px;
+}
+
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 250px;
+    background-color: #2a2a2a;
+    color: var(--text-color);
+    text-align: left;
+    border-radius: 6px;
+    padding: 10px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 0.9em;
+    line-height: 1.4;
+    border: 1px solid #444;
+}
+
+.tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #2a2a2a transparent transparent transparent;
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* ── Toggle Switch (shared) ── */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-label {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #444;
+    transition: 0.4s;
+    border-radius: 34px;
+}
+
+.toggle-label:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: #ccc;
+    transition: 0.4s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-label {
+    background-color: var(--primary-color);
+}
+
+input:checked + .toggle-label:before {
+    background-color: white;
+    transform: translateX(26px);
+}
+
+/* ── Form helpers ── */
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-text {
+    font-size: 0.85rem;
+    color: #888;
+    margin-top: 4px;
+    display: block;
+}
+
+.form-actions {
+    margin-top: 1.5rem;
+}
+
+/* ── Device cards (dashboard) ── */
+.device-list {
+    margin-top: 1rem;
+}
+
+.device-card {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: move;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.device-card:hover {
+    border-color: #444;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+}
+
+.device-card.dragging {
+    opacity: 0.5;
+}
+
+.device-card.draggable:hover {
+    transform: translateX(3px);
+}
+
+/* Status stripe via :has() — green=on, red=off */
+.device-card:has(.device-toggle:checked) {
+    box-shadow: inset 3px 0 0 #22c55e, 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.device-card:has(.device-toggle:not(:checked)) {
+    box-shadow: inset 3px 0 0 #ef4444, 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.device-card:hover:has(.device-toggle:checked) {
+    box-shadow: inset 3px 0 0 #22c55e, 0 4px 8px rgba(0,0,0,0.4);
+}
+
+.device-card:hover:has(.device-toggle:not(:checked)) {
+    box-shadow: inset 3px 0 0 #ef4444, 0 4px 8px rgba(0,0,0,0.4);
+}
+
+.device-info {
+    flex-grow: 1;
+}
+
+.device-name {
+    font-weight: bold;
+    margin: 0;
+    color: var(--text-color);
+}
+
+.device-power {
+    margin: 0.25rem 0 0 0;
+    color: #888;
+    font-size: 0.85rem;
+}
+
+.device-energy {
+    margin: 0.15rem 0 0 0;
+    color: #555;
+    font-size: 0.78rem;
+}
+
+.device-power-delivered {
+    margin: 0.15rem 0 0 0;
+    color: #4caf50;
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+.device-status {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-weight: bold;
+    margin-left: 1rem;
+    font-size: 0.85rem;
+}
+
+.status-off {
+    background: #5a1a1a;
+    color: #ef9a9a;
+}
+
+.status-on {
+    background: #1a4a1a;
+    color: #81c784;
+}
+
+/* ── Power Optimization toggle (dashboard) ── */
+.toggle-container {
+    display: flex;
+    align-items: center;
+    margin-top: 1rem;
+}
+
+.toggle-container .toggle-label {
+    margin-left: 1rem;
+    font-weight: 500;
+    color: var(--text-color);
+    position: static;
+    cursor: default;
+    background: none;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    transition: none;
+}
+
+.toggle-container .toggle-label:before {
+    display: none;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #444;
+    transition: 0.4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: #ccc;
+    transition: 0.4s;
+}
+
+input:checked + .slider {
+    background-color: var(--primary-color);
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.2);
+}
+
+input:checked + .slider:before {
+    background-color: white;
+    transform: translateX(26px);
+}
+
+/* Device toggles: red = off, green = on */
+.device-toggle + .slider {
+    background-color: #7f1d1d;
+}
+
+.device-toggle:checked + .slider {
+    background-color: #14532d;
+}
+
+.device-toggle:checked + .slider:before {
+    background-color: #86efac;
+}
+
+.slider.round {
+    border-radius: 34px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+/* ── Sensor card .mode line ── */
+.sensor-card .mode {
+    font-size: 0.8rem;
+    color: #888;
+    margin: 0;
+}
+
+/* ── Tariff mode configuration (configure_grid) ── */
+.tariff-mode-container {
+    background: #2a2a2a;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-top: 1rem;
+    border: 1px solid #444;
+}
+
+.tariff-modes-grid {
+    background: #1e1e1e;
+    border: 1px solid #444;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.tariff-mode-header {
+    display: flex;
+    background: #333;
+    padding: 0.75rem;
+    border-bottom: 1px solid #444;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+.tariff-name {
+    flex: 1;
+    padding-right: 1rem;
+}
+
+.tariff-mode-options {
+    display: flex;
+    gap: 1rem;
+    min-width: 200px;
+    justify-content: center;
+}
+
+.mode-label {
+    font-weight: bold;
+}
+
+.mode-option {
+    padding: 0.25rem 0.75rem;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 60px;
+    text-align: center;
+    color: var(--text-color);
+}
+
+.mode-option:hover {
+    background-color: #333;
+    border-color: var(--primary-color);
+}
+
+.mode-option.selected {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.tariff-mode-item {
+    display: flex;
+    padding: 0.75rem;
+    border-bottom: 1px solid #333;
+    align-items: center;
+    color: var(--text-color);
+}
+
+.tariff-mode-item:last-child {
+    border-bottom: none;
+}
+
+.error-message {
+    color: #ef9a9a;
+    padding: 1rem;
+    text-align: center;
+    background-color: #5a1a1a;
+    border: 1px solid #7a2a2a;
+    border-radius: 4px;
+    margin: 1rem 0;
+}
+
+.help-text {
+    color: #888;
+    font-size: 0.9em;
+    margin: 0.5rem 0;
+}
+
+/* ── Form container ── */
+.form {
+    max-width: 800px;
+}
+
+/* ── Tab navigation (configure pages) ── */
+.tabs {
+    margin-bottom: 1.5rem;
+}
+
+.tab-buttons {
+    display: flex;
+    gap: 0.25rem;
+    border-bottom: 1px solid #333;
+    margin-bottom: 1.25rem;
+}
+
+.tab-button {
+    padding: 0.5rem 1rem;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #555;
+    border-radius: 4px 4px 0 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, background-color 0.15s;
+}
+
+.tab-button:hover {
+    background-color: #2a2a2a;
+    color: var(--text-color);
+}
+
+.tab-button.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+
+.tab-content {
+    display: none;
+    padding: 0.5rem 0;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.tab-content > h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: var(--text-color);
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.one-off-charge-section {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    flex-wrap: wrap;
+}
+
+.one-off-charge-btn,
+.one-off-charge-submit,
+.one-off-charge-cancel-input,
+.one-off-charge-cancel {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.4rem;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--card-background);
+    color: var(--text-color);
+}
+
+.one-off-charge-input {
+    width: 60px;
+    font-size: 0.75rem;
+    padding: 0.2rem 0.3rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--card-background);
+    color: var(--text-color);
+}
+
+.one-off-charge-input-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.one-off-charge-status {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.3rem;
+}

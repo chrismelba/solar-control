@@ -27,6 +27,8 @@ class DeviceState:
     last_state_change: datetime = None
     current_amperage: Optional[float] = None
     has_completed: bool = False
+    one_off_charge_target: Optional[float] = None   # kWh requested
+    one_off_charge_start_energy: Optional[float] = None  # energy_delivered_today at request time
 
 @dataclass
 class DebugState:
@@ -43,6 +45,7 @@ class DebugState:
     expected_energy_remaining: Optional[float] = None
     hours_until_sunset: Optional[float] = None
     bring_forward_power: Optional[float] = None
+    control_mode: str = 'unknown'
 
     def to_dict(self) -> dict:
         return {
@@ -57,7 +60,8 @@ class DebugState:
             'solar_forecast_remaining': self.solar_forecast_remaining,
             'expected_energy_remaining': self.expected_energy_remaining,
             'hours_until_sunset': self.hours_until_sunset,
-            'bring_forward_power': self.bring_forward_power
+            'bring_forward_power': self.bring_forward_power,
+            'control_mode': self.control_mode
         }
 
 class SolarController:
@@ -202,9 +206,7 @@ class SolarController:
     def initialize_device_states(self):
         """Initialize or update device states"""
         devices = Device.load_all(self.devices_file)
-        current_time = datetime.now(timezone.utc)
-        initial_time = 0 
-        
+
         # Update existing states
         for device in devices:
             if device.name not in self.device_states:
@@ -213,13 +215,17 @@ class SolarController:
                 self.device_states[device.name] = DeviceState(
                     device=device,
                     is_on=is_on,
-                    last_state_change=initial_time
+                    last_state_change=None
                 )
             else:
                 # Update device reference in case it changed
                 self.device_states[device.name].device = device
-                # Update current state from Home Assistant
-                self.device_states[device.name].is_on = self.get_device_state_from_hass(device)
+                # Sync state from HA; if it changed externally, reset the timer
+                new_is_on = self.get_device_state_from_hass(device)
+                if self.device_states[device.name].is_on != new_is_on:
+                    logger.info(f"External state change detected for {device.name}: {new_is_on}")
+                    self.device_states[device.name].is_on = new_is_on
+                    self.device_states[device.name].last_state_change = datetime.now(timezone.utc)
                 
         # Remove states for devices that no longer exist
         self.device_states = {
@@ -774,7 +780,19 @@ class SolarController:
                 if existing_index is not None:
                     devices_to_turn_on.pop(existing_index)
                 continue
-            
+
+            # Skip if device is in minimum off time (and not already locked on by Phase 1)
+            if existing_index is None and not device_state.is_on and device_state.last_state_change:
+                time_since_change = (datetime.now(timezone.utc) - device_state.last_state_change).total_seconds()
+                if time_since_change < device.min_off_time:
+                    logger.info(f"Skipping {device.name} in free mode - minimum off time not met")
+                    optional_devices.append({
+                        'name': device.name,
+                        'power': 0,
+                        'reason': 'Minimum off time not met'
+                    })
+                    continue
+
             # For variable amperage devices, set to maximum
             if device.has_variable_amperage:
                 max_amperage = device.max_amperage
@@ -859,17 +877,6 @@ class SolarController:
                 if device.energy_sensor:
                     device.update_energy_delivered()
             
-            # Sync all device states with Home Assistant before processing
-            for device_state in self.device_states.values():
-                device = device_state.device
-                # Get current state from Home Assistant
-                hass_state = self.get_device_state_from_hass(device)
-                # Update our local state if it differs from Home Assistant
-                if device_state.is_on != hass_state:
-                    logger.info(f"Syncing state for {device.name} with Home Assistant: {hass_state}")
-                    device_state.is_on = hass_state
-                    device_state.last_state_change = current_time
-            
             for device_state in self.device_states.values():
                 device = device_state.device
                 
@@ -918,6 +925,7 @@ class SolarController:
             control_mode = self._determine_control_mode()
             logger.info(f"Selected control mode: {control_mode}")
             
+            self.debug_state.control_mode = control_mode
             if control_mode == 'free':
                 self._run_free_mode(voltage, devices_to_turn_on)
             elif control_mode == 'solar':
@@ -995,7 +1003,13 @@ class SolarController:
             device = device_state.device
             if device.has_variable_amperage:
                 # Calculate optimal amperage based on available power
-                optimal_amperage = self.calculate_optimal_amperage(device, available_power)
+                if device_state.current_amperage is None:
+                    # Not started by us — use max so we don't fight manual control
+                    optimal_amperage = device.max_amperage
+                    logger.info(f"Mandatory device {device.name} is externally controlled "
+                                f"(no amperage tracked) - using max_amperage {optimal_amperage}A")
+                else:
+                    optimal_amperage = self.calculate_optimal_amperage(device, available_power)
                 if optimal_amperage is None:
                     logger.info(f"Cannot calculate optimal amperage for {device.name}")
                     continue
@@ -1050,7 +1064,13 @@ class SolarController:
             # Calculate power needed based on current state of devices_to_turn_on
             if device.has_variable_amperage:
                 # Calculate optimal amperage considering current load
-                optimal_amperage = self.calculate_optimal_amperage(device, available_power)
+                if device_state.is_on and device_state.current_amperage is None:
+                    # Device is on but we didn't set the amperage — externally controlled
+                    optimal_amperage = device.max_amperage
+                    logger.info(f"Device {device.name} is externally controlled "
+                                f"(no amperage tracked) - using max_amperage {optimal_amperage}A")
+                else:
+                    optimal_amperage = self.calculate_optimal_amperage(device, available_power)
                 logger.debug(f"Calculated optimal amperage for {device.name}: {optimal_amperage}A")
                 if optimal_amperage is None:
                     logger.info(f"Cannot calculate optimal amperage for {device.name}")
@@ -1138,8 +1158,11 @@ class SolarController:
             # Check if device is already in devices_to_turn_on
             existing_index = next((i for i, (d, _, _) in enumerate(devices_to_turn_on) if d == device_state), None)
             
-            # Skip if no minimum daily power is specified
-            if not device.min_daily_power:
+            # Skip if neither min_daily_power nor one-off charge is configured
+            has_one_off = device_state.one_off_charge_target is not None
+            has_regular = bool(device.min_daily_power)
+
+            if not has_one_off and not has_regular:
                 logger.info(f"Skipping {device.name} - no minimum daily power specified")
                 optional_devices.append({
                     'name': device.name,
@@ -1147,7 +1170,7 @@ class SolarController:
                     'reason': 'No minimum daily power specified'
                 })
                 continue
-                
+
             # Check if device has completed its task
             if device.completion_sensor:
                 # Always check completion sensor to see if status has changed
@@ -1183,20 +1206,54 @@ class SolarController:
                         devices_to_turn_on.pop(existing_index)
                     continue
             
-            # Check if minimum daily power requirement is met
-            if device.energy_delivered_today >= device.min_daily_power:
-                logger.info(f"Turning off {device.name} - minimum daily power requirement met")
+            # Skip if device is in minimum off time (and not already locked on by Phase 1)
+            if existing_index is None and not device_state.is_on and device_state.last_state_change:
+                time_since_change = (datetime.now(timezone.utc) - device_state.last_state_change).total_seconds()
+                if time_since_change < device.min_off_time:
+                    logger.info(f"Skipping {device.name} in tariff mode - minimum off time not met")
+                    optional_devices.append({
+                        'name': device.name,
+                        'power': 0,
+                        'reason': 'Minimum off time not met'
+                    })
+                    continue
+
+            # Determine if charging is still needed
+            needs_charging = False
+
+            if has_one_off:
+                start = device_state.one_off_charge_start_energy or 0
+                # Handle dawn reset (energy_delivered_today resets to 0 at dawn)
+                if device.energy_delivered_today < start:
+                    device_state.one_off_charge_start_energy = 0
+                    start = 0
+                delivered = device.energy_delivered_today - start
+                if delivered >= device_state.one_off_charge_target:
+                    logger.info(f"One-off charge complete for {device.name}: {delivered:.2f}/{device_state.one_off_charge_target:.2f} kWh")
+                    device_state.one_off_charge_target = None
+                    device_state.one_off_charge_start_energy = None
+                    has_one_off = False
+                else:
+                    needs_charging = True
+
+            if not needs_charging and has_regular:
+                if device.energy_delivered_today < device.min_daily_power:
+                    needs_charging = True
+
+            if not needs_charging:
+                reason = 'Charge target met' if not has_one_off and not has_regular else 'Minimum daily power requirement met'
+                logger.info(f"Turning off {device.name} - {reason}")
                 optional_devices.append({
                     'name': device.name,
                     'power': 0,
-                    'reason': 'Minimum daily power requirement met'
+                    'reason': reason
                 })
                 if existing_index is not None:
                     devices_to_turn_on.pop(existing_index)
                 continue
-                
+
             # If we get here, we need to turn the device on
-            logger.info(f"Turning on {device.name} - minimum daily power requirement not met")
+            logger.info(f"Turning on {device.name} - charge target not yet met")
             
             # For variable amperage devices, set to maximum
             if device.has_variable_amperage:

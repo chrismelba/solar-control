@@ -5,6 +5,93 @@
 {% block heading %}Debug Information{% endblock %}
 
 {% block content %}
+    <style>
+        .debug-section {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        .debug-section h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        pre {
+            background: #fff;
+            color: #1a1a1a;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .decision-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .decision-table th, .decision-table td {
+            text-align: left;
+            padding: 0.4rem 0.75rem;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .decision-table th {
+            background: #f0f0f0;
+            color: #555;
+            font-weight: 600;
+            width: 40%;
+        }
+        .decision-group {
+            margin-top: 1rem;
+        }
+        .decision-group h3 {
+            margin: 0.75rem 0 0.25rem;
+            font-size: 0.95rem;
+            color: #444;
+        }
+        .decision-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            background: #fff;
+            border-radius: 4px;
+        }
+        .decision-list li {
+            padding: 0.35rem 0.75rem;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 0.9rem;
+        }
+        .decision-list li:last-child { border-bottom: none; }
+        .decision-list .device-name { font-weight: 600; }
+        .decision-list .device-reason { color: #666; margin-left: 0.5rem; }
+        #decision-no-data { color: #888; font-style: italic; }
+    </style>
+
+    <div class="debug-section" id="decision-section">
+        <h2>Last Controller Decision</h2>
+        <div id="decision-no-data">No data yet — waiting for first control loop...</div>
+        <div id="decision-content" style="display:none">
+            <table class="decision-table" id="decision-inputs">
+                <thead><tr><th>Input</th><th>Value</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <div class="decision-group">
+                <h3>On — mandatory</h3>
+                <ul class="decision-list" id="decision-mandatory"></ul>
+            </div>
+            <div class="decision-group">
+                <h3>On — optional</h3>
+                <ul class="decision-list" id="decision-optional-on"></ul>
+            </div>
+            <div class="decision-group">
+                <h3>Not turned on</h3>
+                <ul class="decision-list" id="decision-optional-off"></ul>
+            </div>
+        </div>
+    </div>
+
     <div class="debug-section">
         <h2>Environment Variables</h2>
         <pre>{{ env | tojson(indent=2) }}</pre>
@@ -21,33 +108,82 @@
     </div>
 
     <div class="debug-section">
-        <h2>Nginx Error Log</h2>
-        <pre>{{ nginx_error_log }}</pre>
+        <h2>Nginx Logs</h2>
+        <p>Nginx logs are written to the container stdout — view them in the Home Assistant add-on log panel.</p>
     </div>
 
-    <div class="debug-section">
-        <h2>Nginx Access Log</h2>
-        <pre>{{ nginx_access_log }}</pre>
-    </div>
+    <script>
+    async function updateDecisionLog() {
+        let data;
+        try {
+            data = await apiCall('/api/status');
+        } catch (e) {
+            return;
+        }
 
-    <style>
-        .debug-section {
-            margin-bottom: 2rem;
-            padding: 1rem;
-            background: #f5f5f5;
-            border-radius: 8px;
+        const ds = data.debug_state;
+        if (!ds) return;
+
+        document.getElementById('decision-no-data').style.display = 'none';
+        document.getElementById('decision-content').style.display = '';
+
+        // Inputs table
+        const rows = [
+            ['Timestamp', ds.timestamp ? new Date(ds.timestamp).toLocaleString() : '—'],
+            ['Control mode', ds.control_mode || '—'],
+            ['Available power', ds.available_power != null ? ds.available_power.toFixed(0) + ' W' : '—'],
+            ['Grid power', ds.grid_power != null ? ds.grid_power.toFixed(0) + ' W' : '—'],
+            ['Grid voltage', ds.grid_voltage != null ? ds.grid_voltage.toFixed(1) + ' V' : '—'],
+            ['Solar forecast remaining', ds.solar_forecast_remaining != null ? ds.solar_forecast_remaining.toFixed(2) + ' kWh' : '—'],
+            ['Expected energy remaining', ds.expected_energy_remaining != null ? ds.expected_energy_remaining.toFixed(2) + ' kWh' : '—'],
+            ['Hours until sunset', ds.hours_until_sunset != null ? ds.hours_until_sunset.toFixed(2) : '—'],
+        ];
+        if (ds.bring_forward_power != null) {
+            rows.push(['Bring-forward power', ds.bring_forward_power.toFixed(0) + ' W']);
         }
-        .debug-section h2 {
-            margin-top: 0;
-            color: #333;
+        const tbody = document.querySelector('#decision-inputs tbody');
+        tbody.innerHTML = rows.map(([k, v]) =>
+            `<tr><th>${k}</th><td>${v}</td></tr>`
+        ).join('');
+
+        // Mandatory devices
+        const mandatory = ds.mandatory_devices || [];
+        const mandatoryEl = document.getElementById('decision-mandatory');
+        if (mandatory.length) {
+            mandatoryEl.innerHTML = mandatory.map(d =>
+                `<li><span class="device-name">${d.name}</span><span class="device-reason">${d.reason || ''}</span></li>`
+            ).join('');
+        } else {
+            mandatoryEl.innerHTML = '<li style="color:#888">None</li>';
         }
-        pre {
-            background: #fff;
-            padding: 1rem;
-            border-radius: 4px;
-            overflow-x: auto;
-            white-space: pre-wrap;
-            word-wrap: break-word;
+
+        // Optional devices
+        const optional = ds.optional_devices || [];
+        const optOn = optional.filter(d => d.reason === 'Will be turned on');
+        const optOff = optional.filter(d => d.reason !== 'Will be turned on');
+
+        const optOnEl = document.getElementById('decision-optional-on');
+        if (optOn.length) {
+            optOnEl.innerHTML = optOn.map(d =>
+                `<li><span class="device-name">${d.name}</span><span class="device-reason">${d.power != null ? d.power.toFixed(0) + ' W' : ''}</span></li>`
+            ).join('');
+        } else {
+            optOnEl.innerHTML = '<li style="color:#888">None</li>';
         }
-    </style>
-{% endblock %} 
+
+        const optOffEl = document.getElementById('decision-optional-off');
+        if (optOff.length) {
+            optOffEl.innerHTML = optOff.map(d =>
+                `<li><span class="device-name">${d.name}</span><span class="device-reason">${d.reason || ''}</span></li>`
+            ).join('');
+        } else {
+            optOffEl.innerHTML = '<li style="color:#888">None</li>';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        updateDecisionLog();
+        setInterval(updateDecisionLog, 30000);
+    });
+    </script>
+{% endblock %}

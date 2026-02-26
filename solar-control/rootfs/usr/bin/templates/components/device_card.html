@@ -3,11 +3,7 @@
     <div class="device-info">
         <p class="device-name">{{ device.name }}</p>
         <p class="device-power">
-            {% if device.current_power_sensor %}
-                {{ device.typical_power_draw }}W (sensor: {{ device.current_power_sensor }})
-            {% else %}
-                {{ device.typical_power_draw }}W
-            {% endif %}
+            <span class="device-power-value">{{ device.typical_power_draw }}W (assumed)</span>
         </p>
         {% if device.energy_consumption %}
         <p class="device-energy">
@@ -24,6 +20,17 @@
         <button class="delete-device button" data-device-name="{{ device.name }}">Delete</button>
     </div>
     {% else %}
+    {% if device.energy_sensor %}
+    <div class="one-off-charge-section" data-device-name="{{ device.name }}">
+        <div class="one-off-charge-status" style="display:none"></div>
+        <button class="one-off-charge-btn" data-device-name="{{ device.name }}">⚡ Charge</button>
+        <div class="one-off-charge-input-row" style="display:none">
+            <input type="number" class="one-off-charge-input" min="0.1" step="0.1" placeholder="kWh">
+            <button class="one-off-charge-submit">Go</button>
+            <button class="one-off-charge-cancel-input">✕</button>
+        </div>
+    </div>
+    {% endif %}
     <label class="switch">
         <input type="checkbox" class="device-toggle" data-device-name="{{ device.name }}">
         <span class="slider round"></span>
@@ -31,118 +38,3 @@
     {% endif %}
 </div>
 {% endmacro %}
-
-<style>
-    .device-card {
-        background: #f5f5f5;
-        padding: 1rem;
-        border-radius: 8px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: 0.5rem 0;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-
-    .device-card.draggable {
-        cursor: move;
-        transition: transform 0.2s;
-    }
-
-    .device-card.draggable:hover {
-        transform: translateX(5px);
-    }
-
-    .device-card.draggable.dragging {
-        opacity: 0.5;
-    }
-
-    .device-info {
-        flex-grow: 1;
-    }
-
-    .device-name {
-        font-weight: bold;
-        margin: 0;
-        color: #333;
-    }
-
-    .device-power {
-        color: #666;
-        margin: 0.25rem 0 0 0;
-        font-size: 1.1rem;
-        font-weight: 500;
-    }
-
-    .device-energy {
-        color: #666;
-        margin: 0.25rem 0 0 0;
-        font-size: 0.9rem;
-    }
-
-    .device-power-delivered {
-        color: #4caf50;
-        margin: 0.25rem 0 0 0;
-        font-size: 0.9rem;
-        font-weight: 500;
-    }
-
-    .device-actions {
-        display: flex;
-        gap: 0.5rem;
-        margin-left: 1rem;
-    }
-
-    /* Switch styles */
-    .switch {
-        position: relative;
-        display: inline-block;
-        width: 60px;
-        height: 34px;
-        margin-left: 1rem;
-    }
-
-    .switch input {
-        opacity: 0;
-        width: 0;
-        height: 0;
-    }
-
-    .slider {
-        position: absolute;
-        cursor: pointer;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: #f44336;
-        transition: .4s;
-    }
-
-    .slider:before {
-        position: absolute;
-        content: "";
-        height: 26px;
-        width: 26px;
-        left: 4px;
-        bottom: 4px;
-        background-color: white;
-        transition: .4s;
-    }
-
-    input:checked + .slider {
-        background-color: #4caf50;
-    }
-
-    input:checked + .slider:before {
-        transform: translateX(26px);
-    }
-
-    .slider.round {
-        border-radius: 34px;
-    }
-
-    .slider.round:before {
-        border-radius: 50%;
-    }
-</style> 

@@ -58,10 +58,7 @@ bashio::log.info "Final data directory state:"
 ls -la /data || true
 
 # Get Home Assistant URL from supervisor
-HASS_URL=$(bashio::config 'hass_url')
-if [ -z "${HASS_URL}" ]; then
-    HASS_URL="http://supervisor/core"
-fi
+HASS_URL="http://supervisor/core"
 
 # Export required environment variables
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN}"

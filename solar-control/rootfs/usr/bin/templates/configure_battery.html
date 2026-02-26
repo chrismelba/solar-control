@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/entity_selector.html" import entity_field %}
 
 {% block title %}Configure Battery - Solar Control{% endblock %}
 
@@ -12,24 +13,14 @@
                 <input type="number" id="size_kwh" name="size_kwh" step="0.1" min="0" required>
             </div>
 
-            <div class="form-group">
-                <label for="battery_percent_entity">Battery Percentage Sensor</label>
-                <div class="searchable-select">
-                    <input type="text" id="battery_percent_entity_input" placeholder="Search for a battery percentage sensor..." autocomplete="off">
-                    <input type="hidden" name="battery_percent_entity" id="battery_percent_entity" value="{{ config.battery_percent_entity if config else '' }}">
-                    <div class="options" id="battery_percent_entity_options">
-                        {% for entity in entities %}
-                            {% if entity.entity_id.startswith('sensor.') and 'battery' in entity.entity_id.lower() and 'percentage' in entity.entity_id.lower() %}
-                                <div class="option" data-value="{{ entity.entity_id }}"
-                                     {% if config and entity.entity_id == config.battery_percent_entity %}data-selected="true"{% endif %}>
-                                    {{ entity.attributes.friendly_name }} ({{ entity.entity_id }})
-                                </div>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
-                </div>
-                <small class="form-text text-muted">Select a sensor that reports battery percentage (0-100%)</small>
-            </div>
+            {{ entity_field(
+                'battery_percent_entity', entities,
+                label='Battery Percentage Sensor',
+                filter_type='sensor_battery',
+                placeholder='Search for a battery percentage sensor...',
+                help_text='Select a sensor that reports battery percentage (0-100%).',
+                selected_value=(config.battery_percent_entity or '') if config else ''
+            ) }}
 
             <div class="form-group">
                 <label for="max_charging_speed_kw">Maximum Charging Speed (kW)</label>
@@ -41,6 +32,15 @@
                 <label for="expected_kwh_per_hour">Expected kWh used per hour <span class="tooltip">ⓘ<span class="tooltiptext">This value will be subtracted from the solar forecast to determine if there's enough energy left today to fill the battery</span></span></label>
                 <input type="number" id="expected_kwh_per_hour" name="expected_kwh_per_hour" step="0.1" min="0">
                 <small class="form-text text-muted">Optional: Expected household energy consumption per hour</small>
+            </div>
+
+            <div class="form-group">
+                <label for="bring_forward_mode">Bring Forward Mode <span class="tooltip">ⓘ<span class="tooltiptext">Experimental mode, this will attempt to shift load forward in the day if your battery is sufficently charged and there is enough sun to fill it. It will start to charge a car off the battery so that if you drive away the battery can take the excees solar</span></span></label>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="bring_forward_mode" name="bring_forward_mode">
+                    <label for="bring_forward_mode" class="toggle-label"></label>
+                </div>
+                <small class="form-text text-muted">Experimental: Shift load forward when battery is sufficiently charged</small>
             </div>
 
             <div class="form-actions">
@@ -59,17 +59,7 @@
                         document.getElementById('size_kwh').value = config.size_kwh || '';
                         document.getElementById('max_charging_speed_kw').value = config.max_charging_speed_kw || '';
                         document.getElementById('expected_kwh_per_hour').value = config.expected_kwh_per_hour || '';
-                        
-                        // Set the searchable select values properly
-                        if (config.battery_percent_entity) {
-                            const batteryPercentInput = document.getElementById('battery_percent_entity_input');
-                            const batteryPercentHidden = document.getElementById('battery_percent_entity');
-                            const batteryPercentOption = document.querySelector(`#battery_percent_entity_options .option[data-value="${config.battery_percent_entity}"]`);
-                            if (batteryPercentOption) {
-                                batteryPercentInput.value = batteryPercentOption.textContent;
-                                batteryPercentHidden.value = config.battery_percent_entity;
-                            }
-                        }
+                        document.getElementById('bring_forward_mode').checked = config.bring_forward_mode || false;
                     }
                 })
                 .catch(error => console.error('Error loading battery configuration:', error));
@@ -77,35 +67,27 @@
             // Handle form submission
             document.getElementById('batteryForm').addEventListener('submit', function(e) {
                 e.preventDefault();
-                
+
                 // Get form values
                 const sizeKwh = document.getElementById('size_kwh').value;
                 const batteryPercentEntity = document.getElementById('battery_percent_entity').value;
                 const maxChargingSpeedKw = document.getElementById('max_charging_speed_kw').value;
                 const expectedKwhPerHour = document.getElementById('expected_kwh_per_hour').value;
-                
-                // Debug logging
-                console.log('Form values:', {
-                    size_kwh: sizeKwh,
-                    battery_percent_entity: batteryPercentEntity,
-                    max_charging_speed_kw: maxChargingSpeedKw,
-                    expected_kwh_per_hour: expectedKwhPerHour
-                });
-                
+                const bringForwardMode = document.getElementById('bring_forward_mode').checked;
+
                 // Validate required fields
                 if (!sizeKwh || !batteryPercentEntity) {
                     alert('Please fill in all required fields (Battery Size and Battery Percentage Sensor)');
                     return;
                 }
-                
+
                 const formData = {
                     size_kwh: parseFloat(sizeKwh),
                     battery_percent_entity: batteryPercentEntity,
                     max_charging_speed_kw: maxChargingSpeedKw ? parseFloat(maxChargingSpeedKw) : null,
-                    expected_kwh_per_hour: expectedKwhPerHour ? parseFloat(expectedKwhPerHour) : null
+                    expected_kwh_per_hour: expectedKwhPerHour ? parseFloat(expectedKwhPerHour) : null,
+                    bring_forward_mode: bringForwardMode
                 };
-
-                console.log('Sending data to server:', formData);
 
                 apiCall('/api/battery', {
                     method: 'POST',
@@ -115,7 +97,6 @@
                     body: JSON.stringify(formData)
                 })
                 .then(data => {
-                    console.log('Response data:', data);
                     if (data.status === 'success') {
                         alert('Battery configuration saved successfully');
                     } else {
@@ -130,49 +111,4 @@
         });
     </script>
 
-    <style>
-        .tooltip {
-            position: relative;
-            display: inline-block;
-            cursor: help;
-            color: #666;
-            font-size: 0.9em;
-            margin-left: 4px;
-        }
-
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            width: 250px;
-            background-color: #333;
-            color: #fff;
-            text-align: left;
-            border-radius: 6px;
-            padding: 10px;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            transform: translateX(-50%);
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 0.9em;
-            line-height: 1.4;
-        }
-
-        .tooltip .tooltiptext::after {
-            content: "";
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            margin-left: -5px;
-            border-width: 5px;
-            border-style: solid;
-            border-color: #333 transparent transparent transparent;
-        }
-
-        .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
-        }
-    </style>
-{% endblock %} 
+{% endblock %}

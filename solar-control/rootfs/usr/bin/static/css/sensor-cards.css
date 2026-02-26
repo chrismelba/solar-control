@@ -1,31 +1,98 @@
 .sensor-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.75rem;
     margin: 1rem 0;
 }
 
 .sensor-card {
-    background: #f5f5f5;
-    padding: 1rem;
+    background: var(--card-background, #1e1e1e);
+    padding: 0.85rem;
     border-radius: 8px;
     text-align: center;
+    border: 1px solid #2a2a2a;
+    border-top: 2px solid #333;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sensor-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
 }
 
 .sensor-card h3 {
-    margin: 0 0 0.5rem 0;
-    color: #333;
+    margin: 0 0 0.4rem 0;
+    color: #555;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
 }
 
 .sensor-card .value {
-    font-size: 1.5rem;
-    font-weight: bold;
-    margin: 0.5rem 0;
-    color: #2196F3;
+    font-family: var(--font-mono, 'IBM Plex Mono', 'Courier New', monospace);
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin: 0.3rem 0;
+    color: var(--primary-color, #2196F3);
+    letter-spacing: -0.5px;
+}
+
+/* Muted style for unconfigured sensors */
+.sensor-card .value.not-configured {
+    font-family: inherit;
+    color: #444;
+    font-size: 0.85rem;
+    font-weight: 400;
+    font-style: italic;
 }
 
 .sensor-card .name {
-    font-size: 0.9rem;
-    color: #666;
+    font-size: 0.72rem;
+    color: #444;
     margin: 0;
-} 
+}
+
+.sensor-card .mode {
+    font-size: 0.72rem;
+    color: #555;
+    margin: 0.25rem 0 0 0;
+}
+
+/* Per-type top border accents */
+.sensor-card.solar    { border-top-color: #4caf50; }
+.sensor-card.grid     { border-top-color: #ff9800; }
+.sensor-card.forecast { border-top-color: #64b5f6; }
+.sensor-card.battery  { border-top-color: #ab47bc; }
+.sensor-card.sunset,
+.sensor-card.sunrise  { border-top-color: #ffb74d; }
+.sensor-card.tariff   { border-top-color: #ef5350; }
+.sensor-card.bring-forward { border-top-color: #26c6da; }
+
+/* Per-type value colours */
+.sensor-card.solar .value:not(.not-configured)    { color: #4caf50; }
+.sensor-card.grid .value:not(.not-configured)     { color: #ff9800; }
+.sensor-card.forecast .value:not(.not-configured) { color: #64b5f6; }
+.sensor-card.battery .value:not(.not-configured)  { color: #ab47bc; }
+.sensor-card.sunset .value:not(.not-configured),
+.sensor-card.sunrise .value:not(.not-configured)  { color: #ffb74d; }
+.sensor-card.tariff .value:not(.not-configured)   { color: #ef5350; }
+.sensor-card.bring-forward .value:not(.not-configured) { color: #26c6da; }
+
+/* Staggered load animation */
+@keyframes sensorFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.sensor-grid .sensor-card {
+    animation: sensorFadeIn 0.35s ease both;
+}
+
+.sensor-grid .sensor-card:nth-child(2) { animation-delay: 0.06s; }
+.sensor-grid .sensor-card:nth-child(3) { animation-delay: 0.12s; }
+.sensor-grid .sensor-card:nth-child(4) { animation-delay: 0.18s; }
+.sensor-grid .sensor-card:nth-child(5) { animation-delay: 0.24s; }
+.sensor-grid .sensor-card:nth-child(6) { animation-delay: 0.30s; }
+.sensor-grid .sensor-card:nth-child(7) { animation-delay: 0.36s; }
+.sensor-grid .sensor-card:nth-child(8) { animation-delay: 0.42s; }

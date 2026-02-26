@@ -482,16 +482,13 @@ def configure_battery():
     ingress_path = request.headers.get('X-Ingress-Path', '')
     logger.info(f"Serving configure battery page with ingress path: {ingress_path}")
     
-    # Load current configuration
-    try:
-        with open(CONFIG_FILE, 'r') as f:
-            config = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        config = {}
-    
+    # Load battery configuration
+    battery = Battery.load(BATTERY_FILE)
+    config = battery.to_dict() if battery else {}
+
     # Get entities for the searchable selects
     entities = get_entities()
-    
+
     return make_response(render_template('configure_battery.html',
                          config=config,
                          entities=entities,
@@ -559,7 +556,13 @@ def get_devices():
                 'is_on': device_state.is_on,
                 'last_state_change': device_state.last_state_change.isoformat() if device_state.last_state_change else None,
                 'current_amperage': device_state.current_amperage,
-                'has_completed': device_state.has_completed
+                'has_completed': device_state.has_completed,
+                'current_power': controller.get_device_power(device_state),
+                'one_off_charge_target': device_state.one_off_charge_target,
+                'one_off_charge_delivered': (
+                    max(0, device.energy_delivered_today - (device_state.one_off_charge_start_energy or 0))
+                    if device_state.one_off_charge_target is not None else None
+                ),
             })
             devices_data.append(device_data)
         
@@ -569,6 +572,25 @@ def get_devices():
         return jsonify(devices_data)
     except Exception as e:
         logger.error(f"Error loading devices: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/devices/<name>/one_off_charge', methods=['POST'])
+def set_one_off_charge(name):
+    try:
+        data = request.json
+        device_state = controller.device_states.get(name)
+        if not device_state:
+            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+        target_kwh = data.get('target_kwh')  # None = cancel
+        if target_kwh is None:
+            device_state.one_off_charge_target = None
+            device_state.one_off_charge_start_energy = None
+        else:
+            device_state.one_off_charge_target = float(target_kwh)
+            device_state.one_off_charge_start_energy = device_state.device.energy_delivered_today
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Error setting one-off charge for {name}: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/devices', methods=['POST'])
@@ -590,7 +612,8 @@ def add_device():
         device = Device(**device_data)
         devices.append(device)
         Device.save_all(devices, DEVICES_FILE)
-        
+        controller.initialize_device_states()
+
         logger.info(f"Successfully added device: {device.name}")
         return jsonify(device.to_dict())
     except Exception as e:
@@ -617,7 +640,8 @@ def update_device(name):
         # Update device
         devices[device_index] = Device(**device_data)
         Device.save_all(devices, DEVICES_FILE)
-        
+        controller.initialize_device_states()
+
         logger.info(f"Successfully updated device: {name}")
         return jsonify(devices[device_index].to_dict())
     except Exception as e:
@@ -633,7 +657,8 @@ def delete_device(name):
         # Find and remove device
         devices = [d for d in devices if d.name != name]
         Device.save_all(devices, DEVICES_FILE)
-        
+        controller.initialize_device_states()
+
         logger.info(f"Successfully deleted device: {name}")
         return jsonify({'status': 'success'})
     except Exception as e:
@@ -664,6 +689,7 @@ def reorder_devices():
         
         # Save updated devices
         Device.save_all(list(device_dict.values()), DEVICES_FILE)
+        controller.initialize_device_states()
         logger.info("Successfully reordered devices")
         return jsonify({'status': 'success'})
     except Exception as e:

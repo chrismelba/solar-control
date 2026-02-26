@@ -4,177 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Solar Optimiser{% endblock %}</title>
-    <style>
-        html {
-            height: 100%;
-        }
-        body {
-            height: 100%;
-            margin: 0;
-            font-family: Roboto, sans-serif;
-            -moz-osx-font-smoothing: grayscale;
-            -webkit-font-smoothing: antialiased;
-            font-size: 1rem;
-            line-height: 1.375rem;
-            font-weight: 500;
-            letter-spacing: 0.0071428571em;
-            text-decoration: inherit;
-            text-transform: inherit;
-            color: #212121;
-            font-weight: 400;
-            line-height: 2;
-            background: #fafafa;
-        }
-        a {
-            text-decoration: none;
-            color: #03a9f4;
-        }
-        .toolbar {
-            display: flex;
-            align-items: center;
-            font-size: 20px;
-            height: 65px;
-            background-color: #03a9f4;
-            font-weight: 400;
-            color: #fff;
-            box-sizing: border-box;
-            padding: 0px 16px;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 1000;
-        }
-        .flex {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            padding-top: 65px; /* Add padding to account for fixed toolbar */
-        }
-        .content {
-            display: flex;
-            flex-direction: column;
-            flex-grow: 1;
-            align-items: center;
-            justify-content: center;
-            padding: 16px;
-        }
-        h1 {
-            font-family: Roboto, sans-serif;
-            -moz-osx-font-smoothing: grayscale;
-            -webkit-font-smoothing: antialiased;
-            font-size: 20px;
-            font-weight: 400;
-            letter-spacing: 0;
-            margin: 0 0 0 72px;
-        }
-        /* Navigation Drawer Styles */
-        .nav-drawer {
-            height: 100%;
-            width: 0;
-            position: fixed;
-            z-index: 1000;
-            top: 0;
-            left: 0;
-            background-color: #fff;
-            overflow-x: hidden;
-            transition: 0.3s;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.2);
-        }
-
-        .nav-drawer.open {
-            width: 250px;
-        }
-
-        .nav-drawer-content {
-            padding: 20px;
-            padding-top: 80px;
-        }
-
-        .nav-drawer a {
-            display: block;
-            padding: 10px 15px;
-            text-decoration: none;
-            color: #333;
-            font-size: 16px;
-            transition: 0.3s;
-            border-radius: 4px;
-            margin-bottom: 5px;
-        }
-
-        .nav-drawer a:hover {
-            background-color: #f0f0f0;
-            color: #03a9f4;
-        }
-
-        .hamburger {
-            position: fixed;
-            left: 16px;
-            top: 20px;
-            cursor: pointer;
-            padding: 10px;
-            z-index: 1001;
-        }
-
-        .hamburger span {
-            display: block;
-            width: 25px;
-            height: 3px;
-            background-color: #fff;
-            margin: 5px 0;
-            transition: 0.3s;
-        }
-
-        .hamburger.active span:nth-child(1) {
-            transform: rotate(-45deg) translate(-5px, 6px);
-        }
-
-        .hamburger.active span:nth-child(2) {
-            opacity: 0;
-        }
-
-        .hamburger.active span:nth-child(3) {
-            transform: rotate(45deg) translate(-5px, -6px);
-        }
-
-        .overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            z-index: 999;
-        }
-
-        .overlay.active {
-            display: block;
-        }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/searchable-select.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/sensor-cards.css') }}">
     {% block extra_head %}{% endblock %}
 </head>
 <body>
-    <div class="overlay" id="overlay"></div>
-    <div class="nav-drawer" id="navDrawer">
-        <div class="nav-drawer-content">
-            <a href="{{ url_for('root') }}">Dashboard</a>
-            <a href="{{ url_for('configure_grid') }}">Configure Grid</a>
-            <a href="{{ url_for('configure_battery') }}">Configure Battery</a>
-            <a href="{{ url_for('configure_devices') }}">Configure Devices</a>
-            <a href="{{ url_for('static_page', page='debug') }}">Debug Interface</a>
-        </div>
+    <div class="sidebar">
+        <div class="sidebar-title">Solar Control</div>
+        <nav>
+            <a href="{{ url_for('root') }}" class="{{ 'active' if request.endpoint == 'root' else '' }}">Dashboard</a>
+            <a href="{{ url_for('configure_grid') }}" class="{{ 'active' if request.endpoint == 'configure_grid' else '' }}">Configure Grid</a>
+            <a href="{{ url_for('configure_battery') }}" class="{{ 'active' if request.endpoint == 'configure_battery' else '' }}">Configure Battery</a>
+            <a href="{{ url_for('configure_devices') }}" class="{{ 'active' if request.endpoint == 'configure_devices' else '' }}">Configure Devices</a>
+            <a href="{{ url_for('static_page', page='debug') }}" class="{{ 'active' if request.endpoint == 'static_page' else '' }}">Debug Interface</a>
+        </nav>
     </div>
-    <div class="flex">
+    <div class="main-wrapper">
         <div class="toolbar">
-            <div class="hamburger" id="hamburger">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
             <h1>{% block heading %}Solar Optimiser{% endblock %}</h1>
         </div>
         <div class="content">
@@ -183,7 +33,7 @@
     </div>
     {% block extra_scripts %}{% endblock %}
     <script>
-        // Add ingress path to all relative links and forms            
+        // Add ingress path to all relative links and forms
         const ingressPath = '{{ ingress_path }}';
 
         function fixRelativeUrls() {
@@ -194,7 +44,7 @@
                     link.href = ingressPath + href;
                 }
             });
-            
+
             // Update all relative form actions
             document.querySelectorAll('form[action^="/"]').forEach(function(form) {
                 const action = form.getAttribute('action');
@@ -220,12 +70,12 @@
             if (!endpoint.startsWith('/')) {
                 endpoint = '/' + endpoint;
             }
-            
+
             // Remove any duplicate forward slashes between ingressPath and endpoint
             const url = `${ingressPath}${endpoint}`.replace(/([^:]\/)\/+/g, "$1");
-            
+
             console.log('Making API call to:', url); // Debug log
-            
+
             const response = await fetch(url, options);
             const data = await response.json();
             if (!response.ok) {
@@ -239,7 +89,7 @@
             // Fetch initial state
             const deviceName = toggle.dataset.deviceName;
             console.log(`Fetching initial state for device: ${deviceName}`);
-            
+
             apiCall(`/api/devices/${encodeURIComponent(deviceName)}`)
                 .then(device => {
                     console.log(`Device info received for ${deviceName}:`, device);
@@ -260,7 +110,7 @@
             toggle.addEventListener('change', async function(e) {
                 const deviceName = this.dataset.deviceName;
                 const isOn = this.checked;
-                
+
                 try {
                     const result = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}/set_state`, {
                         method: 'POST',
@@ -314,32 +164,7 @@
                 subtree: true
             });
         });
-
-        // Navigation Drawer functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const hamburger = document.getElementById('hamburger');
-            const navDrawer = document.getElementById('navDrawer');
-            const overlay = document.getElementById('overlay');
-
-            function toggleNav() {
-                hamburger.classList.toggle('active');
-                navDrawer.classList.toggle('open');
-                overlay.classList.toggle('active');
-            }
-
-            hamburger.addEventListener('click', toggleNav);
-            overlay.addEventListener('click', toggleNav);
-
-            // Close drawer when clicking a link
-            document.querySelectorAll('.nav-drawer a').forEach(link => {
-                link.addEventListener('click', () => {
-                    if (navDrawer.classList.contains('open')) {
-                        toggleNav();
-                    }
-                });
-            });
-        });
     </script>
     <script src="{{ url_for('static', filename='js/searchable-select.js') }}"></script>
 </body>
-</html> 
+</html>
