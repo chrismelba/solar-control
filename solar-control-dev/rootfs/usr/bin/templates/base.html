@@ -67,36 +67,41 @@
 
         // ── Modal open/close ──
         function openModal(id) {
-            document.getElementById(id).classList.add('active');
+            const el = document.getElementById(id);
+            el.style.display = 'flex';
+            el.classList.add('active');
             document.body.style.overflow = 'hidden';
         }
 
         function closeModal(id) {
-            document.getElementById(id).classList.remove('active');
+            const el = document.getElementById(id);
+            el.style.display = 'none';
+            el.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function _closeModalEl(el) {
+            el.style.display = 'none';
+            el.classList.remove('active');
             document.body.style.overflow = '';
         }
 
         // Close on Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                document.querySelectorAll('.modal.active').forEach(m => {
-                    m.classList.remove('active');
-                });
-                document.body.style.overflow = '';
+                document.querySelectorAll('.modal.active').forEach(m => _closeModalEl(m));
             }
         });
 
         // Close on backdrop click or .modal-close button
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal')) {
-                e.target.classList.remove('active');
-                document.body.style.overflow = '';
+                _closeModalEl(e.target);
             }
             if (e.target.classList.contains('modal-close')) {
                 const modal = e.target.closest('.modal');
                 if (modal) {
-                    modal.classList.remove('active');
-                    document.body.style.overflow = '';
+                    _closeModalEl(modal);
                 }
             }
         });

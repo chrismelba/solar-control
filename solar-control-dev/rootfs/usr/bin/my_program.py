@@ -3,6 +3,8 @@ import os
 import logging
 import json
 import requests
+import threading
+import time
 from datetime import datetime, timezone
 from device import Device
 from battery import Battery
@@ -60,6 +62,7 @@ CONFIG_FILE = f'{DATA_DIR}/solar_config.json'
 DEVICES_FILE = f'{DATA_DIR}/devices.json'
 SETTINGS_FILE = f'{DATA_DIR}/settings.json'
 BATTERY_FILE = f'{DATA_DIR}/battery.json'
+STATE_FILE = f'{DATA_DIR}/state.json'
 
 # Create controller instance
 controller = SolarController(
@@ -85,6 +88,48 @@ else:
 # Start the control loop
 logger.info("Starting solar controller control loop...")
 controller.start_control_loop()
+
+# --- One-off charge state persistence ---
+
+def save_one_off_state():
+    """Save in-progress one-off charge state to disk."""
+    try:
+        state = {}
+        for name, ds in controller.device_states.items():
+            if ds.one_off_charge_target is not None:
+                state[name] = {
+                    'one_off_charge_target': ds.one_off_charge_target,
+                    'one_off_charge_start_energy': ds.one_off_charge_start_energy,
+                }
+        with open(STATE_FILE, 'w') as f:
+            json.dump(state, f)
+    except Exception as e:
+        logger.error(f"Error saving one-off charge state: {e}")
+
+def load_one_off_state():
+    """Restore one-off charge state from disk after a restart."""
+    try:
+        with open(STATE_FILE, 'r') as f:
+            state = json.load(f)
+        for name, values in state.items():
+            ds = controller.device_states.get(name)
+            if ds and values.get('one_off_charge_target') is not None:
+                ds.one_off_charge_target = values['one_off_charge_target']
+                ds.one_off_charge_start_energy = values.get('one_off_charge_start_energy')
+                logger.info(f"Restored one-off charge for {name}: target={ds.one_off_charge_target} kWh")
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        logger.error(f"Error loading one-off charge state: {e}")
+
+def _state_save_loop():
+    while True:
+        time.sleep(60)
+        save_one_off_state()
+
+load_one_off_state()
+_state_thread = threading.Thread(target=_state_save_loop, daemon=True, name='state-saver')
+_state_thread.start()
 
 # Function to update device states via MQTT
 def update_device_states_mqtt():
@@ -616,6 +661,7 @@ def set_one_off_charge(name):
         else:
             device_state.one_off_charge_target = float(target_kwh)
             device_state.one_off_charge_start_energy = device_state.device.energy_delivered_today
+        save_one_off_state()
         return jsonify({'status': 'success'})
     except Exception as e:
         logger.error(f"Error setting one-off charge for {name}: {e}")
