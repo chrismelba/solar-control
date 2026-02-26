@@ -116,9 +116,7 @@
     async function updateDecisionLog() {
         let data;
         try {
-            const resp = await fetch('/api/status');
-            if (!resp.ok) return;
-            data = await resp.json();
+            data = await apiCall('/api/status');
         } catch (e) {
             return;
         }
