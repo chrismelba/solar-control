@@ -20,6 +20,17 @@
         <button class="delete-device button" data-device-name="{{ device.name }}">Delete</button>
     </div>
     {% else %}
+    {% if device.energy_sensor %}
+    <div class="one-off-charge-section" data-device-name="{{ device.name }}">
+        <div class="one-off-charge-status" style="display:none"></div>
+        <button class="one-off-charge-btn" data-device-name="{{ device.name }}">⚡ Charge</button>
+        <div class="one-off-charge-input-row" style="display:none">
+            <input type="number" class="one-off-charge-input" min="0.1" step="0.1" placeholder="kWh">
+            <button class="one-off-charge-submit">Go</button>
+            <button class="one-off-charge-cancel-input">✕</button>
+        </div>
+    </div>
+    {% endif %}
     <label class="switch">
         <input type="checkbox" class="device-toggle" data-device-name="{{ device.name }}">
         <span class="slider round"></span>

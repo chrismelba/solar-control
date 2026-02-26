@@ -557,7 +557,12 @@ def get_devices():
                 'last_state_change': device_state.last_state_change.isoformat() if device_state.last_state_change else None,
                 'current_amperage': device_state.current_amperage,
                 'has_completed': device_state.has_completed,
-                'current_power': controller.get_device_power(device_state)
+                'current_power': controller.get_device_power(device_state),
+                'one_off_charge_target': device_state.one_off_charge_target,
+                'one_off_charge_delivered': (
+                    max(0, device.energy_delivered_today - (device_state.one_off_charge_start_energy or 0))
+                    if device_state.one_off_charge_target is not None else None
+                ),
             })
             devices_data.append(device_data)
         
@@ -567,6 +572,25 @@ def get_devices():
         return jsonify(devices_data)
     except Exception as e:
         logger.error(f"Error loading devices: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/devices/<name>/one_off_charge', methods=['POST'])
+def set_one_off_charge(name):
+    try:
+        data = request.json
+        device_state = controller.device_states.get(name)
+        if not device_state:
+            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+        target_kwh = data.get('target_kwh')  # None = cancel
+        if target_kwh is None:
+            device_state.one_off_charge_target = None
+            device_state.one_off_charge_start_energy = None
+        else:
+            device_state.one_off_charge_target = float(target_kwh)
+            device_state.one_off_charge_start_energy = device_state.device.energy_delivered_today
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Error setting one-off charge for {name}: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/devices', methods=['POST'])

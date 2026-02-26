@@ -310,6 +310,23 @@
                                 powerElem.textContent = `${device.typical_power_draw}W (assumed)`;
                             }
                         }
+                        const chargeSection = card.querySelector('.one-off-charge-section');
+                        if (chargeSection) {
+                            const statusEl = chargeSection.querySelector('.one-off-charge-status');
+                            const btnEl = chargeSection.querySelector('.one-off-charge-btn');
+                            const inputRow = chargeSection.querySelector('.one-off-charge-input-row');
+                            if (device.one_off_charge_target != null) {
+                                const delivered = (device.one_off_charge_delivered || 0).toFixed(1);
+                                const target = device.one_off_charge_target.toFixed(1);
+                                statusEl.innerHTML = `⚡ ${delivered} / ${target} kWh <button class="one-off-charge-cancel" data-device-name="${device.name}">✕</button>`;
+                                statusEl.style.display = '';
+                                btnEl.style.display = 'none';
+                                inputRow.style.display = 'none';
+                            } else {
+                                statusEl.style.display = 'none';
+                                btnEl.style.display = '';
+                            }
+                        }
                     }
                 });
             } catch (error) {
@@ -318,6 +335,43 @@
         }
         setInterval(updateDeviceCards, 60000); // Update every minute
         updateDeviceCards();
+
+        // One-off charge button interactions
+        document.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('one-off-charge-btn')) {
+                const section = e.target.closest('.one-off-charge-section');
+                e.target.style.display = 'none';
+                section.querySelector('.one-off-charge-input-row').style.display = '';
+                section.querySelector('.one-off-charge-input').focus();
+            }
+            if (e.target.classList.contains('one-off-charge-cancel-input')) {
+                const section = e.target.closest('.one-off-charge-section');
+                section.querySelector('.one-off-charge-input-row').style.display = 'none';
+                section.querySelector('.one-off-charge-btn').style.display = '';
+            }
+            if (e.target.classList.contains('one-off-charge-submit')) {
+                const section = e.target.closest('.one-off-charge-section');
+                const name = section.dataset.deviceName;
+                const kwh = parseFloat(section.querySelector('.one-off-charge-input').value);
+                if (!isNaN(kwh) && kwh > 0) {
+                    await apiCall(`/api/devices/${encodeURIComponent(name)}/one_off_charge`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ target_kwh: kwh })
+                    });
+                    updateDeviceCards();
+                }
+            }
+            if (e.target.classList.contains('one-off-charge-cancel')) {
+                const name = e.target.dataset.deviceName;
+                await apiCall(`/api/devices/${encodeURIComponent(name)}/one_off_charge`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ target_kwh: null })
+                });
+                updateDeviceCards();
+            }
+        });
 
         // Update forecast information
         async function updateForecastInfo() {

@@ -27,6 +27,8 @@ class DeviceState:
     last_state_change: datetime = None
     current_amperage: Optional[float] = None
     has_completed: bool = False
+    one_off_charge_target: Optional[float] = None   # kWh requested
+    one_off_charge_start_energy: Optional[float] = None  # energy_delivered_today at request time
 
 @dataclass
 class DebugState:
@@ -1156,8 +1158,11 @@ class SolarController:
             # Check if device is already in devices_to_turn_on
             existing_index = next((i for i, (d, _, _) in enumerate(devices_to_turn_on) if d == device_state), None)
             
-            # Skip if no minimum daily power is specified
-            if not device.min_daily_power:
+            # Skip if neither min_daily_power nor one-off charge is configured
+            has_one_off = device_state.one_off_charge_target is not None
+            has_regular = bool(device.min_daily_power)
+
+            if not has_one_off and not has_regular:
                 logger.info(f"Skipping {device.name} - no minimum daily power specified")
                 optional_devices.append({
                     'name': device.name,
@@ -1165,7 +1170,7 @@ class SolarController:
                     'reason': 'No minimum daily power specified'
                 })
                 continue
-                
+
             # Check if device has completed its task
             if device.completion_sensor:
                 # Always check completion sensor to see if status has changed
@@ -1213,20 +1218,42 @@ class SolarController:
                     })
                     continue
 
-            # Check if minimum daily power requirement is met
-            if device.energy_delivered_today >= device.min_daily_power:
-                logger.info(f"Turning off {device.name} - minimum daily power requirement met")
+            # Determine if charging is still needed
+            needs_charging = False
+
+            if has_one_off:
+                start = device_state.one_off_charge_start_energy or 0
+                # Handle dawn reset (energy_delivered_today resets to 0 at dawn)
+                if device.energy_delivered_today < start:
+                    device_state.one_off_charge_start_energy = 0
+                    start = 0
+                delivered = device.energy_delivered_today - start
+                if delivered >= device_state.one_off_charge_target:
+                    logger.info(f"One-off charge complete for {device.name}: {delivered:.2f}/{device_state.one_off_charge_target:.2f} kWh")
+                    device_state.one_off_charge_target = None
+                    device_state.one_off_charge_start_energy = None
+                    has_one_off = False
+                else:
+                    needs_charging = True
+
+            if not needs_charging and has_regular:
+                if device.energy_delivered_today < device.min_daily_power:
+                    needs_charging = True
+
+            if not needs_charging:
+                reason = 'Charge target met' if not has_one_off and not has_regular else 'Minimum daily power requirement met'
+                logger.info(f"Turning off {device.name} - {reason}")
                 optional_devices.append({
                     'name': device.name,
                     'power': 0,
-                    'reason': 'Minimum daily power requirement met'
+                    'reason': reason
                 })
                 if existing_index is not None:
                     devices_to_turn_on.pop(existing_index)
                 continue
-                
+
             # If we get here, we need to turn the device on
-            logger.info(f"Turning on {device.name} - minimum daily power requirement not met")
+            logger.info(f"Turning on {device.name} - charge target not yet met")
             
             # For variable amperage devices, set to maximum
             if device.has_variable_amperage:
