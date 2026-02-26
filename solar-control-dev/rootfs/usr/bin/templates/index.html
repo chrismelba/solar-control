@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "components/device_card.html" import device_card %}
+{% from "components/entity_selector.html" import entity_field, entity_widget %}
 
 {% block title %}Solar Control Dashboard{% endblock %}
 
@@ -8,8 +9,12 @@
 {% block content %}
     <div class="dashboard-grid">
 
+        <!-- ── Left: Controllable Devices ── -->
         <div class="card" id="devices">
-            <h2>Controllable Devices</h2>
+            <div class="card-header">
+                <h2>Controllable Devices</h2>
+                <button class="btn-icon" onclick="openDeviceModal()">+ Add Device</button>
+            </div>
             <div id="deviceList" class="device-list">
                 {% if devices %}
                     {% for device in devices %}
@@ -18,16 +23,21 @@
                 {% else %}
                     <div class="empty-state">
                         <p>No devices configured yet.</p>
-                        <a href="{{ url_for('configure_devices') }}" class="button">Configure Devices</a>
+                        <button class="button" onclick="openDeviceModal()">Add Device</button>
                     </div>
                 {% endif %}
             </div>
         </div>
 
+        <!-- ── Right: Sensors + Status ── -->
         <div class="dashboard-right">
 
-            <div class="card" id="sensor-values">
-                <h2>Current Sensor Values</h2>
+            <!-- Solar & Grid -->
+            <div class="card" id="sensor-grid">
+                <div class="card-header">
+                    <h2>&#9728; Solar &amp; Grid</h2>
+                    <button class="btn-icon" onclick="openModal('gridModal')">&#9881; Configure</button>
+                </div>
                 <div class="sensor-grid">
                     <div class="sensor-card solar">
                         <h3>&#9728; Solar Generation</h3>
@@ -59,18 +69,6 @@
                         {% endif %}
                     </div>
 
-                    <div class="sensor-card battery">
-                        <h3>&#128267; Expected Energy Remaining</h3>
-                        <p class="value" id="expectedEnergyRemaining">Loading...</p>
-                        <p class="name">After battery charging</p>
-                    </div>
-
-                    <div class="sensor-card sunset">
-                        <h3>&#127749; Hours Until Sunset</h3>
-                        <p class="value" id="hoursUntilSunset">Loading...</p>
-                        <p class="name">Remaining daylight</p>
-                    </div>
-
                     {% if sensor_values.tariff_rate %}
                     <div class="sensor-card tariff">
                         <h3>&#128178; Current Tariff</h3>
@@ -79,16 +77,6 @@
                         <p class="mode">Mode: {{ sensor_values.tariff_mode|default('error') }}</p>
                     </div>
                     {% endif %}
-
-                    <div class="sensor-card sunrise">
-                        <h3>&#127748; Last Sunrise</h3>
-                        {% if sunrise_time %}
-                            <p class="value">{{ sunrise_time.split('T')[1].split(':')[0] }}:{{ sunrise_time.split('T')[1].split(':')[1] }}</p>
-                            <p class="name">Today's Sunrise (Local Time)</p>
-                        {% else %}
-                            <p class="value not-configured">Not configured</p>
-                        {% endif %}
-                    </div>
 
                     <div class="sensor-card bring-forward">
                         <h3>&#8679; Bring Forward Power</h3>
@@ -109,8 +97,37 @@
                 </div>
             </div>
 
+            <!-- Battery -->
+            <div class="card" id="sensor-battery">
+                <div class="card-header">
+                    <h2>&#128267; Battery</h2>
+                    <button class="btn-icon" onclick="openModal('batteryModal')">&#9881; Configure</button>
+                </div>
+                <div class="sensor-grid">
+                    <div class="sensor-card battery">
+                        <h3>&#128267; Battery Level</h3>
+                        {% if sensor_values.battery_percent %}
+                            <p class="value">{{ sensor_values.battery_percent.state }}%</p>
+                            <p class="name">{{ sensor_values.battery_percent.attributes.friendly_name }}</p>
+                        {% else %}
+                            <p class="value not-configured">Not configured</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="sensor-card battery">
+                        <h3>&#128267; Expected Energy Remaining</h3>
+                        <p class="value" id="expectedEnergyRemaining">Loading...</p>
+                        <p class="name">After battery charging</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Status -->
             <div class="card" id="status">
-                <h2>System Status</h2>
+                <div class="card-header">
+                    <h2>System Status</h2>
+                    <button id="demoToggleBtn" class="btn-icon" onclick="toggleDemoMode()">Demo: Off</button>
+                </div>
                 <div class="status-content">
                     <div class="status-row">
                         <span class="status-label">Status:</span>
@@ -133,279 +150,396 @@
         </div>
     </div>
 
+    <!-- ══════════════════════════════════════ -->
+    <!-- Today's Energy Chart                  -->
+    <!-- ══════════════════════════════════════ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <div class="card" id="energy-chart-card" style="margin-top: 0;">
+        <div class="card-header">
+            <h2>&#9889; Today's Energy</h2>
+            <span id="energy-chart-asof" style="font-size:0.75rem;color:#555"></span>
+        </div>
+        <canvas id="energyChart" height="100"></canvas>
+        <p id="energy-chart-note" class="help-text" style="margin-top:0.75rem;text-align:center;display:none"></p>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!-- Device Modal                          -->
+    <!-- ══════════════════════════════════════ -->
+    <div id="deviceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="deviceModalTitle">Add Device</h2>
+                <button class="modal-close" title="Close">&#x2715;</button>
+            </div>
+
+            <form id="deviceModalForm">
+                <div class="tabs">
+                    <div class="tab-buttons">
+                        <button type="button" class="tab-button active" data-tab="dm-basic">Basic Settings</button>
+                        <button type="button" class="tab-button" data-tab="dm-amperage">Variable Amperage</button>
+                        <button type="button" class="tab-button" data-tab="dm-runtime">Runtime Settings</button>
+                        <button type="button" class="tab-button" data-tab="dm-offpeak">Off-Peak Charging</button>
+                    </div>
+
+                    <div class="tab-content active" id="dm-basic-tab">
+                        <div class="field-row">
+                            <div class="form-group">
+                                <label for="dm_name">Device Name</label>
+                                <input type="text" id="dm_name" name="name" required placeholder="e.g. Pool Pump">
+                            </div>
+                            <div class="form-group">
+                                <label for="dm_typical_power_draw">Typical Power Draw</label>
+                                <div class="field-with-unit">
+                                    <input type="number" id="dm_typical_power_draw" name="typical_power_draw" required min="0" placeholder="0">
+                                    <span class="unit-label">W</span>
+                                </div>
+                                <small class="help-text">Used when no live power sensor is available.</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="dm_switch_entity_input">Switch Entity</label>
+                            {{ entity_widget('dm_switch_entity', entities, filter_type='switch', placeholder='Search switches...', required=true) }}
+                        </div>
+
+                        <hr class="form-section-divider">
+
+                        <div class="field-row">
+                            <div class="form-group">
+                                <label>Current Power Sensor <span class="optional-label">(optional)</span></label>
+                                {{ entity_widget('dm_current_power_sensor', entities, filter_type='sensor_power', placeholder='Search power sensors...') }}
+                                <small class="help-text">Live power shown on dashboard card.</small>
+                            </div>
+                            <div class="form-group">
+                                <label>Energy Delivery Sensor <span class="optional-label">(optional)</span></label>
+                                {{ entity_widget('dm_energy_sensor', entities, filter_type='sensor_power', placeholder='Search energy sensors...') }}
+                                <small class="help-text">Cumulative kWh for off-peak tracking.</small>
+                            </div>
+                        </div>
+
+                        <input type="hidden" id="dm_order" name="order" value="0">
+                    </div>
+
+                    <div class="tab-content" id="dm-amperage-tab">
+                        <div class="form-group">
+                            <label class="checkbox-row" for="dm_has_variable_amperage">
+                                <input type="checkbox" id="dm_has_variable_amperage" name="has_variable_amperage">
+                                <span class="checkbox-label">Variable Amperage Control</span>
+                            </label>
+                            <small class="help-text">Enable for devices that adjust power by varying amperage, such as EV chargers.</small>
+                        </div>
+
+                        <div id="dm_amperage_controls" style="display:none">
+                            <div class="form-group">
+                                <label for="dm_variable_amperage_control_input">Amperage Control Entity</label>
+                                {{ entity_widget('dm_variable_amperage_control', entities, filter_type='number', placeholder='Search number entities...') }}
+                                <small class="help-text">The number entity used to set the charge current.</small>
+                            </div>
+
+                            <div class="field-row">
+                                <div class="form-group">
+                                    <label for="dm_min_amperage">Min Amperage</label>
+                                    <div class="field-with-unit">
+                                        <input type="number" id="dm_min_amperage" name="min_amperage" min="0" step="0.1" placeholder="6">
+                                        <span class="unit-label">A</span>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dm_max_amperage">Max Amperage</label>
+                                    <div class="field-with-unit">
+                                        <input type="number" id="dm_max_amperage" name="max_amperage" min="0" step="0.1" placeholder="32">
+                                        <span class="unit-label">A</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-content" id="dm-runtime-tab">
+                        <div class="field-row">
+                            <div class="form-group">
+                                <label for="dm_min_on_time">Min On Time</label>
+                                <div class="field-with-unit">
+                                    <input type="number" id="dm_min_on_time" name="min_on_time" value="0" min="0">
+                                    <span class="unit-label">min</span>
+                                </div>
+                                <small class="help-text">Must stay on for at least this long once started.</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="dm_min_off_time">Min Off Time</label>
+                                <div class="field-with-unit">
+                                    <input type="number" id="dm_min_off_time" name="min_off_time" value="0" min="0">
+                                    <span class="unit-label">min</span>
+                                </div>
+                                <small class="help-text">Must stay off for at least this long after stopping.</small>
+                            </div>
+                        </div>
+
+                        <hr class="form-section-divider">
+
+                        <div class="form-group">
+                            <label class="checkbox-row" for="dm_run_once">
+                                <input type="checkbox" id="dm_run_once" name="run_once">
+                                <span class="checkbox-label">Run Once</span>
+                            </label>
+                            <small class="help-text">For devices that complete a single task and stop (e.g. washing machine, dishwasher). Won't be restarted once it finishes.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="dm_completion_sensor_input">Completion Sensor <span class="optional-label">(optional)</span></label>
+                            {{ entity_widget('dm_completion_sensor', entities, filter_type='binary_sensor', placeholder='Search binary sensors...') }}
+                            <small class="help-text">Binary sensor that goes on when the device has finished its cycle.</small>
+                        </div>
+                    </div>
+
+                    <div class="tab-content" id="dm-offpeak-tab">
+                        <div class="form-group">
+                            <label for="dm_min_daily_power">Minimum Daily Energy</label>
+                            <div class="field-with-unit">
+                                <input type="number" id="dm_min_daily_power" name="min_daily_power" min="0" step="0.1" placeholder="0">
+                                <span class="unit-label">kWh</span>
+                            </div>
+                            <small class="help-text">If the device hasn't received this much energy by the end of the cheap tariff window, it will be topped up using off-peak power.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="dm_completion_sensor_offpeak_input">Completion Sensor <span class="optional-label">(optional)</span></label>
+                            {{ entity_widget('dm_completion_sensor_offpeak', entities, filter_type='binary_sensor', placeholder='Search binary sensors...', input_name='completion_sensor') }}
+                            <small class="help-text">When on, the device is considered fully charged and off-peak top-up is skipped.</small>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <div class="modal-footer">
+                <button id="deviceDeleteBtn" class="button button-danger" style="display:none" onclick="deleteCurrentDevice()">Delete</button>
+                <div class="modal-footer-right">
+                    <button class="button button-secondary" onclick="closeModal('deviceModal')">Cancel</button>
+                    <button id="deviceSaveBtn" class="button" onclick="saveDevice()">Add Device</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!-- Grid Config Modal                     -->
+    <!-- ══════════════════════════════════════ -->
+    <div id="gridModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Configure Solar &amp; Grid</h2>
+                <button class="modal-close" title="Close">&#x2715;</button>
+            </div>
+
+            <div id="gridModalForm">
+                {{ entity_field(
+                    'gm_solar_generation', entities,
+                    label='Solar Generation Entity:',
+                    filter_type='sensor_power',
+                    placeholder='Search for a solar generation sensor...',
+                    tooltip='Select the sensor that measures your solar panel\'s power generation.',
+                    selected_value=(grid_config.solar_generation or '') if grid_config else ''
+                ) }}
+
+                {{ entity_field(
+                    'gm_grid_power', entities,
+                    label='Grid Power Entity:',
+                    filter_type='sensor_power',
+                    placeholder='Search for a grid power sensor...',
+                    tooltip='Negative values = export, positive values = import.',
+                    selected_value=(grid_config.grid_power or '') if grid_config else ''
+                ) }}
+
+                {{ entity_field(
+                    'gm_solar_forecast', entities,
+                    label='Solar Forecast Entity:',
+                    filter_type='sensor_forecast',
+                    placeholder='Search for a solar forecast sensor...',
+                    tooltip='Select a sensor that provides solar generation forecast remaining today.',
+                    selected_value=(grid_config.solar_forecast or '') if grid_config else ''
+                ) }}
+
+                <div class="form-group">
+                    <label for="gm_grid_voltage_input">Grid Voltage: <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that measures grid voltage, or enter a fixed value.</span></span></label>
+                    <div class="input-group">
+                        {{ entity_widget(
+                            'gm_grid_voltage', entities,
+                            filter_type='sensor',
+                            placeholder='Search for an entity...',
+                            selected_value=(grid_config.grid_voltage or '') if grid_config else ''
+                        ) }}
+                        <span class="or-divider">or</span>
+                        <input type="number" id="gm_grid_voltage_fixed" placeholder="Fixed value" step="0.1" min="0"
+                               value="{{ grid_config.grid_voltage_fixed if grid_config and grid_config.grid_voltage_fixed else '' }}" style="width:130px">
+                        <span class="unit">V</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="gm_site_export_limit">Site Export Limit: <span class="tooltip">ⓘ<span class="tooltiptext">Maximum power that can be exported to the grid. Leave empty for no limit.</span></span></label>
+                    <div class="input-group">
+                        <input type="number" id="gm_site_export_limit" placeholder="Enter limit" step="0.1" min="0"
+                               value="{{ grid_config.site_export_limit if grid_config and grid_config.site_export_limit else '' }}" style="flex:1">
+                        <span class="unit">W</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="gm_tariff_rate_input">Tariff Rate Entity: <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that provides your current electricity tariff rate.</span></span></label>
+                    {{ entity_widget(
+                        'gm_tariff_rate', entities,
+                        filter_type='select',
+                        placeholder='Search for a tariff rate entity...',
+                        selected_value=(grid_config.tariff_rate or '') if grid_config else ''
+                    ) }}
+                    <div id="gm_tariff_mode_container" class="tariff-mode-container" style="display: none; margin-top: 1rem;">
+                        <h4>Configure Tariff Modes <span class="tooltip">ⓘ<span class="tooltiptext">During normal power no controllable devices will be turned on. During cheap energy times you can select your devices to continue and during free power periods all devices will run at maximum.</span></span></h4>
+                        <div class="tariff-modes-grid">
+                            <div class="tariff-mode-header">
+                                <div class="tariff-name">Tariff Rate</div>
+                                <div class="tariff-mode-options"><div class="mode-label">Mode</div></div>
+                            </div>
+                            <div id="gm_tariff_modes_list" class="tariff-modes-list"></div>
+                        </div>
+                        <input type="hidden" id="gm_tariff_modes" value="{{ grid_config.tariff_modes|tojson if grid_config and grid_config.tariff_modes else '{}' }}">
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <div></div>
+                <div class="modal-footer-right">
+                    <button class="button button-secondary" onclick="closeModal('gridModal')">Cancel</button>
+                    <button class="button" onclick="saveGridConfig()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!-- Battery Config Modal                  -->
+    <!-- ══════════════════════════════════════ -->
+    <div id="batteryModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Configure Battery</h2>
+                <button class="modal-close" title="Close">&#x2715;</button>
+            </div>
+
+            <div id="batteryModalForm">
+                <div class="form-group">
+                    <label for="bm_size_kwh">Battery Size (kWh)</label>
+                    <input type="number" id="bm_size_kwh" step="0.1" min="0"
+                           value="{{ battery_config.size_kwh if battery_config and battery_config.size_kwh else '' }}">
+                </div>
+
+                {{ entity_field(
+                    'bm_battery_percent_entity', entities,
+                    label='Battery Percentage Sensor',
+                    filter_type='sensor_battery',
+                    placeholder='Search for a battery percentage sensor...',
+                    help_text='Select a sensor that reports battery percentage (0-100%).',
+                    selected_value=(battery_config.battery_percent_entity or '') if battery_config else ''
+                ) }}
+
+                <div class="form-group">
+                    <label for="bm_max_charging_speed_kw">Maximum Charging Speed (kW)</label>
+                    <input type="number" id="bm_max_charging_speed_kw" step="0.1" min="0"
+                           value="{{ battery_config.max_charging_speed_kw if battery_config and battery_config.max_charging_speed_kw else '' }}">
+                    <small class="form-text">Optional: Maximum charging speed in kilowatts</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="bm_expected_kwh_per_hour">Expected kWh used per hour <span class="tooltip">ⓘ<span class="tooltiptext">This value will be subtracted from the solar forecast to determine if there's enough energy left today to fill the battery.</span></span></label>
+                    <input type="number" id="bm_expected_kwh_per_hour" step="0.1" min="0"
+                           value="{{ battery_config.expected_kwh_per_hour if battery_config and battery_config.expected_kwh_per_hour else '' }}">
+                    <small class="form-text">Optional: Expected household energy consumption per hour</small>
+                </div>
+
+                <div class="form-group">
+                    <label>Bring Forward Mode <span class="tooltip">ⓘ<span class="tooltiptext">Experimental: Shift load forward when battery is sufficiently charged and there is enough sun to fill it.</span></span></label>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="bm_bring_forward_mode"
+                               {% if battery_config and battery_config.bring_forward_mode %}checked{% endif %}>
+                        <label for="bm_bring_forward_mode" class="toggle-label"></label>
+                    </div>
+                    <small class="form-text">Experimental: Shift load forward when battery is sufficiently charged</small>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <div></div>
+                <div class="modal-footer-right">
+                    <button class="button button-secondary" onclick="closeModal('batteryModal')">Cancel</button>
+                    <button class="button" onclick="saveBatteryConfig()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // Fetch status from API
+        // ── Status ──
         async function updateStatus() {
             try {
                 const data = await apiCall('/api/status');
 
                 const statusText = document.getElementById('statusText');
-                if (statusText) {
-                    statusText.textContent = `${data.status} (v${data.version})`;
-                }
+                if (statusText) statusText.textContent = `${data.status} (v${data.version})`;
 
                 const statusMode = document.getElementById('statusMode');
                 if (statusMode && data.debug_state) {
                     statusMode.textContent = data.debug_state.control_mode || '—';
                 }
 
-                // Update toggle state
                 const toggle = document.getElementById('powerOptimizationToggle');
-                if (toggle) {
-                    toggle.checked = data.power_optimization_enabled;
-                }
+                if (toggle) toggle.checked = data.power_optimization_enabled;
             } catch (error) {
                 console.error('Error updating status:', error);
                 const statusText = document.getElementById('statusText');
-                if (statusText) {
-                    statusText.textContent = 'Error loading status';
-                }
+                if (statusText) statusText.textContent = 'Error loading status';
             }
         }
 
-        // Run control loop
         async function runControlLoop() {
             try {
-                await apiCall('/api/control/run', {
-                    method: 'POST'
-                });
+                await apiCall('/api/control/run', { method: 'POST' });
             } catch (error) {
                 console.error('Error running control loop:', error);
             }
         }
 
-        // Update status immediately and then periodically
-        document.addEventListener('DOMContentLoaded', () => {
-            updateStatus();
-            updateForecastInfo();
-            runControlLoop(); // Run control loop when page loads
-            setInterval(updateStatus, 30000);  // Update every 30 seconds
-            setInterval(updateForecastInfo, 60000);  // Update forecast info every minute
-        });
-
-        // Handle toggle changes
         document.getElementById('powerOptimizationToggle').addEventListener('change', async function(e) {
             try {
                 await apiCall('/api/settings/power_optimization', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        enabled: e.target.checked
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: e.target.checked })
                 });
             } catch (error) {
                 console.error('Error updating power optimization:', error);
-                // Revert toggle state on error
                 e.target.checked = !e.target.checked;
             }
         });
 
-        // Initialize drag and drop
-        function initializeDragAndDrop() {
-            const deviceList = document.getElementById('deviceList');
-            const items = deviceList.querySelectorAll('.device-card.draggable');
-
-            items.forEach(item => {
-                item.addEventListener('dragstart', (e) => {
-                    e.dataTransfer.effectAllowed = 'move';
-                    item.classList.add('dragging');
-                });
-
-                item.addEventListener('dragend', async () => {
-                    item.classList.remove('dragging');
-                    try {
-                        await updateDeviceOrder();
-                    } catch (error) {
-                        console.error('Error updating device order:', error);
-                        // Optionally revert the drag if it failed
-                        window.location.reload();
-                    }
-                });
-            });
-
-            deviceList.addEventListener('dragover', e => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                const draggingItem = deviceList.querySelector('.dragging');
-                if (!draggingItem) return;
-
-                const siblings = [...deviceList.querySelectorAll('.device-card:not(.dragging)')];
-
-                const nextSibling = siblings.find(sibling => {
-                    const box = sibling.getBoundingClientRect();
-                    const offset = e.clientY - box.top - box.height / 2;
-                    return offset < 0;
-                });
-
-                deviceList.insertBefore(draggingItem, nextSibling);
-            });
-
-            // Add drop event handler
-            deviceList.addEventListener('drop', e => {
-                e.preventDefault();
-                const draggingItem = deviceList.querySelector('.dragging');
-                if (!draggingItem) return;
-
-                const siblings = [...deviceList.querySelectorAll('.device-card:not(.dragging)')];
-
-                const nextSibling = siblings.find(sibling => {
-                    const box = sibling.getBoundingClientRect();
-                    const offset = e.clientY - box.top - box.height / 2;
-                    return offset < 0;
-                });
-
-                deviceList.insertBefore(draggingItem, nextSibling);
-            });
-        }
-
-        async function updateDeviceOrder() {
-            const items = document.querySelectorAll('.device-card');
-            const orderData = Array.from(items).map((item, index) => ({
-                name: item.dataset.deviceName,
-                order: index
-            }));
-
-            try {
-                const result = await apiCall('/api/devices/reorder', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(orderData)
-                });
-
-                if (result.status === 'error') {
-                    throw new Error(result.message || 'Failed to update device order');
-                }
-            } catch (error) {
-                console.error('Error updating device order:', error);
-                alert('Failed to update device order. Please try again.');
-                throw error; // Re-throw to be caught by the dragend handler
-            }
-        }
-
-        // Initialize drag and drop when page loads
-        document.addEventListener('DOMContentLoaded', () => {
-            initializeDragAndDrop();
-            updateDeviceCards(); // Call immediately when page loads
-        });
-
-        async function updateDeviceCards() {
-            try {
-                const devices = await apiCall('/api/devices');
-                devices.forEach(device => {
-                    const card = document.querySelector(`.device-card[data-device-name="${device.name}"]`);
-                    if (card) {
-                        const deliveredElem = card.querySelector('.device-power-delivered');
-                        if (deliveredElem) {
-                            deliveredElem.textContent = `Energy Delivered: ${device.energy_delivered_today.toFixed(2)} Wh`;
-                        }
-                        const powerElem = card.querySelector('.device-power-value');
-                        if (powerElem) {
-                            if (device.is_on && device.current_power_sensor && device.current_power > 0) {
-                                powerElem.textContent = `${Math.round(device.current_power)}W`;
-                            } else {
-                                powerElem.textContent = `${device.typical_power_draw}W (assumed)`;
-                            }
-                        }
-                        const chargeSection = card.querySelector('.one-off-charge-section');
-                        if (chargeSection) {
-                            const statusEl = chargeSection.querySelector('.one-off-charge-status');
-                            const btnEl = chargeSection.querySelector('.one-off-charge-btn');
-                            const inputRow = chargeSection.querySelector('.one-off-charge-input-row');
-                            if (device.one_off_charge_target != null) {
-                                const delivered = (device.one_off_charge_delivered || 0).toFixed(1);
-                                const target = device.one_off_charge_target.toFixed(1);
-                                statusEl.innerHTML = `⚡ ${delivered} / ${target} kWh <button class="one-off-charge-cancel" data-device-name="${device.name}">✕</button>`;
-                                statusEl.style.display = '';
-                                btnEl.style.display = 'none';
-                                inputRow.style.display = 'none';
-                            } else {
-                                statusEl.style.display = 'none';
-                                btnEl.style.display = '';
-                            }
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error('Failed to update device cards:', error);
-            }
-        }
-        setInterval(updateDeviceCards, 60000); // Update every minute
-        updateDeviceCards();
-
-        // One-off charge button interactions
-        document.addEventListener('click', async (e) => {
-            if (e.target.classList.contains('one-off-charge-btn')) {
-                const section = e.target.closest('.one-off-charge-section');
-                e.target.style.display = 'none';
-                section.querySelector('.one-off-charge-input-row').style.display = '';
-                section.querySelector('.one-off-charge-input').focus();
-            }
-            if (e.target.classList.contains('one-off-charge-cancel-input')) {
-                const section = e.target.closest('.one-off-charge-section');
-                section.querySelector('.one-off-charge-input-row').style.display = 'none';
-                section.querySelector('.one-off-charge-btn').style.display = '';
-            }
-            if (e.target.classList.contains('one-off-charge-submit')) {
-                const section = e.target.closest('.one-off-charge-section');
-                const name = section.dataset.deviceName;
-                const kwh = parseFloat(section.querySelector('.one-off-charge-input').value);
-                if (!isNaN(kwh) && kwh > 0) {
-                    await apiCall(`/api/devices/${encodeURIComponent(name)}/one_off_charge`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ target_kwh: kwh })
-                    });
-                    updateDeviceCards();
-                }
-            }
-            if (e.target.classList.contains('one-off-charge-cancel')) {
-                const name = e.target.dataset.deviceName;
-                await apiCall(`/api/devices/${encodeURIComponent(name)}/one_off_charge`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ target_kwh: null })
-                });
-                updateDeviceCards();
-            }
-        });
-
-        // Update forecast information
+        // ── Forecast / expected energy ──
         async function updateForecastInfo() {
             try {
                 const data = await apiCall('/api/status');
 
-                // Update expected energy remaining
                 const expectedEnergyElem = document.getElementById('expectedEnergyRemaining');
                 if (expectedEnergyElem) {
                     if (data.debug_state && data.debug_state.expected_energy_remaining !== null) {
                         expectedEnergyElem.textContent = `${data.debug_state.expected_energy_remaining.toFixed(2)} kWh`;
                     } else if (data.debug_state && data.debug_state.solar_forecast_remaining !== null) {
-                        // If no battery is configured, show the raw solar forecast
                         expectedEnergyElem.textContent = `${data.debug_state.solar_forecast_remaining.toFixed(2)} kWh (raw forecast)`;
                     } else {
                         expectedEnergyElem.textContent = 'Not available';
                     }
                 }
 
-                // Update hours until sunset
-                const hoursUntilSunsetElem = document.getElementById('hoursUntilSunset');
-                if (hoursUntilSunsetElem && data.debug_state && data.debug_state.hours_until_sunset !== null) {
-                    if (data.debug_state.hours_until_sunset > 0) {
-                        hoursUntilSunsetElem.textContent = `${data.debug_state.hours_until_sunset.toFixed(1)}h`;
-                    } else {
-                        hoursUntilSunsetElem.textContent = 'Night';
-                    }
-                } else if (hoursUntilSunsetElem) {
-                    hoursUntilSunsetElem.textContent = 'Not available';
-                }
-
-                // Update bring forward power
-                const bringForwardCards = document.querySelectorAll('.sensor-card');
-                for (const card of bringForwardCards) {
+                // Update bring forward power value
+                for (const card of document.querySelectorAll('.sensor-card')) {
                     const title = card.querySelector('h3');
                     if (title && title.textContent.includes('Bring Forward Power')) {
                         if (data.debug_state && data.debug_state.bring_forward_power !== null) {
@@ -420,11 +554,744 @@
                 }
             } catch (error) {
                 console.error('Error updating forecast info:', error);
-                const expectedEnergyElem = document.getElementById('expectedEnergyRemaining');
-                const hoursUntilSunsetElem = document.getElementById('hoursUntilSunset');
-                if (expectedEnergyElem) expectedEnergyElem.textContent = 'Error';
-                if (hoursUntilSunsetElem) hoursUntilSunsetElem.textContent = 'Error';
+                const e = document.getElementById('expectedEnergyRemaining');
+                const h = document.getElementById('hoursUntilSunset');
+                if (e) e.textContent = 'Error';
+                if (h) h.textContent = 'Error';
             }
+        }
+
+        // ── Device cards live update ──
+        async function updateDeviceCards() {
+            try {
+                const devices = await apiCall('/api/devices');
+                devices.forEach(device => {
+                    const card = document.querySelector(`.device-card[data-device-name="${device.name}"]`);
+                    if (!card) return;
+
+                    const deliveredElem = card.querySelector('.device-power-delivered');
+                    if (deliveredElem) {
+                        deliveredElem.textContent = `Energy Delivered: ${device.energy_delivered_today.toFixed(2)} Wh`;
+                    }
+
+                    const powerElem = card.querySelector('.device-power-value');
+                    if (powerElem) {
+                        if (device.is_on && device.current_power_sensor && device.current_power > 0) {
+                            powerElem.textContent = `${Math.round(device.current_power)}W`;
+                        } else {
+                            powerElem.textContent = `${device.typical_power_draw}W (assumed)`;
+                        }
+                    }
+
+                    const chargeSection = card.querySelector('.one-off-charge-section');
+                    if (chargeSection) {
+                        const statusEl = chargeSection.querySelector('.one-off-charge-status');
+                        const btnEl = chargeSection.querySelector('.one-off-charge-btn');
+                        const inputRow = chargeSection.querySelector('.one-off-charge-input-row');
+                        if (device.one_off_charge_target != null) {
+                            const delivered = (device.one_off_charge_delivered || 0).toFixed(1);
+                            const target = device.one_off_charge_target.toFixed(1);
+                            statusEl.innerHTML = `&#9889; ${delivered} / ${target} kWh <button class="one-off-charge-cancel" data-device-name="${device.name}">&#x2715;</button>`;
+                            statusEl.style.display = '';
+                            btnEl.style.display = 'none';
+                            inputRow.style.display = 'none';
+                        } else {
+                            statusEl.style.display = 'none';
+                            btnEl.style.display = '';
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Failed to update device cards:', error);
+            }
+        }
+
+        // ── Drag-and-drop ──
+        function initializeDragAndDrop() {
+            const deviceList = document.getElementById('deviceList');
+            if (!deviceList) return;
+            const items = deviceList.querySelectorAll('.device-card.draggable');
+
+            items.forEach(item => {
+                item.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.effectAllowed = 'move';
+                    item.classList.add('dragging');
+                });
+                item.addEventListener('dragend', async () => {
+                    item.classList.remove('dragging');
+                    try {
+                        await updateDeviceOrder();
+                    } catch (error) {
+                        console.error('Error updating device order:', error);
+                        window.location.reload();
+                    }
+                });
+            });
+
+            deviceList.addEventListener('dragover', e => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const draggingItem = deviceList.querySelector('.dragging');
+                if (!draggingItem) return;
+                const siblings = [...deviceList.querySelectorAll('.device-card:not(.dragging)')];
+                const nextSibling = siblings.find(sibling => {
+                    const box = sibling.getBoundingClientRect();
+                    return e.clientY - box.top - box.height / 2 < 0;
+                });
+                deviceList.insertBefore(draggingItem, nextSibling);
+            });
+
+            deviceList.addEventListener('drop', e => {
+                e.preventDefault();
+                const draggingItem = deviceList.querySelector('.dragging');
+                if (!draggingItem) return;
+                const siblings = [...deviceList.querySelectorAll('.device-card:not(.dragging)')];
+                const nextSibling = siblings.find(sibling => {
+                    const box = sibling.getBoundingClientRect();
+                    return e.clientY - box.top - box.height / 2 < 0;
+                });
+                deviceList.insertBefore(draggingItem, nextSibling);
+            });
+        }
+
+        async function updateDeviceOrder() {
+            const items = document.querySelectorAll('.device-card');
+            const orderData = Array.from(items).map((item, index) => ({
+                name: item.dataset.deviceName,
+                order: index
+            }));
+            const result = await apiCall('/api/devices/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderData)
+            });
+            if (result.status === 'error') throw new Error(result.message || 'Failed to update device order');
+        }
+
+        // ── Card click → device modal ──
+        function initializeCardClicks() {
+            document.querySelectorAll('.device-card.draggable').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    if (!e.target.closest('.device-toggle') &&
+                        !e.target.closest('.switch') &&
+                        !e.target.closest('.one-off-charge-section')) {
+                        openDeviceModal(card.dataset.deviceName);
+                    }
+                });
+            });
+        }
+
+        // ── One-off charge button interactions ──
+        document.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('one-off-charge-btn')) {
+                e.stopPropagation();
+                const section = e.target.closest('.one-off-charge-section');
+                e.target.style.display = 'none';
+                section.querySelector('.one-off-charge-input-row').style.display = '';
+                section.querySelector('.one-off-charge-input').focus();
+            }
+            if (e.target.classList.contains('one-off-charge-cancel-input')) {
+                e.stopPropagation();
+                const section = e.target.closest('.one-off-charge-section');
+                section.querySelector('.one-off-charge-input-row').style.display = 'none';
+                section.querySelector('.one-off-charge-btn').style.display = '';
+            }
+            if (e.target.classList.contains('one-off-charge-submit')) {
+                e.stopPropagation();
+                const section = e.target.closest('.one-off-charge-section');
+                const name = section.dataset.deviceName;
+                const kwh = parseFloat(section.querySelector('.one-off-charge-input').value);
+                if (!isNaN(kwh) && kwh > 0) {
+                    await apiCall(`/api/devices/${encodeURIComponent(name)}/one_off_charge`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ target_kwh: kwh })
+                    });
+                    updateDeviceCards();
+                }
+            }
+            if (e.target.classList.contains('one-off-charge-cancel')) {
+                e.stopPropagation();
+                const name = e.target.dataset.deviceName;
+                await apiCall(`/api/devices/${encodeURIComponent(name)}/one_off_charge`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target_kwh: null })
+                });
+                updateDeviceCards();
+            }
+        });
+
+        // ── Device Modal ──
+        let editingDeviceName = null;
+
+        async function openDeviceModal(deviceName = null) {
+            editingDeviceName = deviceName;
+            const title = document.getElementById('deviceModalTitle');
+            const form = document.getElementById('deviceModalForm');
+            const deleteBtn = document.getElementById('deviceDeleteBtn');
+            const saveBtn = document.getElementById('deviceSaveBtn');
+
+            // Reset form and tabs
+            form.reset();
+            document.getElementById('dm_amperage_controls').style.display = 'none';
+            document.querySelectorAll('#deviceModal .tab-button').forEach((btn, i) => {
+                btn.classList.toggle('active', i === 0);
+            });
+            document.querySelectorAll('#deviceModal .tab-content').forEach((content, i) => {
+                content.classList.toggle('active', i === 0);
+            });
+
+            if (deviceName) {
+                title.textContent = `Edit Device`;
+                deleteBtn.style.display = isDemoMode() ? 'none' : '';
+                saveBtn.textContent = 'Save Changes';
+
+                // In demo mode, skip API fetch — just show the form with the device name
+                if (isDemoMode() && deviceName.startsWith('Demo ')) {
+                    document.getElementById('dm_name').value = deviceName;
+                    document.getElementById('dm_typical_power_draw').value = '1000';
+                    openModal('deviceModal');
+                    return;
+                }
+
+                try {
+                    const device = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}`);
+
+                    document.getElementById('dm_name').value = device.name;
+                    document.getElementById('dm_switch_entity').value = device.switch_entity || '';
+                    document.getElementById('dm_switch_entity_input').value = device.switch_entity || '';
+                    document.getElementById('dm_typical_power_draw').value = device.typical_power_draw;
+
+                    if (device.current_power_sensor) {
+                        document.getElementById('dm_current_power_sensor').value = device.current_power_sensor;
+                        document.getElementById('dm_current_power_sensor_input').value = device.current_power_sensor;
+                    }
+                    if (device.energy_sensor) {
+                        document.getElementById('dm_energy_sensor').value = device.energy_sensor;
+                        document.getElementById('dm_energy_sensor_input').value = device.energy_sensor;
+                    }
+
+                    document.getElementById('dm_has_variable_amperage').checked = device.has_variable_amperage;
+                    if (device.has_variable_amperage) {
+                        document.getElementById('dm_amperage_controls').style.display = 'block';
+                        document.getElementById('dm_min_amperage').value = device.min_amperage;
+                        document.getElementById('dm_max_amperage').value = device.max_amperage;
+                        if (device.variable_amperage_control) {
+                            document.getElementById('dm_variable_amperage_control').value = device.variable_amperage_control;
+                            document.getElementById('dm_variable_amperage_control_input').value = device.variable_amperage_control;
+                        }
+                    }
+
+                    document.getElementById('dm_min_on_time').value = Math.floor(device.min_on_time / 60);
+                    document.getElementById('dm_min_off_time').value = Math.floor(device.min_off_time / 60);
+                    document.getElementById('dm_run_once').checked = device.run_once;
+
+                    if (device.completion_sensor) {
+                        document.getElementById('dm_completion_sensor').value = device.completion_sensor;
+                        document.getElementById('dm_completion_sensor_input').value = device.completion_sensor;
+                        document.getElementById('dm_completion_sensor_offpeak').value = device.completion_sensor;
+                        document.getElementById('dm_completion_sensor_offpeak_input').value = device.completion_sensor;
+                    }
+                    if (device.min_daily_power) {
+                        document.getElementById('dm_min_daily_power').value = device.min_daily_power;
+                    }
+                    document.getElementById('dm_order').value = device.order || 0;
+                } catch (error) {
+                    alert('Error loading device: ' + error.message);
+                    return;
+                }
+            } else {
+                title.textContent = 'Add Device';
+                deleteBtn.style.display = 'none';
+                saveBtn.textContent = 'Add Device';
+            }
+
+            openModal('deviceModal');
+        }
+
+        async function saveDevice() {
+            if (isDemoMode()) { closeModal('deviceModal'); return; }
+            const form = document.getElementById('deviceModalForm');
+            const formData = new FormData(form);
+            const deviceData = Object.fromEntries(formData.entries());
+
+            deviceData.has_variable_amperage = !!form.querySelector('[name="has_variable_amperage"]').checked;
+            deviceData.run_once = !!form.querySelector('[name="run_once"]').checked;
+            deviceData.typical_power_draw = parseFloat(deviceData.typical_power_draw) || 0;
+            deviceData.min_on_time = parseInt(deviceData.min_on_time || 0) * 60;
+            deviceData.min_off_time = parseInt(deviceData.min_off_time || 0) * 60;
+            deviceData.order = parseInt(deviceData.order || 0);
+
+            if (deviceData.has_variable_amperage) {
+                if (!deviceData.variable_amperage_control) {
+                    alert('Please select a Variable Amperage Control Entity');
+                    return;
+                }
+                deviceData.min_amperage = parseFloat(deviceData.min_amperage);
+                deviceData.max_amperage = parseFloat(deviceData.max_amperage);
+            } else {
+                delete deviceData.min_amperage;
+                delete deviceData.max_amperage;
+            }
+
+            try {
+                if (editingDeviceName) {
+                    await apiCall(`/api/devices/${encodeURIComponent(editingDeviceName)}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(deviceData)
+                    });
+                } else {
+                    await apiCall('/api/devices', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(deviceData)
+                    });
+                }
+                closeModal('deviceModal');
+                window.location.reload();
+            } catch (error) {
+                alert('Error saving device: ' + error.message);
+            }
+        }
+
+        async function deleteCurrentDevice() {
+            if (isDemoMode()) { closeModal('deviceModal'); return; }
+            if (!editingDeviceName || !confirm(`Are you sure you want to delete ${editingDeviceName}?`)) return;
+            try {
+                await apiCall(`/api/devices/${encodeURIComponent(editingDeviceName)}`, { method: 'DELETE' });
+                closeModal('deviceModal');
+                window.location.reload();
+            } catch (error) {
+                alert('Error deleting device: ' + error.message);
+            }
+        }
+
+        // Device modal tab switching (scoped to modal)
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('#deviceModal .tab-button').forEach(button => {
+                button.addEventListener('click', () => {
+                    document.querySelectorAll('#deviceModal .tab-button').forEach(btn => btn.classList.remove('active'));
+                    document.querySelectorAll('#deviceModal .tab-content').forEach(c => c.classList.remove('active'));
+                    button.classList.add('active');
+                    document.getElementById(`${button.dataset.tab}-tab`).classList.add('active');
+                });
+            });
+
+            // Variable amperage checkbox
+            document.getElementById('dm_has_variable_amperage').addEventListener('change', function() {
+                const controls = document.getElementById('dm_amperage_controls');
+                controls.style.display = this.checked ? 'block' : 'none';
+                ['dm_min_amperage', 'dm_max_amperage', 'dm_variable_amperage_control'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.required = this.checked;
+                });
+                if (!this.checked) {
+                    ['dm_min_amperage', 'dm_max_amperage'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.value = '';
+                    });
+                    document.getElementById('dm_variable_amperage_control').value = '';
+                    document.getElementById('dm_variable_amperage_control_input').value = '';
+                }
+            });
+
+            // Sync completion sensor between Runtime and Off-Peak tabs
+            const completionInput = document.getElementById('dm_completion_sensor_input');
+            const completionOffpeakInput = document.getElementById('dm_completion_sensor_offpeak_input');
+            const completionHidden = document.getElementById('dm_completion_sensor');
+            const completionOffpeakHidden = document.getElementById('dm_completion_sensor_offpeak');
+
+            if (completionInput && completionOffpeakInput) {
+                completionInput.addEventListener('change', function() {
+                    completionOffpeakInput.value = this.value;
+                    completionOffpeakHidden.value = completionHidden.value;
+                });
+                completionOffpeakInput.addEventListener('change', function() {
+                    completionInput.value = this.value;
+                    completionHidden.value = completionOffpeakHidden.value;
+                });
+            }
+        });
+
+        // ── Grid Config Modal ──
+        document.addEventListener('DOMContentLoaded', function() {
+            const tariffSelect = SearchableSelect.getOrCreate('gm_tariff_rate_input', 'gm_tariff_rate_options', 'gm_tariff_rate');
+            tariffSelect.onSelectCallback = onGridTariffRateSelect;
+
+            const initialValue = document.getElementById('gm_tariff_rate').value;
+            if (initialValue) {
+                document.getElementById('gm_tariff_mode_container').style.display = 'block';
+                onGridTariffRateSelect(initialValue, '');
+            }
+        });
+
+        function onGridTariffRateSelect(selectedValue, selectedText) {
+            const container = document.getElementById('gm_tariff_mode_container');
+            const list = document.getElementById('gm_tariff_modes_list');
+
+            if (!selectedValue) {
+                container.style.display = 'none';
+                document.getElementById('gm_tariff_modes').value = '{}';
+                return;
+            }
+
+            container.style.display = 'block';
+
+            apiCall('/api/tariff_modes')
+                .then(data => {
+                    const availableModes = data.modes || ['normal', 'cheap', 'free'];
+                    const currentModes = data.current_modes || {};
+                    const options = data.options || [];
+
+                    list.innerHTML = '';
+
+                    const filteredModes = {};
+                    options.forEach(option => {
+                        if (currentModes[option]) filteredModes[option] = currentModes[option];
+                    });
+                    document.getElementById('gm_tariff_modes').value = JSON.stringify(filteredModes);
+
+                    options.forEach(option => {
+                        const item = document.createElement('div');
+                        item.className = 'tariff-mode-item';
+                        item.dataset.value = option;
+
+                        const nameDiv = document.createElement('div');
+                        nameDiv.className = 'tariff-name';
+                        nameDiv.textContent = option;
+                        item.appendChild(nameDiv);
+
+                        const optionsDiv = document.createElement('div');
+                        optionsDiv.className = 'tariff-mode-options';
+                        availableModes.forEach(mode => {
+                            const optionDiv = document.createElement('div');
+                            optionDiv.className = 'mode-option';
+                            optionDiv.dataset.mode = mode;
+                            optionDiv.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+                            optionDiv.addEventListener('click', () => {
+                                item.querySelectorAll('.mode-option').forEach(o => o.classList.remove('selected'));
+                                optionDiv.classList.add('selected');
+                                updateGridTariffModes();
+                            });
+                            optionsDiv.appendChild(optionDiv);
+                        });
+                        item.appendChild(optionsDiv);
+                        list.appendChild(item);
+                    });
+
+                    Object.entries(filteredModes).forEach(([tariff, mode]) => {
+                        const item = list.querySelector(`[data-value="${tariff}"]`);
+                        if (item) {
+                            const opt = item.querySelector(`[data-mode="${mode}"]`);
+                            if (opt) opt.classList.add('selected');
+                        }
+                    });
+                })
+                .catch(error => {
+                    list.innerHTML = '<div class="error-message">Error loading tariff modes.</div>';
+                });
+        }
+
+        function updateGridTariffModes() {
+            const modes = {};
+            document.querySelectorAll('#gm_tariff_modes_list .tariff-mode-item').forEach(item => {
+                const value = item.dataset.value;
+                const selectedMode = item.querySelector('.mode-option.selected');
+                if (value && selectedMode) modes[value] = selectedMode.dataset.mode;
+            });
+            document.getElementById('gm_tariff_modes').value = JSON.stringify(modes);
+        }
+
+        async function saveGridConfig() {
+            if (isDemoMode()) { closeModal('gridModal'); return; }
+            const data = {
+                solar_generation: document.getElementById('gm_solar_generation').value,
+                grid_power: document.getElementById('gm_grid_power').value,
+                solar_forecast: document.getElementById('gm_solar_forecast').value,
+                grid_voltage: document.getElementById('gm_grid_voltage').value,
+                grid_voltage_fixed: document.getElementById('gm_grid_voltage_fixed').value || null,
+                tariff_rate: document.getElementById('gm_tariff_rate').value,
+                site_export_limit: document.getElementById('gm_site_export_limit').value || null,
+                tariff_modes: JSON.parse(document.getElementById('gm_tariff_modes').value || '{}'),
+            };
+            try {
+                await apiCall('/api/config/grid', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                closeModal('gridModal');
+                window.location.reload();
+            } catch (error) {
+                alert('Error saving grid config: ' + error.message);
+            }
+        }
+
+        // ── Battery Config Modal ──
+        async function saveBatteryConfig() {
+            if (isDemoMode()) { closeModal('batteryModal'); return; }
+            const sizeKwh = document.getElementById('bm_size_kwh').value;
+            const batteryPercentEntity = document.getElementById('bm_battery_percent_entity').value;
+
+            if (!sizeKwh || !batteryPercentEntity) {
+                alert('Please fill in Battery Size and Battery Percentage Sensor');
+                return;
+            }
+
+            const data = {
+                size_kwh: parseFloat(sizeKwh),
+                battery_percent_entity: batteryPercentEntity,
+                max_charging_speed_kw: document.getElementById('bm_max_charging_speed_kw').value
+                    ? parseFloat(document.getElementById('bm_max_charging_speed_kw').value) : null,
+                expected_kwh_per_hour: document.getElementById('bm_expected_kwh_per_hour').value
+                    ? parseFloat(document.getElementById('bm_expected_kwh_per_hour').value) : null,
+                bring_forward_mode: document.getElementById('bm_bring_forward_mode').checked,
+            };
+
+            try {
+                await apiCall('/api/battery', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                closeModal('batteryModal');
+                window.location.reload();
+            } catch (error) {
+                alert('Error saving battery config: ' + error.message);
+            }
+        }
+
+        // ── Demo Mode ──
+        const DEMO_STORAGE_KEY = 'solar_control_demo_mode';
+
+        function isDemoMode() {
+            return localStorage.getItem(DEMO_STORAGE_KEY) === '1';
+        }
+
+        function toggleDemoMode() {
+            const next = isDemoMode() ? '0' : '1';
+            localStorage.setItem(DEMO_STORAGE_KEY, next);
+            window.location.reload();
+        }
+
+        function updateDemoToggleUI() {
+            const btn = document.getElementById('demoToggleBtn');
+            if (btn) {
+                const on = isDemoMode();
+                btn.textContent = on ? 'Demo: On' : 'Demo: Off';
+                btn.style.color = on ? '#22c55e' : '';
+                btn.style.borderColor = on ? '#22c55e44' : '';
+            }
+        }
+
+        function applyDemoMode() {
+            if (!isDemoMode()) return;
+
+            // Fake sensor values (solar & grid section)
+            const demoSensors = [
+                { selector: '.sensor-card.solar .value', text: '3,248', unit: 'W' },
+                { selector: '.sensor-card.grid .value', text: '-412', unit: 'W' },
+                { selector: '.sensor-card.forecast .value', text: '8.4', unit: 'kWh' },
+                { selector: '#hoursUntilSunset', text: '4.2h' },
+                { selector: '.sensor-card.sunrise .value', text: '06:46' },
+                { selector: '#expectedEnergyRemaining', text: '3.81 kWh' },
+                { selector: '#statusText', text: 'running (v1.7.0)' },
+                { selector: '#statusMode', text: 'Solar Control' },
+            ];
+            demoSensors.forEach(({ selector, text, unit }) => {
+                const el = document.querySelector(selector);
+                if (el) {
+                    el.textContent = unit ? `${text} ${unit}` : text;
+                    el.classList.remove('not-configured');
+                }
+            });
+
+            // Battery section
+            const batteryValue = document.querySelector('.sensor-card.battery .value');
+            if (batteryValue) {
+                batteryValue.textContent = '78%';
+                batteryValue.classList.remove('not-configured');
+                const name = batteryValue.closest('.sensor-card').querySelector('.name');
+                if (name) name.textContent = 'Home Battery';
+            }
+
+            // Fake tariff card if not already visible
+            const tariffSection = document.querySelector('.sensor-card.tariff');
+            if (!tariffSection) {
+                const grid = document.querySelector('#sensor-grid .sensor-grid');
+                if (grid) {
+                    const card = document.createElement('div');
+                    card.className = 'sensor-card tariff';
+                    card.innerHTML = `<h3>&#128178; Current Tariff</h3><p class="value">Peak</p><p class="name">Octopus Agile</p><p class="mode">Mode: normal</p>`;
+                    grid.appendChild(card);
+                }
+            }
+
+            // Fake device cards if none exist
+            const deviceList = document.getElementById('deviceList');
+            if (deviceList && deviceList.querySelector('.empty-state')) {
+                deviceList.innerHTML = `
+                    <div class="device-card draggable" data-device-name="Demo Car" style="cursor:pointer">
+                        <div class="device-info">
+                            <p class="device-name">Demo Car</p>
+                            <p class="device-power"><span class="device-power-value">1,440W</span></p>
+                            <p class="device-power-delivered">Energy Delivered: 3.79 kWh</p>
+                        </div>
+                        <div class="one-off-charge-section" data-device-name="Demo Car">
+                            <div class="one-off-charge-status" style="display:none"></div>
+                            <button class="one-off-charge-btn">&#9889; Charge</button>
+                            <div class="one-off-charge-input-row" style="display:none">
+                                <input type="number" class="one-off-charge-input" min="0.1" step="0.1" placeholder="kWh">
+                                <button class="one-off-charge-submit">Go</button>
+                                <button class="one-off-charge-cancel-input">&#x2715;</button>
+                            </div>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" class="device-toggle demo-toggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                    <div class="device-card draggable" data-device-name="Demo Hot Water" style="cursor:pointer">
+                        <div class="device-info">
+                            <p class="device-name">Demo Hot Water</p>
+                            <p class="device-power"><span class="device-power-value">3,700W (assumed)</span></p>
+                            <p class="device-power-delivered">Energy Delivered: 6.05 kWh</p>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" class="device-toggle demo-toggle">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                    <div class="device-card draggable" data-device-name="Demo HVAC" style="cursor:pointer">
+                        <div class="device-info">
+                            <p class="device-name">Demo HVAC</p>
+                            <p class="device-power"><span class="device-power-value">1,500W (assumed)</span></p>
+                            <p class="device-power-delivered">Energy Delivered: 0.00 kWh</p>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" class="device-toggle demo-toggle">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>`;
+
+                // Wire demo toggles (no API calls)
+                deviceList.querySelectorAll('.demo-toggle').forEach(toggle => {
+                    toggle.addEventListener('change', () => {}); // no-op
+                });
+
+                // Wire card clicks for demo devices
+                initializeCardClicks();
+            }
+
+            // Power optimization toggle on
+            const optToggle = document.getElementById('powerOptimizationToggle');
+            if (optToggle) optToggle.checked = true;
+        }
+
+        // ── Init ──
+        document.addEventListener('DOMContentLoaded', () => {
+            updateStatus();
+            updateForecastInfo();
+            runControlLoop();
+            initializeDragAndDrop();
+            initializeCardClicks();
+            updateDeviceCards();
+
+            setInterval(updateStatus, 30000);
+            setInterval(updateForecastInfo, 60000);
+            setInterval(updateDeviceCards, 60000);
+
+            // Apply demo mode if active
+            if (isDemoMode()) {
+                setTimeout(applyDemoMode, 100); // after sensors render
+            }
+            updateDemoToggleUI();
+
+            loadEnergyChart();
+        });
+
+        // ── Today's Energy Chart ──────────────────────────────────
+        let energyChartInstance = null;
+
+        async function loadEnergyChart() {
+            if (isDemoMode()) {
+                renderEnergyChart({
+                    solar_kwh: 8.4, grid_import_kwh: 1.2, grid_export_kwh: 0.6,
+                    devices: [{name:'Demo Car',kwh:6.0},{name:'Demo Hot Water',kwh:1.8}],
+                    other_kwh: 1.2, as_of: '14:30'
+                });
+                return;
+            }
+            try {
+                const data = await apiCall('/api/energy/today');
+                renderEnergyChart(data);
+                const asof = document.getElementById('energy-chart-asof');
+                if (asof) asof.textContent = `as of ${data.as_of}`;
+            } catch(e) {
+                const note = document.getElementById('energy-chart-note');
+                if (note) { note.textContent = 'Energy data unavailable'; note.style.display = 'block'; }
+            }
+        }
+
+        function renderEnergyChart(data) {
+            const canvas = document.getElementById('energyChart');
+            if (!canvas) return;
+
+            if (energyChartInstance) {
+                energyChartInstance.destroy();
+                energyChartInstance = null;
+            }
+
+            const deviceColors = ['#34d399','#a78bfa','#fb923c','#f472b6','#38bdf8','#4ade80'];
+
+            const datasets = [
+                { label: 'Solar',       data: [data.solar_kwh, 0],       backgroundColor: '#fbbf24' },
+                { label: 'Grid Import', data: [data.grid_import_kwh, 0], backgroundColor: '#60a5fa' },
+                ...data.devices.map((d, i) => ({
+                    label: d.name,
+                    data: [0, d.kwh],
+                    backgroundColor: deviceColors[i % deviceColors.length]
+                })),
+            ];
+            if (data.other_kwh > 0) {
+                datasets.push({ label: 'Other loads', data: [0, data.other_kwh], backgroundColor: '#6b7280' });
+            }
+            if (data.grid_export_kwh > 0) {
+                datasets.push({ label: 'Grid Export', data: [0, data.grid_export_kwh], backgroundColor: '#f87171' });
+            }
+
+            energyChartInstance = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: { labels: ['Energy In', 'Energy Out'], datasets },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#888', boxWidth: 12, font: { size: 11 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (c) => ` ${c.dataset.label}: ${c.parsed.y.toFixed(2)} kWh`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            ticks: { color: '#888', font: { size: 12 } },
+                            grid: { color: 'rgba(255,255,255,0.04)' }
+                        },
+                        y: {
+                            stacked: true,
+                            ticks: { color: '#888', callback: v => `${v} kWh` },
+                            grid: { color: 'rgba(255,255,255,0.06)' }
+                        }
+                    }
+                }
+            });
         }
     </script>
 {% endblock %}

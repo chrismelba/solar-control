@@ -3,6 +3,7 @@ import os
 import logging
 import json
 import requests
+from datetime import datetime, timezone
 from device import Device
 from battery import Battery
 from solar_controller import SolarController
@@ -229,15 +230,31 @@ initialize_files()
 def root():
     ingress_path = request.headers.get('X-Ingress-Path', '')
     logger.info(f"Serving root page with ingress path: {ingress_path}")
-    devices = Device.load_all(DEVICES_FILE)  # Load devices using the constant
-    # Sort devices by their order property
+    devices = Device.load_all(DEVICES_FILE)
     devices.sort(key=lambda x: x.order)
-    sensor_values = get_sensor_values()  # Get sensor values
-    sunrise_time = get_sunrise_time()  # Get sunrise time
-    return make_response(render_template('index.html', 
+    sensor_values = get_sensor_values()
+    sunrise_time = get_sunrise_time()
+    entities = get_entities()
+    try:
+        with open(CONFIG_FILE, 'r') as f:
+            grid_config = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        grid_config = {}
+    battery_obj = Battery.load(BATTERY_FILE)
+    battery_config = {
+        'size_kwh': battery_obj.size_kwh,
+        'battery_percent_entity': battery_obj.battery_percent_entity,
+        'max_charging_speed_kw': battery_obj.max_charging_speed_kw,
+        'expected_kwh_per_hour': battery_obj.expected_kwh_per_hour,
+        'bring_forward_mode': battery_obj.bring_forward_mode,
+    } if battery_obj else {}
+    return make_response(render_template('index.html',
                          devices=devices,
                          sensor_values=sensor_values,
                          sunrise_time=sunrise_time,
+                         entities=entities,
+                         grid_config=grid_config,
+                         battery_config=battery_config,
                          ingress_path=ingress_path,
                          basename=ingress_path))
 
@@ -359,6 +376,17 @@ def get_sensor_values():
                 'state': 'enabled' if battery.bring_forward_mode else 'disabled',
                 'friendly_name': 'Bring Forward Mode'
             }
+            # Fetch battery percentage entity state if configured
+            if battery.battery_percent_entity:
+                try:
+                    response = requests.get(
+                        f'{HASS_URL}/api/states/{battery.battery_percent_entity}',
+                        headers=headers
+                    )
+                    response.raise_for_status()
+                    sensor_values['battery_percent'] = response.json()
+                except Exception as e:
+                    logger.error(f"Error fetching battery_percent value: {e}")
     except Exception as e:
         logger.error(f"Error getting bring forward information: {e}")
     
@@ -858,6 +886,46 @@ def get_tariff_modes():
         logger.error(f"Error getting tariff modes: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
+@app.route('/api/config/grid', methods=['POST'])
+def api_config_grid():
+    try:
+        data = request.json
+        if not data:
+            return jsonify({'status': 'error', 'message': 'No data provided'}), 400
+
+        config = {
+            'solar_generation': data.get('solar_generation') or None,
+            'grid_power': data.get('grid_power') or None,
+            'solar_forecast': data.get('solar_forecast') or None,
+            'grid_voltage': data.get('grid_voltage') or None,
+            'grid_voltage_fixed': data.get('grid_voltage_fixed') or None,
+            'tariff_rate': data.get('tariff_rate') or None,
+            'site_export_limit': None,
+            'tariff_modes': data.get('tariff_modes', {}),
+        }
+
+        if data.get('site_export_limit'):
+            try:
+                config['site_export_limit'] = float(data['site_export_limit'])
+            except (ValueError, TypeError):
+                config['site_export_limit'] = None
+
+        if isinstance(config['tariff_modes'], str):
+            try:
+                config['tariff_modes'] = json.loads(config['tariff_modes'])
+            except json.JSONDecodeError:
+                config['tariff_modes'] = {}
+
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(config, f, indent=4)
+
+        controller.update_config(config)
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Error saving grid config via API: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+
 @app.route('/api/battery', methods=['GET'])
 def get_battery():
     try:
@@ -932,6 +1000,149 @@ def update_battery():
     except Exception as e:
         logger.error(f"Error updating battery configuration: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
+
+def _get_ha_headers():
+    token = os.environ.get('SUPERVISOR_TOKEN', '')
+    return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+
+def _integrate_power_history(entity_id, start_dt):
+    """Fetch HA history for a power sensor (W) from start_dt to now and integrate to kWh."""
+    try:
+        start_str = start_dt.strftime('%Y-%m-%dT%H:%M:%S')
+        resp = requests.get(
+            f"{HASS_URL}/api/history/period/{start_str}",
+            params={'filter_entity_id': entity_id, 'minimal_response': 'true', 'no_attributes': 'true'},
+            headers=_get_ha_headers(),
+            timeout=15
+        )
+        states = resp.json()[0] if resp.ok and resp.json() else []
+    except Exception as e:
+        logger.warning(f"Failed to fetch history for {entity_id}: {e}")
+        return 0.0
+
+    energy_wh = 0.0
+    prev_power = 0.0
+    prev_time = start_dt.replace(tzinfo=timezone.utc)
+
+    for s in states:
+        try:
+            power = float(s['state'])
+        except (ValueError, KeyError, TypeError):
+            power = prev_power
+        try:
+            ts = datetime.fromisoformat(s['last_changed'].replace('Z', '+00:00'))
+        except (KeyError, ValueError):
+            continue
+        dt_h = (ts - prev_time).total_seconds() / 3600
+        if dt_h > 0:
+            energy_wh += prev_power * dt_h
+        prev_power, prev_time = power, ts
+
+    # Final segment from last reading to now
+    now_utc = datetime.now(timezone.utc)
+    dt_h = (now_utc - prev_time).total_seconds() / 3600
+    if dt_h > 0:
+        energy_wh += prev_power * dt_h
+
+    return round(max(0.0, energy_wh / 1000), 2)
+
+
+def _integrate_grid_history(entity_id, start_dt):
+    """Like _integrate_power_history but splits import (positive) and export (negative) kWh."""
+    try:
+        start_str = start_dt.strftime('%Y-%m-%dT%H:%M:%S')
+        resp = requests.get(
+            f"{HASS_URL}/api/history/period/{start_str}",
+            params={'filter_entity_id': entity_id, 'minimal_response': 'true', 'no_attributes': 'true'},
+            headers=_get_ha_headers(),
+            timeout=15
+        )
+        states = resp.json()[0] if resp.ok and resp.json() else []
+    except Exception as e:
+        logger.warning(f"Failed to fetch grid history for {entity_id}: {e}")
+        return 0.0, 0.0
+
+    import_wh = 0.0
+    export_wh = 0.0
+    prev_power = 0.0
+    prev_time = start_dt.replace(tzinfo=timezone.utc)
+
+    for s in states:
+        try:
+            power = float(s['state'])
+        except (ValueError, KeyError, TypeError):
+            power = prev_power
+        try:
+            ts = datetime.fromisoformat(s['last_changed'].replace('Z', '+00:00'))
+        except (KeyError, ValueError):
+            continue
+        dt_h = (ts - prev_time).total_seconds() / 3600
+        if dt_h > 0:
+            wh = prev_power * dt_h
+            if wh >= 0:
+                import_wh += wh
+            else:
+                export_wh += abs(wh)
+        prev_power, prev_time = power, ts
+
+    now_utc = datetime.now(timezone.utc)
+    dt_h = (now_utc - prev_time).total_seconds() / 3600
+    if dt_h > 0:
+        wh = prev_power * dt_h
+        if wh >= 0:
+            import_wh += wh
+        else:
+            export_wh += abs(wh)
+
+    return round(import_wh / 1000, 2), round(export_wh / 1000, 2)
+
+
+@app.route('/api/energy/today')
+def energy_today():
+    try:
+        now_local = datetime.now()
+        midnight = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+        except Exception:
+            config = {}
+
+        solar_kwh = 0.0
+        if config.get('solar_generation'):
+            solar_kwh = _integrate_power_history(config['solar_generation'], midnight)
+
+        grid_import_kwh = 0.0
+        grid_export_kwh = 0.0
+        if config.get('grid_power'):
+            grid_import_kwh, grid_export_kwh = _integrate_grid_history(config['grid_power'], midnight)
+
+        devices_out = []
+        for device_state in controller.device_states.values():
+            device = device_state.device
+            if device.energy_sensor and device.energy_delivered_today is not None:
+                kwh = round(max(0.0, device.energy_delivered_today), 2)
+                if kwh > 0:
+                    devices_out.append({'name': device.name, 'kwh': kwh})
+
+        total_in = solar_kwh + grid_import_kwh
+        known_out = sum(d['kwh'] for d in devices_out)
+        other_kwh = round(max(0.0, total_in - known_out - grid_export_kwh), 2)
+
+        return jsonify({
+            'solar_kwh': solar_kwh,
+            'grid_import_kwh': grid_import_kwh,
+            'grid_export_kwh': grid_export_kwh,
+            'devices': devices_out,
+            'other_kwh': other_kwh,
+            'as_of': now_local.strftime('%H:%M')
+        })
+    except Exception as e:
+        logger.error(f"Error computing energy today: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
 
 # Get port from environment
 port = int(os.environ.get('PORT', 5000))

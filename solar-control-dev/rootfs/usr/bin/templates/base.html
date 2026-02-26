@@ -13,19 +13,10 @@
     {% block extra_head %}{% endblock %}
 </head>
 <body>
-    <div class="sidebar">
-        <div class="sidebar-title">Solar Control</div>
-        <nav>
-            <a href="{{ url_for('root') }}" class="{{ 'active' if request.endpoint == 'root' else '' }}">Dashboard</a>
-            <a href="{{ url_for('configure_grid') }}" class="{{ 'active' if request.endpoint == 'configure_grid' else '' }}">Configure Grid</a>
-            <a href="{{ url_for('configure_battery') }}" class="{{ 'active' if request.endpoint == 'configure_battery' else '' }}">Configure Battery</a>
-            <a href="{{ url_for('configure_devices') }}" class="{{ 'active' if request.endpoint == 'configure_devices' else '' }}">Configure Devices</a>
-            <a href="{{ url_for('static_page', page='debug') }}" class="{{ 'active' if request.endpoint == 'static_page' else '' }}">Debug Interface</a>
-        </nav>
-    </div>
     <div class="main-wrapper">
         <div class="toolbar">
             <h1>{% block heading %}Solar Optimiser{% endblock %}</h1>
+            <a href="{{ url_for('static_page', page='debug') }}" class="toolbar-debug-link">Debug</a>
         </div>
         <div class="content">
             {% block content %}{% endblock %}
@@ -37,7 +28,6 @@
         const ingressPath = '{{ ingress_path }}';
 
         function fixRelativeUrls() {
-            // Update all relative links
             document.querySelectorAll('a[href^="/"]').forEach(function(link) {
                 const href = link.getAttribute('href');
                 if (!href.startsWith(ingressPath)) {
@@ -45,7 +35,6 @@
                 }
             });
 
-            // Update all relative form actions
             document.querySelectorAll('form[action^="/"]').forEach(function(form) {
                 const action = form.getAttribute('action');
                 if (!action.startsWith(ingressPath)) {
@@ -53,29 +42,21 @@
                 }
             });
 
-            // Log the ingress path for debugging
             console.log('Ingress path:', ingressPath);
         }
 
-        // Run immediately and also after a small delay to catch any dynamically added content
         document.addEventListener('DOMContentLoaded', function() {
             fixRelativeUrls();
-            // Run again after a small delay to ensure all content is loaded
             setTimeout(fixRelativeUrls, 100);
         });
 
         // Helper function to make API calls with ingress path
         async function apiCall(endpoint, options = {}) {
-            // Ensure endpoint starts with a forward slash
             if (!endpoint.startsWith('/')) {
                 endpoint = '/' + endpoint;
             }
-
-            // Remove any duplicate forward slashes between ingressPath and endpoint
             const url = `${ingressPath}${endpoint}`.replace(/([^:]\/)\/+/g, "$1");
-
-            console.log('Making API call to:', url); // Debug log
-
+            console.log('Making API call to:', url);
             const response = await fetch(url, options);
             const data = await response.json();
             if (!response.ok) {
@@ -84,72 +65,90 @@
             return data;
         }
 
-        // Function to attach event listeners to a toggle
+        // ── Modal open/close ──
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Close on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal.active').forEach(m => {
+                    m.classList.remove('active');
+                });
+                document.body.style.overflow = '';
+            }
+        });
+
+        // Close on backdrop click or .modal-close button
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+            if (e.target.classList.contains('modal-close')) {
+                const modal = e.target.closest('.modal');
+                if (modal) {
+                    modal.classList.remove('active');
+                    document.body.style.overflow = '';
+                }
+            }
+        });
+
+        // Function to attach event listeners to a device toggle
         function attachToggleListeners(toggle) {
-            // Fetch initial state
             const deviceName = toggle.dataset.deviceName;
             console.log(`Fetching initial state for device: ${deviceName}`);
 
             apiCall(`/api/devices/${encodeURIComponent(deviceName)}`)
                 .then(device => {
-                    console.log(`Device info received for ${deviceName}:`, device);
-                    // Get the current state from Home Assistant
-                    console.log(`Fetching Home Assistant state for ${deviceName}`);
                     return apiCall(`/api/devices/${encodeURIComponent(deviceName)}/state`);
                 })
                 .then(data => {
-                    console.log(`State received for ${deviceName}:`, data);
                     toggle.checked = data.state === 'on';
-                    console.log(`Toggle set to ${data.state === 'on' ? 'on' : 'off'} for ${deviceName}`);
                 })
                 .catch(error => {
                     console.error(`Error fetching device state for ${deviceName}:`, error);
                 });
 
-            // Add toggle event listener
             toggle.addEventListener('change', async function(e) {
                 const deviceName = this.dataset.deviceName;
                 const isOn = this.checked;
-
                 try {
-                    const result = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}/set_state`, {
+                    await apiCall(`/api/devices/${encodeURIComponent(deviceName)}/set_state`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            state: isOn
-                        })
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ state: isOn })
                     });
                 } catch (error) {
                     console.error('Error setting device state:', error);
-                    // Revert toggle state on error
                     this.checked = !isOn;
                     alert('Failed to set device state. Please try again.');
                 }
             });
         }
 
-        // Function to initialize all toggles
         function initializeToggles() {
             document.querySelectorAll('.device-toggle').forEach(toggle => {
                 attachToggleListeners(toggle);
             });
         }
 
-        // Initialize toggles on DOMContentLoaded
         document.addEventListener('DOMContentLoaded', () => {
             initializeToggles();
-            // Create a MutationObserver to watch for new device toggles
             const observer = new MutationObserver((mutations) => {
                 mutations.forEach((mutation) => {
                     mutation.addedNodes.forEach((node) => {
-                        if (node.nodeType === 1) { // Element node
-                            // Check if the added node is a device toggle
+                        if (node.nodeType === 1) {
                             if (node.classList && node.classList.contains('device-toggle')) {
                                 attachToggleListeners(node);
                             }
-                            // Check children of added node for device toggles
                             node.querySelectorAll('.device-toggle').forEach(toggle => {
                                 attachToggleListeners(toggle);
                             });
@@ -157,12 +156,7 @@
                     });
                 });
             });
-
-            // Start observing the document with the configured parameters
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
+            observer.observe(document.body, { childList: true, subtree: true });
         });
     </script>
     <script src="{{ url_for('static', filename='js/searchable-select.js') }}"></script>
