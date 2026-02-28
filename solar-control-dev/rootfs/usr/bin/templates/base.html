@@ -35,8 +35,8 @@
             margin-bottom: 1.25rem; padding-bottom: 0.75rem;
             border-bottom: 1px solid rgba(255,255,255,0.06);
         }
-        .modal-title { font-size: 0.7rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #555; margin: 0; }
-        .modal-close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #555; padding: 0; line-height: 1; }
+        .modal-title { font-size: 0.7rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #777; margin: 0; }
+        .modal-close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #777; padding: 0; line-height: 1; }
         .modal-close:hover { color: #e0e0e0; }
         .modal-footer {
             display: flex; justify-content: space-between; align-items: center;
@@ -58,16 +58,22 @@
         .checkbox-row { display: flex; align-items: center; gap: 0.6rem; cursor: pointer; padding: 0.25rem 0; margin-bottom: 0.35rem; }
         .checkbox-row input[type="checkbox"] { width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; margin: 0; }
         .checkbox-row .checkbox-label { font-weight: 600; font-size: 0.95rem; color: #e0e0e0; }
-        .optional-label { font-weight: 400; font-size: 0.8rem; color: #666; margin-left: 0.3rem; }
+        .optional-label { font-weight: 400; font-size: 0.8rem; color: #888; margin-left: 0.3rem; }
         .form-section-divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 1.25rem 0; }
-        .help-text { display: block; color: #666; font-size: 0.8rem; margin-top: 0.25rem; margin-bottom: 0; line-height: 1.4; }
+        .help-text { display: block; color: #888; font-size: 0.8rem; margin-top: 0.25rem; margin-bottom: 0; line-height: 1.4; }
         .tabs { margin-bottom: 1.5rem; }
         .tab-buttons { display: flex; gap: 0.25rem; border-bottom: 1px solid #333; margin-bottom: 1.25rem; }
-        .tab-button { padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; font-weight: 600; font-size: 0.85rem; color: #555; border-radius: 4px 4px 0 0; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+        .tab-button { padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; font-weight: 600; font-size: 0.85rem; color: #777; border-radius: 4px 4px 0 0; border-bottom: 2px solid transparent; margin-bottom: -1px; }
         .tab-button:hover { background-color: #2a2a2a; color: #e0e0e0; }
         .tab-button.active { color: #2196f3; border-bottom-color: #2196f3; }
         .tab-content { display: none; padding: 0.5rem 0; }
         .tab-content.active { display: block; }
+        @media (max-width: 640px) {
+            .field-row { grid-template-columns: 1fr; }
+            .modal { padding: 0.5rem; }
+            .modal-content { padding: 1rem; }
+            .tab-buttons { flex-wrap: wrap; }
+        }
     </style>
     {% block extra_head %}{% endblock %}
 </head>

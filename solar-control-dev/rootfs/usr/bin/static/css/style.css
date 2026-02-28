@@ -63,7 +63,7 @@ a {
 
 .toolbar-debug-link {
     font-size: 0.78rem;
-    color: #555;
+    color: #777;
     padding: 0.3rem 0.65rem;
     border-radius: 6px;
     border: 1px solid #333;
@@ -74,7 +74,7 @@ a {
 
 .toolbar-debug-link:hover {
     color: var(--text-color);
-    border-color: #555;
+    border-color: #777;
     background: #2a2a2a;
 }
 
@@ -168,7 +168,7 @@ a {
     font-weight: 700;
     letter-spacing: 1.2px;
     text-transform: uppercase;
-    color: #555;
+    color: #777;
     margin: 0 0 1.25rem 0;
     padding-bottom: 0.75rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -428,7 +428,7 @@ tr:hover {
     font-weight: 700;
     letter-spacing: 1.2px;
     text-transform: uppercase;
-    color: #555;
+    color: #777;
     margin: 0;
 }
 
@@ -437,7 +437,7 @@ tr:hover {
     border: none;
     font-size: 1.2rem;
     cursor: pointer;
-    color: #555;
+    color: #777;
     transition: color 0.15s;
     padding: 0;
     line-height: 1;
@@ -555,7 +555,7 @@ tr:hover {
 .optional-label {
     font-weight: 400;
     font-size: 0.8rem;
-    color: #666;
+    color: #888;
     margin-left: 0.3rem;
 }
 
@@ -580,7 +580,7 @@ tr:hover {
     font-weight: 700;
     letter-spacing: 1.2px;
     text-transform: uppercase;
-    color: #555;
+    color: #777;
     margin: 0;
 }
 
@@ -591,7 +591,7 @@ tr:hover {
     background: transparent;
     border: 1px solid #333;
     border-radius: 6px;
-    color: #555;
+    color: #777;
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
@@ -601,7 +601,7 @@ tr:hover {
 .btn-icon:hover {
     background: #2a2a2a;
     color: var(--text-color);
-    border-color: #555;
+    border-color: #777;
 }
 
 .button-secondary {
@@ -641,7 +641,7 @@ tr:hover {
 
 .or-divider {
     padding: 0.9rem 0;
-    color: #555;
+    color: #777;
     font-size: 0.85rem;
     flex-shrink: 0;
 }
@@ -829,7 +829,7 @@ input:checked + .toggle-label:before {
 
 .device-energy {
     margin: 0.15rem 0 0 0;
-    color: #555;
+    color: #777;
     font-size: 0.78rem;
 }
 
@@ -1045,7 +1045,7 @@ input:checked + .slider:before {
 
 .help-text {
     display: block;
-    color: #666;
+    color: #888;
     font-size: 0.8rem;
     margin-top: 0.25rem;
     margin-bottom: 0;
@@ -1077,7 +1077,7 @@ input:checked + .slider:before {
     cursor: pointer;
     font-weight: 600;
     font-size: 0.85rem;
-    color: #555;
+    color: #777;
     border-radius: 4px 4px 0 0;
     border-bottom: 2px solid transparent;
     margin-bottom: -1px;
@@ -1155,4 +1155,13 @@ input:checked + .slider:before {
     flex-direction: row;
     align-items: center;
     gap: 0.3rem;
+}
+
+/* ── Mobile Responsiveness ── */
+@media (max-width: 640px) {
+    .content { padding: 0.75rem; }
+    .toolbar { padding: 0 0.75rem; }
+    .dashboard-grid { grid-template-columns: 1fr; gap: 1rem; }
+    .card { padding: 1rem; }
+    .tab-buttons { flex-wrap: wrap; }
 }
