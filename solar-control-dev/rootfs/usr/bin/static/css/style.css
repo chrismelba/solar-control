@@ -168,7 +168,7 @@ a {
     font-weight: 700;
     letter-spacing: 1.2px;
     text-transform: uppercase;
-    color: #777;
+    color: #999;
     margin: 0 0 1.25rem 0;
     padding-bottom: 0.75rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -428,7 +428,7 @@ tr:hover {
     font-weight: 700;
     letter-spacing: 1.2px;
     text-transform: uppercase;
-    color: #777;
+    color: #999;
     margin: 0;
 }
 
@@ -580,7 +580,7 @@ tr:hover {
     font-weight: 700;
     letter-spacing: 1.2px;
     text-transform: uppercase;
-    color: #777;
+    color: #999;
     margin: 0;
 }
 
@@ -1077,7 +1077,7 @@ input:checked + .slider:before {
     cursor: pointer;
     font-weight: 600;
     font-size: 0.85rem;
-    color: #777;
+    color: #999;
     border-radius: 4px 4px 0 0;
     border-bottom: 2px solid transparent;
     margin-bottom: -1px;

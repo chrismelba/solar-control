@@ -1,5 +1,9 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.8.7] - 2026-02-28
+### Changed
+- Further contrast improvements: sensor card labels, "Mode:" text, section headers, and modal titles bumped from #555/#777 to #999; sensor entity names and unconfigured values from #444 to #777
+
 ## [1.8.6] - 2026-02-28
 ### Changed
 - Mobile responsiveness: dashboard collapses to single column on screens ≤640px; card/content/toolbar padding reduced on mobile; modal forms stack vertically; tab buttons wrap

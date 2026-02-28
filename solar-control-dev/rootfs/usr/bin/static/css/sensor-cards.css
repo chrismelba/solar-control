@@ -22,7 +22,7 @@
 
 .sensor-card h3 {
     margin: 0 0 0.4rem 0;
-    color: #555;
+    color: #999;
     font-size: 0.72rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -41,7 +41,7 @@
 /* Muted style for unconfigured sensors */
 .sensor-card .value.not-configured {
     font-family: inherit;
-    color: #444;
+    color: #777;
     font-size: 0.85rem;
     font-weight: 400;
     font-style: italic;
@@ -49,13 +49,13 @@
 
 .sensor-card .name {
     font-size: 0.72rem;
-    color: #444;
+    color: #777;
     margin: 0;
 }
 
 .sensor-card .mode {
     font-size: 0.72rem;
-    color: #555;
+    color: #999;
     margin: 0.25rem 0 0 0;
 }
 
