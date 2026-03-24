@@ -366,6 +366,26 @@ class SolarController:
         optimal_amperage = max(device.min_amperage, max_amperage)
         return math.floor(optimal_amperage)
         
+    def estimate_variable_power(self, device: Device, device_state: 'DeviceState', target_amperage: float, voltage: float) -> float:
+        """Estimate power draw at target_amperage for a variable amperage device.
+
+        If the device is currently ON and has a power sensor with tracked amperage,
+        ratio-scale from actual measured power — this reflects the real load (e.g. 0W
+        if the car is unplugged, or proportional draw if partially charging).
+
+        If the device is OFF, we have no real data so fall back to theoretical
+        voltage × amperage (the assumed worst-case for turn-on planning).
+        """
+        if (device_state.is_on
+                and device.current_power_sensor
+                and device_state.current_amperage
+                and device_state.current_amperage > 0):
+            actual_power = self.get_device_power(device_state)
+            ratio = actual_power / device_state.current_amperage
+            return ratio * target_amperage
+        # Device is off, no sensor, or no amperage tracked — use theoretical
+        return voltage * target_amperage
+
     def set_manual_power_override(self, power: Optional[float]):
         """Set a manual override for available power"""
         self.manual_power_override = power
@@ -1002,7 +1022,7 @@ class SolarController:
         for device_state, power, amperage in devices_to_turn_on[:]:
             device = device_state.device
             if device.has_variable_amperage:
-                # Calculate optimal amperage based on available power
+                # Determine optimal amperage to set on the device
                 if device_state.current_amperage is None:
                     # Not started by us — use max so we don't fight manual control
                     optimal_amperage = device.max_amperage
@@ -1013,16 +1033,25 @@ class SolarController:
                 if optimal_amperage is None:
                     logger.info(f"Cannot calculate optimal amperage for {device.name}")
                     continue
-                
-                power_needed = voltage * optimal_amperage
-                
+
+                # For power budget accounting: use ratio from actual sensor if device is on,
+                # so an unplugged/idle device doesn't consume phantom budget from other devices.
+                # When current_amperage is None (externally controlled), use sensor or typical fallback.
+                if device_state.current_amperage is None:
+                    if device.current_power_sensor:
+                        power_needed = self.get_device_power(device_state)
+                    else:
+                        power_needed = device.typical_power_draw
+                else:
+                    power_needed = self.estimate_variable_power(device, device_state, optimal_amperage, voltage)
+
                 # Update the power in devices_to_turn_on
                 for i, (d, p, a) in enumerate(devices_to_turn_on):
                     if d == device_state:
                         devices_to_turn_on[i] = (device_state, power_needed, optimal_amperage)
                         break
-                
-                logger.info(f"Setting power for mandatory device {device.name} to {power_needed}W at {optimal_amperage}A")
+
+                logger.info(f"Mandatory device {device.name}: amperage={optimal_amperage}A, budgeted power={power_needed:.0f}W")
                 available_power -= power_needed
             else:
                 # For non-variable devices, we can't minimize power
@@ -1063,7 +1092,7 @@ class SolarController:
             
             # Calculate power needed based on current state of devices_to_turn_on
             if device.has_variable_amperage:
-                # Calculate optimal amperage considering current load
+                # Determine optimal amperage to set on the device
                 if device_state.is_on and device_state.current_amperage is None:
                     # Device is on but we didn't set the amperage — externally controlled
                     optimal_amperage = device.max_amperage
@@ -1081,18 +1110,12 @@ class SolarController:
                     })
                     continue
 
-                # If device is already on, scale power based on amperage ratio
-                if device_state.is_on:
-                    current_power = self.get_device_power(device_state)
-                    if device_state.current_amperage and device_state.current_amperage > 0:
-                        power_needed = current_power * (optimal_amperage / device_state.current_amperage)
-                        logger.debug(f"Scaled power needed for {device.name} from {current_power}W to {power_needed}W based on amperage ratio")
-                    else:
-                        power_needed = voltage * optimal_amperage
-                        logger.debug(f"Using calculated power for {device.name}: {power_needed}W (no current amperage available)")
-                else:
-                    power_needed = voltage * optimal_amperage
-                    logger.debug(f"Using calculated power for {device.name}: {power_needed}W (device is off)")
+                # Power budget: use ratio from actual sensor if device is on (reflects real draw,
+                # e.g. 0W if car is unplugged). Falls back to theoretical if device is off or
+                # no sensor/amperage data available.
+                power_needed = self.estimate_variable_power(device, device_state, optimal_amperage, voltage)
+                logger.debug(f"Power needed for {device.name}: {power_needed:.0f}W at {optimal_amperage}A"
+                             f" ({'sensor-ratioed' if device_state.is_on and device.current_power_sensor else 'theoretical'})")
             else:
                 # For non-variable devices, use actual power if device is on
                 if device_state.is_on:

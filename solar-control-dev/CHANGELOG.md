@@ -1,5 +1,11 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.8.8] - 2026-03-24
+### Fixed
+- Min on-time power accounting for variable amperage devices: power budget now uses actual sensor-ratioed draw rather than theoretical `voltage × amperage`. An unplugged EV (drawing ~0W) no longer consumes phantom budget and starves other devices (e.g. HWS) during the min-on-time window.
+- Externally-controlled variable amperage devices (`current_amperage is None`): power budget now uses actual sensor power if available, falling back to `typical_power_draw` instead of `max_amperage × voltage`.
+- Added `estimate_variable_power()` helper used consistently for all variable amperage power budget calculations in solar mode.
+
 ## [1.8.7] - 2026-02-28
 ### Changed
 - Further contrast improvements: sensor card labels, "Mode:" text, section headers, and modal titles bumped from #555/#777 to #999; sensor entity names and unconfigured values from #444 to #777
