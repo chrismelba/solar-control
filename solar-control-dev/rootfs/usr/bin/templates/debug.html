@@ -4,6 +4,8 @@
 
 {% block heading %}Debug Information{% endblock %}
 
+{% block toolbar_nav %}<a href="{{ url_for('root') }}" class="toolbar-debug-link">← Home</a>{% endblock %}
+
 {% block content %}
     <style>
         .debug-section {
@@ -77,6 +79,13 @@
                 <thead><tr><th>Input</th><th>Value</th></tr></thead>
                 <tbody></tbody>
             </table>
+            <div class="decision-group" id="power-breakdown-section" style="display:none">
+                <h3>Available power calculation</h3>
+                <table class="decision-table">
+                    <thead><tr><th>Step</th><th>Value</th></tr></thead>
+                    <tbody id="power-breakdown-rows"></tbody>
+                </table>
+            </div>
             <div class="decision-group">
                 <h3>On — mandatory</h3>
                 <ul class="decision-list" id="decision-mandatory"></ul>
@@ -145,6 +154,23 @@
         tbody.innerHTML = rows.map(([k, v]) =>
             `<tr><th>${k}</th><td>${v}</td></tr>`
         ).join('');
+
+        // Power breakdown
+        const breakdownEl = document.getElementById('power-breakdown-rows');
+        const breakdownSection = document.getElementById('power-breakdown-section');
+        const breakdown = ds.power_breakdown || [];
+        if (breakdown.length) {
+            breakdownSection.style.display = '';
+            breakdownEl.innerHTML = breakdown.map(step => {
+                const valStr = step.value != null ? step.value.toFixed(0) + ' W' : '—';
+                const noteStr = step.note ? `<span style="color:#888;font-size:0.85em;margin-left:0.5rem">${step.note}</span>` : '';
+                const isTotal = step.label.startsWith('Available power') || step.label.startsWith('Raw available') || step.label.startsWith('Total controlled');
+                const rowStyle = isTotal ? 'font-weight:600;border-top:1px solid #e0e0e0' : '';
+                return `<tr style="${rowStyle}"><th>${step.label}</th><td>${valStr}${noteStr}</td></tr>`;
+            }).join('');
+        } else {
+            breakdownSection.style.display = 'none';
+        }
 
         // Mandatory devices
         const mandatory = ds.mandatory_devices || [];

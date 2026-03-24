@@ -81,7 +81,7 @@
     <div class="main-wrapper">
         <div class="toolbar">
             <h1>{% block heading %}Solar Optimiser{% endblock %}</h1>
-            <a href="{{ url_for('static_page', page='debug') }}" class="toolbar-debug-link">Debug</a>
+            {% block toolbar_nav %}<a href="{{ url_for('static_page', page='debug') }}" class="toolbar-debug-link">Debug</a>{% endblock %}
         </div>
         <div class="content">
             {% block content %}{% endblock %}

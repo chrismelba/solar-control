@@ -46,6 +46,7 @@ class DebugState:
     hours_until_sunset: Optional[float] = None
     bring_forward_power: Optional[float] = None
     control_mode: str = 'unknown'
+    power_breakdown: Optional[List[Dict]] = None
 
     def to_dict(self) -> dict:
         return {
@@ -61,7 +62,8 @@ class DebugState:
             'expected_energy_remaining': self.expected_energy_remaining,
             'hours_until_sunset': self.hours_until_sunset,
             'bring_forward_power': self.bring_forward_power,
-            'control_mode': self.control_mode
+            'control_mode': self.control_mode,
+            'power_breakdown': self.power_breakdown or []
         }
 
 class SolarController:
@@ -115,58 +117,114 @@ class SolarController:
         If tariff mode is 'free', returns effectively unlimited power."""
         if self.manual_power_override is not None:
             logger.info(f"Using manual power override: {self.manual_power_override}W")
+            if self.debug_state:
+                self.debug_state.power_breakdown = [
+                    {'label': 'Manual override active', 'value': self.manual_power_override, 'note': 'Power fixed by manual override — normal calculation skipped'}
+                ]
             return self.manual_power_override
 
         # Check if we're in free tariff mode
         if self.get_current_tariff_mode() == 'free':
             logger.info("Free tariff mode - returning unlimited power")
+            if self.debug_state:
+                self.debug_state.power_breakdown = [
+                    {'label': 'Free tariff mode', 'value': None, 'note': 'Unlimited power assumed — all devices can run'}
+                ]
             return float('inf')  # Return effectively unlimited power
 
         config = self.load_config()
         if not config.get('grid_power'):
             logger.error("No grid power sensor configured")
+            if self.debug_state:
+                self.debug_state.power_breakdown = [
+                    {'label': 'Error', 'value': None, 'note': 'No grid power sensor configured'}
+                ]
             return 0.0
-            
+
         try:
             logger.debug(f"Fetching grid power from {config['grid_power']}")
             response = requests.get(
-                f"{self.hass_url}/api/states/{config['grid_power']}", 
+                f"{self.hass_url}/api/states/{config['grid_power']}",
                 headers=self.get_headers()
             )
             response.raise_for_status()
             grid_power = float(response.json().get('state', 0))
-            
+
             # Convert to watts if needed
             unit = response.json().get('attributes', {}).get('unit_of_measurement', 'W')
             if unit.lower() == 'kw':
                 grid_power *= 1000
                 logger.debug(f"Converted grid power from kW to W: {grid_power}W")
-                
+
+            breakdown = []
+            grid_direction = 'exporting' if grid_power < 0 else 'importing'
+            breakdown.append({
+                'label': f'Grid power ({config["grid_power"]})',
+                'value': grid_power,
+                'note': f'{abs(grid_power):.0f}W {grid_direction} — negative = exporting to grid'
+            })
+
             # Calculate total power consumption of controlled devices
             controlled_power = 0.0
+            on_devices = []
             for device_state in self.device_states.values():
                 if device_state.is_on:
                     power = self.get_device_power(device_state)
                     controlled_power += power
+                    on_devices.append((device_state.device.name, power))
                     logger.debug(f"Device {device_state.device.name} consuming {power}W")
-            
+
+            if on_devices:
+                for name, power in on_devices:
+                    breakdown.append({'label': f'  + {name} (controlled, on)', 'value': power, 'note': 'added back — already included in grid reading'})
+                breakdown.append({'label': 'Total controlled power', 'value': controlled_power, 'note': 'sum of controlled devices currently on'})
+            else:
+                breakdown.append({'label': 'Controlled devices', 'value': 0, 'note': 'none currently on'})
+
             # Subtract controlled power from grid power
-            available_power = -grid_power + controlled_power
-            logger.debug(f"Grid power: {grid_power}W, Controlled power: {controlled_power}W, Available power: {available_power}W")
-            
+            raw_available = -grid_power + controlled_power
+            breakdown.append({
+                'label': 'Raw available  (−grid + controlled)',
+                'value': raw_available,
+                'note': f'= −({grid_power:.0f}) + {controlled_power:.0f} = {raw_available:.0f}W'
+            })
+            logger.debug(f"Grid power: {grid_power}W, Controlled power: {controlled_power}W, Available power: {raw_available}W")
+
+            available_power = raw_available
+
             # Apply site export limit if configured
             site_export_limit = config.get('site_export_limit')
             if site_export_limit is not None and isinstance(site_export_limit, (int, float)):
                 if grid_power < -site_export_limit:
-                    available_power = max(0, available_power - (abs(grid_power) - site_export_limit))
+                    reduction = abs(grid_power) - site_export_limit
+                    available_power = max(0, raw_available - reduction)
+                    breakdown.append({
+                        'label': f'Site export limit ({site_export_limit:.0f}W applied)',
+                        'value': available_power,
+                        'note': f'grid exporting {abs(grid_power):.0f}W > limit {site_export_limit:.0f}W → reduced by {reduction:.0f}W'
+                    })
                     logger.debug(f"Applied site export limit of {site_export_limit}W, new available power: {available_power}W")
+                else:
+                    breakdown.append({
+                        'label': f'Site export limit ({site_export_limit:.0f}W)',
+                        'value': None,
+                        'note': f'not triggered (grid not exporting more than {site_export_limit:.0f}W)'
+                    })
             else:
                 logger.debug("No valid site export limit configured, proceeding without export limit")
-            
-            return max(0, available_power)
-            
+
+            available_power = max(0, available_power)
+            breakdown.append({'label': 'Available power (before bring-forward)', 'value': available_power, 'note': ''})
+
+            if self.debug_state:
+                self.debug_state.power_breakdown = breakdown
+
+            return available_power
+
         except Exception as e:
             logger.error(f"Failed to get available power: {e}")
+            if self.debug_state:
+                self.debug_state.power_breakdown = [{'label': 'Error', 'value': None, 'note': str(e)}]
             return 0.0
             
     def load_config(self) -> dict:
@@ -993,6 +1051,12 @@ class SolarController:
             original_available_power = available_power
             available_power += bring_forward_power
             logger.info(f"Bring forward mode enabled - adding {bring_forward_power}W to available power: {original_available_power}W + {bring_forward_power}W = {available_power}W")
+            if self.debug_state.power_breakdown is not None:
+                self.debug_state.power_breakdown.append({
+                    'label': f'+ Bring-forward power',
+                    'value': available_power,
+                    'note': f'{original_available_power:.0f}W + {bring_forward_power:.0f}W bring-forward = {available_power:.0f}W total available'
+                })
         else:
             logger.debug("Bring forward mode not enabled or no bring forward power available")
         

@@ -1,5 +1,10 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.8.9] - 2026-03-24
+### Added
+- Debug page: "← Home" link in toolbar so you can exit debug view
+- Debug page: "Available power calculation" breakdown table showing each step — grid power reading, controlled devices added back, raw available, site export limit (if triggered), and bring-forward addition
+
 ## [1.8.8] - 2026-03-24
 ### Fixed
 - Min on-time power accounting for variable amperage devices: power budget now uses actual sensor-ratioed draw rather than theoretical `voltage × amperage`. An unplugged EV (drawing ~0W) no longer consumes phantom budget and starves other devices (e.g. HWS) during the min-on-time window.
