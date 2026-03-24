@@ -200,7 +200,7 @@
 
                         <div class="form-group">
                             <label for="dm_switch_entity_input">Switch Entity</label>
-                            {{ entity_widget('dm_switch_entity', entities, filter_type='switch', placeholder='Search switches...', required=true) }}
+                            {{ entity_widget('dm_switch_entity', entities, filter_type='switch', placeholder='Search switches...', required=true, input_name='switch_entity') }}
                         </div>
 
                         <hr class="form-section-divider">
@@ -208,12 +208,12 @@
                         <div class="field-row">
                             <div class="form-group">
                                 <label>Current Power Sensor <span class="optional-label">(optional)</span></label>
-                                {{ entity_widget('dm_current_power_sensor', entities, filter_type='sensor_power', placeholder='Search power sensors...') }}
+                                {{ entity_widget('dm_current_power_sensor', entities, filter_type='sensor_power', placeholder='Search power sensors...', input_name='current_power_sensor') }}
                                 <small class="help-text">Live power shown on dashboard card.</small>
                             </div>
                             <div class="form-group">
                                 <label>Energy Delivery Sensor <span class="optional-label">(optional)</span></label>
-                                {{ entity_widget('dm_energy_sensor', entities, filter_type='sensor_power', placeholder='Search energy sensors...') }}
+                                {{ entity_widget('dm_energy_sensor', entities, filter_type='sensor_power', placeholder='Search energy sensors...', input_name='energy_sensor') }}
                                 <small class="help-text">Cumulative kWh for off-peak tracking.</small>
                             </div>
                         </div>
@@ -233,7 +233,7 @@
                         <div id="dm_amperage_controls" style="display:none">
                             <div class="form-group">
                                 <label for="dm_variable_amperage_control_input">Amperage Control Entity</label>
-                                {{ entity_widget('dm_variable_amperage_control', entities, filter_type='number', placeholder='Search number entities...') }}
+                                {{ entity_widget('dm_variable_amperage_control', entities, filter_type='number', placeholder='Search number entities...', input_name='variable_amperage_control') }}
                                 <small class="help-text">The number entity used to set the charge current.</small>
                             </div>
 
@@ -288,7 +288,7 @@
 
                         <div class="form-group">
                             <label for="dm_completion_sensor_input">Completion Sensor <span class="optional-label">(optional)</span></label>
-                            {{ entity_widget('dm_completion_sensor', entities, filter_type='binary_sensor', placeholder='Search binary sensors...') }}
+                            {{ entity_widget('dm_completion_sensor', entities, filter_type='binary_sensor', placeholder='Search binary sensors...', input_name='completion_sensor') }}
                             <small class="help-text">Binary sensor that goes on when the device has finished its cycle.</small>
                         </div>
                     </div>
