@@ -7,14 +7,25 @@
 {% block heading %}Configure Devices{% endblock %}
 
 {% block content %}
-    <!-- Debug information -->
-    <div style="display: none;">
-        <p>Number of entities: {{ entities|length }}</p>
-        <p>First entity (if any): {{ entities[0] if entities else 'No entities' }}</p>
+    <!-- Toast notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Add Device button (shown when form is collapsed) -->
+    <div id="addDeviceBtnContainer">
+        <button id="showAddFormBtn" class="button">+ Add New Device</button>
     </div>
 
-    <div class="card">
-        <h2>Add New Device</h2>
+    <!-- Add / Edit Device form card -->
+    <div class="card" id="deviceFormCard" style="display:none;">
+        <div class="form-card-header">
+            <div>
+                <h2 id="formTitle">Add New Device</h2>
+                <div id="editingBadge" class="editing-badge" style="display:none;">
+                    Editing: <span id="editingDeviceName"></span>
+                </div>
+            </div>
+            <button type="button" id="collapseFormBtn" class="button button-secondary" title="Close form">✕</button>
+        </div>
         <form id="addDeviceForm" class="form">
             <div class="tabs">
                 <div class="tab-buttons">
@@ -75,7 +86,7 @@
                         </label>
                     </div>
 
-                    <div id="amperage-controls">
+                    <div id="amperage-controls" style="display:none;">
                         {{ entity_field(
                             'variable_amperage_control', entities,
                             label='Variable Amperage Control Entity:',
@@ -137,7 +148,7 @@
 
             <div class="form-actions">
                 <button type="submit" class="button" id="submitButton">Add Device</button>
-                <button type="button" class="button" id="cancelButton" style="display: none; margin-left: 10px;">Cancel</button>
+                <button type="button" class="button button-secondary" id="cancelButton" style="display: none; margin-left: 10px;">Cancel</button>
             </div>
         </form>
     </div>
@@ -149,39 +160,300 @@
         </div>
     </div>
 
+    <style>
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #323232;
+            color: #fff;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+            max-width: 90vw;
+            text-align: center;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        .toast.toast-success { background: #388e3c; }
+        .toast.toast-error   { background: #c62828; }
+
+        /* Add Device button container */
+        #addDeviceBtnContainer {
+            margin-bottom: 1rem;
+        }
+
+        /* Form card header with title + close button */
+        .form-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+        }
+        .form-card-header h2 {
+            margin: 0;
+        }
+
+        /* Editing badge shown below the form title */
+        .editing-badge {
+            display: inline-block;
+            margin-top: 0.35rem;
+            background: #1565c0;
+            color: #fff;
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            letter-spacing: 0.02em;
+        }
+
+        .button-secondary {
+            background: transparent;
+            border: 1px solid #888;
+            color: #ccc;
+        }
+        .button-secondary:hover {
+            background: rgba(255,255,255,0.08);
+        }
+
+        .form {
+            max-width: 800px;
+            margin: 1rem 0;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+        .form-group input[type="text"],
+        .form-group input[type="number"] {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        /* Device list */
+        .device-list {
+            margin-top: 1rem;
+        }
+        .device-card {
+            background: #f5f5f5;
+            padding: 0.9rem 1rem;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 0.5rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 2px solid transparent;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .device-card.editing {
+            border-color: #1565c0;
+            box-shadow: 0 0 0 3px rgba(21,101,192,0.15);
+        }
+        .device-info {
+            flex-grow: 1;
+            min-width: 0;
+        }
+        .device-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.3rem;
+        }
+        .device-name {
+            font-weight: bold;
+            font-size: 1rem;
+            color: #1a1a1a;
+            margin: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .priority-badge {
+            display: inline-block;
+            background: #e3f2fd;
+            color: #1565c0;
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 0.1rem 0.45rem;
+            border-radius: 12px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .device-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem 1rem;
+            font-size: 0.85rem;
+            color: #555;
+        }
+        .device-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.2rem;
+        }
+        .device-meta-label {
+            color: #888;
+            font-size: 0.8rem;
+        }
+        .device-tag {
+            display: inline-block;
+            background: #ede7f6;
+            color: #512da8;
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 0.1rem 0.45rem;
+            border-radius: 12px;
+        }
+        .device-tag.tag-runonce {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .device-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-left: 1rem;
+            flex-shrink: 0;
+        }
+
+        /* Tab Styles */
+        .tabs {
+            margin-bottom: 2rem;
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .tab-button {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-weight: bold;
+            color: #666;
+            border-radius: 4px 4px 0 0;
+        }
+        .tab-button:hover {
+            background: #f5f5f5;
+        }
+        .tab-button.active {
+            color: #2196F3;
+            border-bottom: 2px solid #2196F3;
+            margin-bottom: -2px;
+        }
+        .tab-content {
+            display: none;
+            padding: 1rem 0;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .tab-content h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: #333;
+        }
+        .form-actions {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid #ddd;
+        }
+
+        /* Tooltip Styles */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+            color: #666;
+            font-size: 0.9em;
+            margin-left: 4px;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 10px;
+            position: absolute;
+            z-index: 1000;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
 {% endblock %}
 
 {% block extra_scripts %}
     <script>
+        // ── Toast notifications ──────────────────────────────────────────────
+        let toastTimer = null;
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast toast-${type} show`;
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
 
-        // Tab functionality
+        // ── Tab functionality ────────────────────────────────────────────────
         document.addEventListener('DOMContentLoaded', function() {
-            const tabButtons = document.querySelectorAll('.tab-button');
-            const tabContents = document.querySelectorAll('.tab-content');
-
-            tabButtons.forEach(button => {
+            document.querySelectorAll('.tab-button').forEach(button => {
                 button.addEventListener('click', () => {
-                    // Remove active class from all buttons and contents
-                    tabButtons.forEach(btn => btn.classList.remove('active'));
-                    tabContents.forEach(content => content.classList.remove('active'));
-
-                    // Add active class to clicked button and corresponding content
+                    document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
                     button.classList.add('active');
-                    const tabId = button.dataset.tab;
-                    document.getElementById(`${tabId}-tab`).classList.add('active');
+                    document.getElementById(`${button.dataset.tab}-tab`).classList.add('active');
                 });
             });
         });
 
-        // Handle variable amperage checkbox
+        // ── Variable amperage checkbox ───────────────────────────────────────
         document.getElementById('has_variable_amperage').addEventListener('change', function() {
             const amperageControls = document.getElementById('amperage-controls');
             amperageControls.style.display = this.checked ? 'block' : 'none';
-
             const minAmperage = document.getElementById('min_amperage');
             const maxAmperage = document.getElementById('max_amperage');
             const variableAmperageControl = document.getElementById('variable_amperage_control');
-
             if (this.checked) {
                 minAmperage.required = true;
                 maxAmperage.required = true;
@@ -197,295 +469,306 @@
             }
         });
 
-        // Load and display devices
-        async function loadDevices() {
-            try {
-                const devices = await apiCall('/api/devices');
-
-                const deviceList = document.getElementById('deviceList');
-                deviceList.innerHTML = '';
-
-                devices.forEach(device => {
-                    const deviceElement = document.createElement('div');
-                    deviceElement.className = 'device-card';
-                    deviceElement.dataset.deviceName = device.name;
-
-                    let html = `
-                        <div class="device-info">
-                            <h3>${device.name} (Priority ${device.order + 1})</h3>
-                            <p>Switch: ${device.switch_entity}</p>
-                            <p>Power Draw: ${device.typical_power_draw}W</p>
-                            ${device.current_power_sensor ? `<p>Power Sensor: ${device.current_power_sensor}</p>` : ''}
-                            ${device.energy_sensor ? `<p>Energy Sensor: ${device.energy_sensor}</p>` : ''}
-                            ${device.has_variable_amperage ? `
-                                <p>Amperage Range: ${device.min_amperage}A - ${device.max_amperage}A</p>
-                                <p>Amperage Control: ${device.variable_amperage_control}</p>
-                            ` : ''}
-                            <p>Min On Time: ${Math.floor(device.min_on_time / 60)} minutes</p>
-                            <p>Min Off Time: ${Math.floor(device.min_off_time / 60)} minutes</p>
-                            ${device.run_once ? '<p>Run Once Mode</p>' : ''}
-                            ${device.completion_sensor ? `<p>Completion Sensor: ${device.completion_sensor}</p>` : ''}
-                        </div>
-                        <div class="device-actions">
-                            <button class="edit-device">Edit</button>
-                            <button class="delete-device">Delete</button>
-                        </div>
-                    `;
-
-                    deviceElement.innerHTML = html;
-                    deviceList.appendChild(deviceElement);
-                });
-
-                // Add event listeners for edit and delete buttons
-                document.querySelectorAll('.edit-device').forEach(button => {
-                    button.addEventListener('click', () => {
-                        const deviceName = button.closest('.device-card').dataset.deviceName;
-                        editDevice(deviceName);
-                    });
-                });
-
-                document.querySelectorAll('.delete-device').forEach(button => {
-                    button.addEventListener('click', () => {
-                        const deviceName = button.closest('.device-card').dataset.deviceName;
-                        deleteDevice(deviceName);
-                    });
-                });
-            } catch (error) {
-                console.error('Error loading devices:', error);
-                document.getElementById('deviceList').innerHTML =
-                    '<p>Error loading devices: ' + error.message + '</p>';
-            }
-        }
-
-        // Add new device
-        const addDeviceForm = document.getElementById('addDeviceForm');
-        const originalSubmitHandler = addDeviceForm.onsubmit;
-        addDeviceForm.onsubmit = async (e) => {
-            e.preventDefault();
-
-            const formData = new FormData(e.target);
-            const deviceData = Object.fromEntries(formData.entries());
-
-            // Convert checkbox values to boolean
-            deviceData.has_variable_amperage = deviceData.has_variable_amperage === 'on';
-            deviceData.run_once = deviceData.run_once === 'on';
-
-            // Validate variable amperage fields
-            if (deviceData.has_variable_amperage) {
-                if (!deviceData.variable_amperage_control) {
-                    alert('Please select a Variable Amperage Control Entity');
-                    return;
-                }
-                if (!deviceData.min_amperage || !deviceData.max_amperage) {
-                    alert('Please enter both Minimum and Maximum Amperage values');
-                    return;
-                }
-            }
-
-            // Convert numeric values
-            deviceData.typical_power_draw = parseFloat(deviceData.typical_power_draw);
-            deviceData.min_on_time = parseInt(deviceData.min_on_time) * 60; // seconds
-            deviceData.min_off_time = parseInt(deviceData.min_off_time) * 60; // seconds
-            deviceData.order = parseInt(deviceData.order); // Add order field
-
-            if (deviceData.has_variable_amperage) {
-                deviceData.min_amperage = parseFloat(deviceData.min_amperage);
-                deviceData.max_amperage = parseFloat(deviceData.max_amperage);
-            } else {
-                delete deviceData.min_amperage;
-                delete deviceData.max_amperage;
-            }
-
-            try {
-                const result = await apiCall('/api/devices', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(deviceData)
-                });
-
-                // Reload devices
-                loadDevices();
-
-                // Reset form
-                e.target.reset();
-                document.getElementById('amperage-controls').style.display = 'none';
-            } catch (error) {
-                console.error('Error adding device:', error);
-                alert('Failed to add device: ' + error.message);
-            }
-        };
-
-        // Edit device
-        async function editDevice(deviceName) {
-            try {
-                const result = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}`);
-                const device = result;
-
-                // Scroll to top
-                window.scrollTo(0, 0);
-
-                // Change form title and button
-                document.querySelector('.card h2').textContent = 'Edit Device';
-                document.getElementById('submitButton').textContent = 'Save Changes';
-                document.getElementById('cancelButton').style.display = 'inline-block';
-
-                // Populate form with device data
-                document.getElementById('name').value = device.name;
-                document.getElementById('switch_entity').value = device.switch_entity;
-                document.getElementById('switch_entity_input').value = device.switch_entity;
-                document.getElementById('typical_power_draw').value = device.typical_power_draw;
-
-                if (device.current_power_sensor) {
-                    document.getElementById('current_power_sensor').value = device.current_power_sensor;
-                    document.getElementById('current_power_sensor_input').value = device.current_power_sensor;
-                }
-
-                if (device.energy_sensor) {
-                    document.getElementById('energy_sensor').value = device.energy_sensor;
-                    document.getElementById('energy_sensor_input').value = device.energy_sensor;
-                }
-
-                document.getElementById('has_variable_amperage').checked = device.has_variable_amperage;
-                if (device.has_variable_amperage) {
-                    document.getElementById('amperage-controls').style.display = 'block';
-                    document.getElementById('min_amperage').value = device.min_amperage;
-                    document.getElementById('max_amperage').value = device.max_amperage;
-                    if (device.variable_amperage_control) {
-                        document.getElementById('variable_amperage_control').value = device.variable_amperage_control;
-                        document.getElementById('variable_amperage_control_input').value = device.variable_amperage_control;
-                    }
-                }
-
-                document.getElementById('min_on_time').value = Math.floor(device.min_on_time / 60);
-                document.getElementById('min_off_time').value = Math.floor(device.min_off_time / 60);
-                document.getElementById('run_once').checked = device.run_once;
-
-                if (device.completion_sensor) {
-                    document.getElementById('completion_sensor').value = device.completion_sensor;
-                    document.getElementById('completion_sensor_input').value = device.completion_sensor;
-                }
-
-                // Add population of minimum daily power and off-peak completion sensor
-                if (device.min_daily_power) {
-                    document.getElementById('min_daily_power').value = device.min_daily_power;
-                }
-
-                if (device.completion_sensor) {
-                    document.getElementById('completion_sensor_offpeak').value = device.completion_sensor;
-                    document.getElementById('completion_sensor_offpeak_input').value = device.completion_sensor;
-                }
-
-                // Remove the old submit handler and add the new one
-                const form = document.getElementById('addDeviceForm');
-                form.onsubmit = async (e) => {
-                    e.preventDefault();
-
-                    const formData = new FormData(e.target);
-                    const deviceData = Object.fromEntries(formData.entries());
-
-                    // Convert checkbox values to boolean
-                    deviceData.has_variable_amperage = deviceData.has_variable_amperage === 'on';
-                    deviceData.run_once = deviceData.run_once === 'on';
-
-                    // Convert numeric values
-                    deviceData.typical_power_draw = parseFloat(deviceData.typical_power_draw);
-                    deviceData.min_on_time = parseInt(deviceData.min_on_time) * 60; // seconds
-                    deviceData.min_off_time = parseInt(deviceData.min_off_time) * 60; // seconds
-                    deviceData.order = parseInt(deviceData.order); // Add order field
-
-                    if (deviceData.has_variable_amperage) {
-                        deviceData.min_amperage = parseFloat(deviceData.min_amperage);
-                        deviceData.max_amperage = parseFloat(deviceData.max_amperage);
-                    } else {
-                        delete deviceData.min_amperage;
-                        delete deviceData.max_amperage;
-                    }
-
-                    try {
-                        const response = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}`, {
-                            method: 'PUT',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(deviceData)
-                        });
-
-                        // Show success message
-                        alert('Device updated successfully!');
-
-                        // Reload devices
-                        loadDevices();
-
-                        // Reset form and handler
-                        e.target.reset();
-                        e.target.onsubmit = originalSubmitHandler;  // Restore the original add device handler
-                        document.getElementById('amperage-controls').style.display = 'none';
-
-                        // Reset form title and button
-                        document.querySelector('.card h2').textContent = 'Add New Device';
-                        document.getElementById('submitButton').textContent = 'Add Device';
-                        document.getElementById('cancelButton').style.display = 'none';
-                    } catch (error) {
-                        console.error('Error updating device:', error);
-                        alert('Failed to update device. Please try again.');
-                    }
-                };
-
-                // Add cancel button handler
-                document.getElementById('cancelButton').onclick = () => {
-                    form.reset();
-                    form.onsubmit = originalSubmitHandler;  // Restore the original add device handler
-                    document.getElementById('amperage-controls').style.display = 'none';
-                    document.querySelector('.card h2').textContent = 'Add New Device';
-                    document.getElementById('submitButton').textContent = 'Add Device';
-                    document.getElementById('cancelButton').style.display = 'none';
-                };
-            } catch (error) {
-                console.error('Error loading device:', error);
-                alert('Failed to load device data. Please try again.');
-            }
-        }
-
-        // Delete device
-        async function deleteDevice(deviceName) {
-            if (!confirm(`Are you sure you want to delete ${deviceName}?`)) {
-                return;
-            }
-
-            try {
-                const response = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}`, {
-                    method: 'DELETE'
-                });
-
-                // Reload devices
-                loadDevices();
-            } catch (error) {
-                console.error('Error deleting device:', error);
-                alert('Failed to delete device. Please try again.');
-            }
-        }
-
-        // Load devices when page loads
-        document.addEventListener('DOMContentLoaded', loadDevices);
-
-        // Synchronize completion sensor inputs
+        // ── Completion sensor sync ───────────────────────────────────────────
         document.addEventListener('DOMContentLoaded', function() {
             const completionSensorInput = document.getElementById('completion_sensor_input');
             const completionSensorInputOffpeak = document.getElementById('completion_sensor_offpeak_input');
             const completionSensor = document.getElementById('completion_sensor');
             const completionSensorOffpeak = document.getElementById('completion_sensor_offpeak');
 
-            // Sync from runtime to off-peak
             completionSensorInput.addEventListener('change', function() {
                 completionSensorInputOffpeak.value = this.value;
                 completionSensorOffpeak.value = completionSensor.value;
             });
-
-            // Sync from off-peak to runtime
             completionSensorInputOffpeak.addEventListener('change', function() {
                 completionSensorInput.value = this.value;
                 completionSensor.value = completionSensorOffpeak.value;
             });
         });
+
+        // ── Form visibility ──────────────────────────────────────────────────
+        let editingDevice = null;  // null = add mode, string = device name being edited
+
+        function showForm() {
+            document.getElementById('deviceFormCard').style.display = 'block';
+            document.getElementById('addDeviceBtnContainer').style.display = 'none';
+            document.getElementById('deviceFormCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function hideForm() {
+            document.getElementById('deviceFormCard').style.display = 'none';
+            document.getElementById('addDeviceBtnContainer').style.display = 'block';
+        }
+
+        function resetForm() {
+            const form = document.getElementById('addDeviceForm');
+            form.reset();
+            document.getElementById('formTitle').textContent = 'Add New Device';
+            document.getElementById('editingBadge').style.display = 'none';
+            document.getElementById('submitButton').textContent = 'Add Device';
+            document.getElementById('cancelButton').style.display = 'none';
+            document.getElementById('amperage-controls').style.display = 'none';
+            // Clear searchable select display values
+            ['switch_entity_input', 'current_power_sensor_input', 'energy_sensor_input',
+             'variable_amperage_control_input', 'completion_sensor_input', 'completion_sensor_offpeak_input'
+            ].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            // Remove editing highlight from all cards
+            document.querySelectorAll('.device-card.editing').forEach(c => c.classList.remove('editing'));
+            editingDevice = null;
+        }
+
+        document.getElementById('showAddFormBtn').addEventListener('click', () => {
+            resetForm();
+            showForm();
+        });
+
+        document.getElementById('collapseFormBtn').addEventListener('click', () => {
+            resetForm();
+            hideForm();
+        });
+
+        document.getElementById('cancelButton').addEventListener('click', () => {
+            const name = editingDevice;
+            resetForm();
+            hideForm();
+            // Scroll back to the device card that was being edited
+            if (name) {
+                const card = document.querySelector(`.device-card[data-device-name="${CSS.escape(name)}"]`);
+                if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
+
+        // ── Build device data from form ──────────────────────────────────────
+        function buildDeviceData(formData) {
+            const data = Object.fromEntries(formData.entries());
+            data.has_variable_amperage = data.has_variable_amperage === 'on';
+            data.run_once = data.run_once === 'on';
+            data.typical_power_draw = parseFloat(data.typical_power_draw);
+            data.min_on_time = parseInt(data.min_on_time) * 60;
+            data.min_off_time = parseInt(data.min_off_time) * 60;
+            data.order = parseInt(data.order);
+            if (data.has_variable_amperage) {
+                data.min_amperage = parseFloat(data.min_amperage);
+                data.max_amperage = parseFloat(data.max_amperage);
+            } else {
+                delete data.min_amperage;
+                delete data.max_amperage;
+            }
+            return data;
+        }
+
+        // ── Form submit (handles both add and edit) ──────────────────────────
+        document.getElementById('addDeviceForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const deviceData = buildDeviceData(new FormData(e.target));
+
+            if (deviceData.has_variable_amperage) {
+                if (!deviceData.variable_amperage_control) {
+                    showToast('Please select a Variable Amperage Control Entity', 'error');
+                    return;
+                }
+                if (!deviceData.min_amperage || !deviceData.max_amperage) {
+                    showToast('Please enter both Minimum and Maximum Amperage values', 'error');
+                    return;
+                }
+            }
+
+            if (editingDevice) {
+                // Update existing device
+                try {
+                    await apiCall(`/api/devices/${encodeURIComponent(editingDevice)}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(deviceData)
+                    });
+                    showToast(`"${deviceData.name}" updated successfully`, 'success');
+                    const savedName = deviceData.name;
+                    resetForm();
+                    hideForm();
+                    await loadDevices();
+                    // Scroll to the updated card
+                    const card = document.querySelector(`.device-card[data-device-name="${CSS.escape(savedName)}"]`);
+                    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } catch (error) {
+                    console.error('Error updating device:', error);
+                    showToast('Failed to update device: ' + error.message, 'error');
+                }
+            } else {
+                // Add new device
+                try {
+                    await apiCall('/api/devices', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(deviceData)
+                    });
+                    showToast(`"${deviceData.name}" added successfully`, 'success');
+                    resetForm();
+                    hideForm();
+                    await loadDevices();
+                } catch (error) {
+                    console.error('Error adding device:', error);
+                    showToast('Failed to add device: ' + error.message, 'error');
+                }
+            }
+        });
+
+        // ── Load and display devices ─────────────────────────────────────────
+        async function loadDevices() {
+            try {
+                const devices = await apiCall('/api/devices');
+                const deviceList = document.getElementById('deviceList');
+                deviceList.innerHTML = '';
+
+                if (!devices || devices.length === 0) {
+                    deviceList.innerHTML = '<p style="color:#888;">No devices configured yet. Add your first device above.</p>';
+                    return;
+                }
+
+                devices.forEach(device => {
+                    const card = document.createElement('div');
+                    card.className = 'device-card';
+                    card.dataset.deviceName = device.name;
+
+                    const tags = [];
+                    if (device.has_variable_amperage) tags.push('<span class="device-tag">Variable Amp</span>');
+                    if (device.run_once) tags.push('<span class="device-tag tag-runonce">Run Once</span>');
+
+                    const metaItems = [
+                        `<span class="device-meta-item"><span class="device-meta-label">Switch:</span> ${device.switch_entity}</span>`,
+                        `<span class="device-meta-item"><span class="device-meta-label">Power:</span> ${device.typical_power_draw}W</span>`,
+                    ];
+                    if (device.min_on_time > 0) {
+                        metaItems.push(`<span class="device-meta-item"><span class="device-meta-label">Min on:</span> ${Math.floor(device.min_on_time / 60)}m</span>`);
+                    }
+                    if (device.min_off_time > 0) {
+                        metaItems.push(`<span class="device-meta-item"><span class="device-meta-label">Min off:</span> ${Math.floor(device.min_off_time / 60)}m</span>`);
+                    }
+                    if (device.has_variable_amperage) {
+                        metaItems.push(`<span class="device-meta-item"><span class="device-meta-label">Amps:</span> ${device.min_amperage}–${device.max_amperage}A</span>`);
+                    }
+
+                    card.innerHTML = `
+                        <div class="device-info">
+                            <div class="device-header">
+                                <span class="device-name">${device.name}</span>
+                                <span class="priority-badge">Priority ${device.order + 1}</span>
+                                ${tags.join('')}
+                            </div>
+                            <div class="device-meta">
+                                ${metaItems.join('')}
+                            </div>
+                        </div>
+                        <div class="device-actions">
+                            <button class="button edit-device">Edit</button>
+                            <button class="button button-secondary delete-device">Delete</button>
+                        </div>
+                    `;
+                    deviceList.appendChild(card);
+                });
+
+                document.querySelectorAll('.edit-device').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const name = btn.closest('.device-card').dataset.deviceName;
+                        editDevice(name);
+                    });
+                });
+
+                document.querySelectorAll('.delete-device').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const name = btn.closest('.device-card').dataset.deviceName;
+                        deleteDevice(name);
+                    });
+                });
+
+            } catch (error) {
+                console.error('Error loading devices:', error);
+                document.getElementById('deviceList').innerHTML =
+                    '<p style="color:#c62828;">Error loading devices: ' + error.message + '</p>';
+            }
+        }
+
+        // ── Edit device ──────────────────────────────────────────────────────
+        async function editDevice(deviceName) {
+            try {
+                const device = await apiCall(`/api/devices/${encodeURIComponent(deviceName)}`);
+
+                // Highlight the card being edited
+                document.querySelectorAll('.device-card.editing').forEach(c => c.classList.remove('editing'));
+                const card = document.querySelector(`.device-card[data-device-name="${CSS.escape(deviceName)}"]`);
+                if (card) card.classList.add('editing');
+
+                // Show form in edit mode
+                editingDevice = deviceName;
+                document.getElementById('formTitle').textContent = 'Edit Device';
+                document.getElementById('editingBadge').style.display = 'inline-block';
+                document.getElementById('editingDeviceName').textContent = deviceName;
+                document.getElementById('submitButton').textContent = 'Save Changes';
+                document.getElementById('cancelButton').style.display = 'inline-block';
+                document.getElementById('order').value = device.order;
+
+                // Populate fields
+                document.getElementById('name').value = device.name;
+                document.getElementById('switch_entity').value = device.switch_entity || '';
+                document.getElementById('switch_entity_input').value = device.switch_entity || '';
+                document.getElementById('typical_power_draw').value = device.typical_power_draw;
+
+                document.getElementById('current_power_sensor').value = device.current_power_sensor || '';
+                document.getElementById('current_power_sensor_input').value = device.current_power_sensor || '';
+
+                document.getElementById('energy_sensor').value = device.energy_sensor || '';
+                document.getElementById('energy_sensor_input').value = device.energy_sensor || '';
+
+                document.getElementById('has_variable_amperage').checked = !!device.has_variable_amperage;
+                document.getElementById('amperage-controls').style.display = device.has_variable_amperage ? 'block' : 'none';
+                if (device.has_variable_amperage) {
+                    document.getElementById('min_amperage').value = device.min_amperage || '';
+                    document.getElementById('max_amperage').value = device.max_amperage || '';
+                    document.getElementById('variable_amperage_control').value = device.variable_amperage_control || '';
+                    document.getElementById('variable_amperage_control_input').value = device.variable_amperage_control || '';
+                }
+
+                document.getElementById('min_on_time').value = Math.floor((device.min_on_time || 0) / 60);
+                document.getElementById('min_off_time').value = Math.floor((device.min_off_time || 0) / 60);
+                document.getElementById('run_once').checked = !!device.run_once;
+
+                document.getElementById('completion_sensor').value = device.completion_sensor || '';
+                document.getElementById('completion_sensor_input').value = device.completion_sensor || '';
+                document.getElementById('completion_sensor_offpeak').value = device.completion_sensor || '';
+                document.getElementById('completion_sensor_offpeak_input').value = device.completion_sensor || '';
+
+                document.getElementById('min_daily_power').value = device.min_daily_power || '';
+
+                // Switch to Basic tab
+                document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.querySelector('[data-tab="basic"]').classList.add('active');
+                document.getElementById('basic-tab').classList.add('active');
+
+                showForm();
+
+            } catch (error) {
+                console.error('Error loading device:', error);
+                showToast('Failed to load device data: ' + error.message, 'error');
+            }
+        }
+
+        // ── Delete device ────────────────────────────────────────────────────
+        async function deleteDevice(deviceName) {
+            if (!confirm(`Delete "${deviceName}"? This cannot be undone.`)) return;
+            try {
+                await apiCall(`/api/devices/${encodeURIComponent(deviceName)}`, { method: 'DELETE' });
+                showToast(`"${deviceName}" deleted`, 'success');
+                loadDevices();
+            } catch (error) {
+                console.error('Error deleting device:', error);
+                showToast('Failed to delete device: ' + error.message, 'error');
+            }
+        }
+
+        // ── Init ─────────────────────────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', loadDevices);
     </script>
 {% endblock %}
