@@ -180,6 +180,7 @@
                         <button type="button" class="tab-button" data-tab="dm-amperage">Variable Amperage</button>
                         <button type="button" class="tab-button" data-tab="dm-runtime">Runtime Settings</button>
                         <button type="button" class="tab-button" data-tab="dm-offpeak">Off-Peak Charging</button>
+                        <button type="button" class="tab-button" data-tab="dm-car">Car / EV</button>
                     </div>
 
                     <div class="tab-content active" id="dm-basic-tab">
@@ -307,6 +308,44 @@
                             <label for="dm_completion_sensor_offpeak_input">Completion Sensor <span class="optional-label">(optional)</span></label>
                             {{ entity_widget('dm_completion_sensor_offpeak', entities, filter_type='binary_sensor', placeholder='Search binary sensors...', input_name='completion_sensor') }}
                             <small class="help-text">When on, the device is considered fully charged and off-peak top-up is skipped.</small>
+                        </div>
+                    </div>
+
+                    <div class="tab-content" id="dm-car-tab">
+                        <div class="form-group">
+                            <label class="checkbox-row" for="dm_is_car">
+                                <input type="checkbox" id="dm_is_car" name="is_car">
+                                <span class="checkbox-label">This device is a car</span>
+                            </label>
+                            <small class="help-text">Enables state-of-charge based charging targets for an EV charger.</small>
+                        </div>
+
+                        <div id="dm_car_controls" style="display:none">
+                            <div class="form-group">
+                                <label for="dm_car_soc_sensor_input">Car Battery Sensor</label>
+                                {{ entity_widget('dm_car_soc_sensor', entities, filter_type='sensor_battery', placeholder='Search battery sensors...', input_name='car_soc_sensor') }}
+                                <small class="help-text">Sensor reporting the car's state of charge (0&ndash;100%).</small>
+                            </div>
+
+                            <div class="field-row">
+                                <div class="form-group">
+                                    <label for="dm_car_floor_soc">Always charge to</label>
+                                    <div class="field-with-unit">
+                                        <input type="number" id="dm_car_floor_soc" name="car_floor_soc" min="0" max="100" step="1" placeholder="20">
+                                        <span class="unit-label">%</span>
+                                    </div>
+                                    <small class="help-text">Below this, the car charges immediately at full rate on any tariff &mdash; protects the car's battery.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dm_car_cheap_soc">Charge on cheap power to</label>
+                                    <div class="field-with-unit">
+                                        <input type="number" id="dm_car_cheap_soc" name="car_cheap_soc" min="0" max="100" step="1" placeholder="70">
+                                        <span class="unit-label">%</span>
+                                    </div>
+                                    <small class="help-text">Charged during cheap/free tariff windows. Above this, excess solar only.</small>
+                                </div>
+                            </div>
+                            <small class="help-text">The <strong>&#129523; Road trip</strong> button on the device card charges to 100% on cheap/free power and clears itself when full.</small>
                         </div>
                     </div>
                 </div>
@@ -571,7 +610,7 @@
 
                     const deliveredElem = card.querySelector('.device-power-delivered');
                     if (deliveredElem) {
-                        deliveredElem.textContent = `Energy Delivered: ${device.energy_delivered_today.toFixed(2)} Wh`;
+                        deliveredElem.textContent = `Energy Delivered: ${device.energy_delivered_today.toFixed(2)} kWh`;
                     }
 
                     const powerElem = card.querySelector('.device-power-value');
@@ -581,6 +620,18 @@
                         } else {
                             powerElem.textContent = `${device.typical_power_draw}W (assumed)`;
                         }
+                    }
+
+                    const carSection = card.querySelector('.car-section');
+                    if (carSection) {
+                        const socEl = carSection.querySelector('.car-soc');
+                        if (socEl) {
+                            socEl.textContent = device.car_soc != null
+                                ? `\u{1F50B} ${Math.round(device.car_soc)}%`
+                                : '\u{1F50B} --%';
+                        }
+                        const rtBtn = carSection.querySelector('.road-trip-btn');
+                        if (rtBtn) rtBtn.classList.toggle('active', !!device.road_trip);
                     }
 
                     const chargeSection = card.querySelector('.one-off-charge-section');
@@ -674,6 +725,7 @@
                 card.addEventListener('click', (e) => {
                     if (!e.target.closest('.device-toggle') &&
                         !e.target.closest('.switch') &&
+                        !e.target.closest('.car-section') &&
                         !e.target.closest('.one-off-charge-section')) {
                         openDeviceModal(card.dataset.deviceName);
                     }
@@ -710,6 +762,17 @@
                     updateDeviceCards();
                 }
             }
+            if (e.target.classList.contains('road-trip-btn')) {
+                e.stopPropagation();
+                const name = e.target.dataset.deviceName;
+                const enable = !e.target.classList.contains('active');
+                await apiCall(`/api/devices/${encodeURIComponent(name)}/road_trip`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: enable })
+                });
+                updateDeviceCards();
+            }
             if (e.target.classList.contains('one-off-charge-cancel')) {
                 e.stopPropagation();
                 const name = e.target.dataset.deviceName;
@@ -735,6 +798,7 @@
             // Reset form and tabs
             form.reset();
             document.getElementById('dm_amperage_controls').style.display = 'none';
+            document.getElementById('dm_car_controls').style.display = 'none';
             document.querySelectorAll('#deviceModal .tab-button').forEach((btn, i) => {
                 btn.classList.toggle('active', i === 0);
             });
@@ -796,6 +860,22 @@
                     if (device.min_daily_power) {
                         document.getElementById('dm_min_daily_power').value = device.min_daily_power;
                     }
+
+                    document.getElementById('dm_is_car').checked = !!device.is_car;
+                    if (device.is_car) {
+                        document.getElementById('dm_car_controls').style.display = 'block';
+                        if (device.car_soc_sensor) {
+                            document.getElementById('dm_car_soc_sensor').value = device.car_soc_sensor;
+                            document.getElementById('dm_car_soc_sensor_input').value = device.car_soc_sensor;
+                        }
+                        if (device.car_floor_soc != null) {
+                            document.getElementById('dm_car_floor_soc').value = device.car_floor_soc;
+                        }
+                        if (device.car_cheap_soc != null) {
+                            document.getElementById('dm_car_cheap_soc').value = device.car_cheap_soc;
+                        }
+                    }
+
                     document.getElementById('dm_order').value = device.order || 0;
                 } catch (error) {
                     alert('Error loading device: ' + error.message);
@@ -822,6 +902,17 @@
             deviceData.min_on_time = parseInt(deviceData.min_on_time || 0) * 60;
             deviceData.min_off_time = parseInt(deviceData.min_off_time || 0) * 60;
             deviceData.order = parseInt(deviceData.order || 0);
+            deviceData.min_daily_power = deviceData.min_daily_power ? parseFloat(deviceData.min_daily_power) : null;
+
+            deviceData.is_car = !!form.querySelector('[name="is_car"]').checked;
+            if (deviceData.is_car) {
+                deviceData.car_floor_soc = deviceData.car_floor_soc ? parseFloat(deviceData.car_floor_soc) : null;
+                deviceData.car_cheap_soc = deviceData.car_cheap_soc ? parseFloat(deviceData.car_cheap_soc) : null;
+            } else {
+                deviceData.car_soc_sensor = null;
+                deviceData.car_floor_soc = null;
+                deviceData.car_cheap_soc = null;
+            }
 
             if (deviceData.has_variable_amperage) {
                 if (!deviceData.variable_amperage_control) {
@@ -877,6 +968,17 @@
                     button.classList.add('active');
                     document.getElementById(`${button.dataset.tab}-tab`).classList.add('active');
                 });
+            });
+
+            // Car checkbox
+            document.getElementById('dm_is_car').addEventListener('change', function() {
+                document.getElementById('dm_car_controls').style.display = this.checked ? 'block' : 'none';
+                if (!this.checked) {
+                    ['dm_car_floor_soc', 'dm_car_cheap_soc', 'dm_car_soc_sensor', 'dm_car_soc_sensor_input'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.value = '';
+                    });
+                }
             });
 
             // Variable amperage checkbox

@@ -1,5 +1,21 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.8.10] - 2026-07-06
+### Added
+- Car / EV device type: mark a device as a car (with a state-of-charge sensor) and set two SoC targets — "Always charge to X%" (protection floor: charges immediately at max rate on any tariff when below X%) and "Charge on cheap power to Y%" (topped up during cheap/free tariff windows). Above Y% the car charges on excess solar only, up to 100%.
+- Road trip mode: 🧳 button on the car's device card charges to 100% on cheap/free power; automatically clears itself once the car reaches 100%. Survives add-on restarts (persisted in state.json alongside one-off charges).
+- New API endpoint `POST /api/devices/<name>/road_trip`; `/api/devices` now includes `car_soc` and `road_trip`.
+- Car settings tab in both device forms (dashboard modal and configure page); live SoC shown on the device card.
+
+### Fixed
+- Minimum on-time timer no longer resets whenever a variable-amperage device's amperage changes — previously an EV in fluctuating solar could re-arm its own min-on-time window indefinitely and never be shed. Switch commands are also no longer re-sent to devices already in the desired state.
+- Run-once completion status now resets in every control mode when the completion sensor goes off. Previously it only reset during cheap/free tariff windows, so on solar-only setups a run-once device would never restart until the add-on was rebooted.
+- Control loop is now guarded by a lock: the dashboard's `POST /api/control/run` (fired on page load) can no longer overlap the 60-second background loop and race on shared state.
+- A failed Home Assistant API call is no longer treated as an external "device turned off" event — the last-known state is kept, so a brief HA outage can't flap devices or corrupt the power budget.
+- `calculate_optimal_amperage` no longer floors the result below a fractional `min_amperage` (e.g. min 6.5A used to become 6A).
+- Device add/update API now applies numeric conversions server-side (`Device.from_dict`), so values like `min_daily_power` are stored as numbers rather than strings.
+- Device card live-update label corrected from "Wh" to "kWh" for energy delivered.
+
 ## [1.8.9] - 2026-03-24
 ### Added
 - Debug page: "← Home" link in toolbar so you can exit debug view

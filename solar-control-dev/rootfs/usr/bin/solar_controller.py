@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import logging
+import threading
 import time
 from datetime import datetime, timezone
 import requests
@@ -29,6 +30,8 @@ class DeviceState:
     has_completed: bool = False
     one_off_charge_target: Optional[float] = None   # kWh requested
     one_off_charge_start_energy: Optional[float] = None  # energy_delivered_today at request time
+    road_trip: bool = False                          # car: charge to 100% on cheap/free power
+    car_soc: Optional[float] = None                  # car: SoC %, refreshed once per control loop
 
 @dataclass
 class DebugState:
@@ -76,6 +79,7 @@ class SolarController:
         self.hass_url = os.environ.get('HASS_URL', 'http://supervisor/core')
         self.debug_state: Optional[DebugState] = None
         self.manual_power_override: Optional[float] = None
+        self._loop_lock = threading.Lock()
         
     def get_headers(self) -> dict:
         """Get headers for Home Assistant API requests"""
@@ -245,8 +249,11 @@ class SolarController:
             logger.error(f"Failed to load settings: {e}")
             return {'power_optimization_enabled': True}  # Default to enabled
             
-    def get_device_state_from_hass(self, device: Device) -> bool:
-        """Get the current state of a device from Home Assistant"""
+    def get_device_state_from_hass(self, device: Device) -> Optional[bool]:
+        """Get the current state of a device from Home Assistant.
+
+        Returns None on error so callers can keep the last-known state instead
+        of treating an API failure as the device having turned off."""
         try:
             logger.debug(f"Fetching state for device {device.name} from {device.switch_entity}")
             response = requests.get(
@@ -259,7 +266,7 @@ class SolarController:
             return state
         except Exception as e:
             logger.error(f"Failed to get state for {device.name}: {e}")
-            return False
+            return None
 
     def initialize_device_states(self):
         """Initialize or update device states"""
@@ -272,15 +279,16 @@ class SolarController:
                 is_on = self.get_device_state_from_hass(device)
                 self.device_states[device.name] = DeviceState(
                     device=device,
-                    is_on=is_on,
+                    is_on=bool(is_on),
                     last_state_change=None
                 )
             else:
                 # Update device reference in case it changed
                 self.device_states[device.name].device = device
-                # Sync state from HA; if it changed externally, reset the timer
+                # Sync state from HA; if it changed externally, reset the timer.
+                # None means the fetch failed — keep the last-known state.
                 new_is_on = self.get_device_state_from_hass(device)
-                if self.device_states[device.name].is_on != new_is_on:
+                if new_is_on is not None and self.device_states[device.name].is_on != new_is_on:
                     logger.info(f"External state change detected for {device.name}: {new_is_on}")
                     self.device_states[device.name].is_on = new_is_on
                     self.device_states[device.name].last_state_change = datetime.now(timezone.utc)
@@ -395,13 +403,18 @@ class SolarController:
                 logger.debug(f"No amperage change needed for {device.name} - has_variable_amperage: {device.has_variable_amperage}, amperage: {amperage}")
             
             # Only change switch state if we're allowed to
-            if not (device_state.is_on and device_state.last_state_change and 
+            if device_state.is_on == turn_on:
+                # Already in the desired state — don't re-send the switch command or
+                # reset the min on/off timer. (Re-sending turn_on on every amperage
+                # change used to re-arm min_on_time indefinitely.)
+                logger.debug(f"{device.name} already {'on' if turn_on else 'off'} - no switch change needed")
+            elif not (device_state.is_on and device_state.last_state_change and
                    (current_time - device_state.last_state_change).total_seconds() < device.min_on_time):
                 success = device.set_state(turn_on)
                 if success:
                     device_state.is_on = turn_on
                     device_state.last_state_change = current_time
-                    logger.info(f"Set {device.name} to {'on' if turn_on else 'off'}" + 
+                    logger.info(f"Set {device.name} to {'on' if turn_on else 'off'}" +
                               (f" with {amperage}A" if amperage is not None else ""))
                 else:
                     logger.error(f"Failed to set state for {device.name}")
@@ -413,16 +426,17 @@ class SolarController:
         """Calculate the optimal amperage for a variable amperage device"""
         if not device.has_variable_amperage:
             return None
-            
+
+        if math.isinf(available_power):
+            return device.max_amperage
+
         voltage = self.get_grid_voltage()
-        max_amperage = min(
-            device.max_amperage,
-            available_power / voltage
-        )
-        
-        # Round down to nearest whole number
-        optimal_amperage = max(device.min_amperage, max_amperage)
-        return math.floor(optimal_amperage)
+        # Floor the power-derived bound to whole amps first, then clamp to the
+        # device's limits so we never command less than min_amperage (which may
+        # be fractional — flooring after the clamp used to violate it).
+        power_amperage = math.floor(available_power / voltage) if voltage > 0 else 0
+        optimal_amperage = min(device.max_amperage, power_amperage)
+        return max(device.min_amperage, optimal_amperage)
         
     def estimate_variable_power(self, device: Device, device_state: 'DeviceState', target_amperage: float, voltage: float) -> float:
         """Estimate power draw at target_amperage for a variable amperage device.
@@ -443,6 +457,70 @@ class SolarController:
             return ratio * target_amperage
         # Device is off, no sensor, or no amperage tracked — use theoretical
         return voltage * target_amperage
+
+    def get_car_soc(self, device: Device) -> Optional[float]:
+        """Read the car's state of charge (%) from its configured sensor."""
+        if not device.car_soc_sensor:
+            return None
+        try:
+            response = requests.get(
+                f"{self.hass_url}/api/states/{device.car_soc_sensor}",
+                headers=self.get_headers()
+            )
+            response.raise_for_status()
+            return float(response.json().get('state'))
+        except Exception as e:
+            logger.warning(f"Failed to read car SoC for {device.name}: {e}")
+            return None
+
+    def get_car_charge_tier(self, device_state: DeviceState) -> str:
+        """Determine what kind of power a car may currently charge on, based on
+        its cached SoC (refreshed once per control loop).
+
+        Returns:
+            'floor' - below the protection floor: charge in any mode, at max amperage
+            'cheap' - below the cheap-power target (or road trip active): charge on cheap/free power
+            'solar' - above targets but not full: charge on excess solar only
+            'full'  - at 100%: don't charge
+
+        If the SoC can't be read, falls back to 'solar' (pre-car behaviour).
+        """
+        device = device_state.device
+        soc = device_state.car_soc
+        if soc is None:
+            return 'solar'
+        if device.car_floor_soc is not None and soc < device.car_floor_soc:
+            return 'floor'
+        if device_state.road_trip and soc < 100:
+            return 'cheap'
+        if device.car_cheap_soc is not None and soc < device.car_cheap_soc:
+            return 'cheap'
+        if soc < 100:
+            return 'solar'
+        return 'full'
+
+    def refresh_car_states(self):
+        """Refresh cached car SoC values and auto-clear finished road trips."""
+        for device_state in self.device_states.values():
+            device = device_state.device
+            if device.is_car and device.car_soc_sensor:
+                device_state.car_soc = self.get_car_soc(device)
+                if (device_state.road_trip and device_state.car_soc is not None
+                        and device_state.car_soc >= 99.5):
+                    logger.info(f"Road trip charge complete for {device.name} "
+                                f"(SoC {device_state.car_soc:.1f}%) - clearing road trip mode")
+                    device_state.road_trip = False
+            else:
+                device_state.car_soc = None
+
+    def refresh_completion_status(self, device_state: DeviceState):
+        """Clear a stale has_completed flag if the completion sensor has gone off
+        again (e.g. the appliance was reloaded / a new day started)."""
+        if device_state.device.completion_sensor and device_state.has_completed:
+            if not self.check_device_completion(device_state):
+                logger.info(f"Resetting completion status for {device_state.device.name} - "
+                            "completion sensor is now off")
+                device_state.has_completed = False
 
     def set_manual_power_override(self, power: Optional[float]):
         """Set a manual override for available power"""
@@ -859,6 +937,17 @@ class SolarController:
                     devices_to_turn_on.pop(existing_index)
                 continue
 
+            # Skip fully-charged cars
+            if device.is_car and self.get_car_charge_tier(device_state) == 'full':
+                optional_devices.append({
+                    'name': device.name,
+                    'power': 0,
+                    'reason': 'Car fully charged'
+                })
+                if existing_index is not None:
+                    devices_to_turn_on.pop(existing_index)
+                continue
+
             # Skip if device is in minimum off time (and not already locked on by Phase 1)
             if existing_index is None and not device_state.is_on and device_state.last_state_change:
                 time_since_change = (datetime.now(timezone.utc) - device_state.last_state_change).total_seconds()
@@ -895,10 +984,26 @@ class SolarController:
         self.debug_state.optional_devices = optional_devices
 
     def run_control_loop(self):
-        """Main control loop - runs one iteration"""
+        """Main control loop - runs one iteration.
+
+        Guarded by a lock: the background thread and the /api/control/run
+        endpoint can both trigger it, and overlapping runs would race on
+        device_states/debug_state and duplicate HA service calls."""
+        if not self._loop_lock.acquire(blocking=False):
+            logger.info("Control loop already running - skipping this iteration")
+            return
+        try:
+            self._run_control_loop_iteration()
+        finally:
+            self._loop_lock.release()
+
+    def _run_control_loop_iteration(self):
         try:
             # Initialize/update device states
             self.initialize_device_states()
+
+            # Refresh car SoC caches (and auto-clear completed road trips)
+            self.refresh_car_states()
             
             # Get current conditions
             grid_power = self.get_grid_power()
@@ -957,18 +1062,22 @@ class SolarController:
             
             for device_state in self.device_states.values():
                 device = device_state.device
-                
+
+                # Clear stale completion if the sensor has gone off again — this
+                # must run in every control mode, not just cheap/free tariff
+                self.refresh_completion_status(device_state)
+
                 # Check if device has completed its task
                 if device.run_once and device_state.is_on:
                     if self.check_device_completion(device_state):
                         device_state.has_completed = True
                         logger.info(f"Device {device.name} has completed its task")
                         continue
-                
+
                 # Check minimum on/off times
                 if device_state.last_state_change:
                     time_since_change = (current_time - device_state.last_state_change).total_seconds()
-                    
+
                     if device_state.is_on and time_since_change < device.min_on_time:
                         # Must stay on
                         power = self.get_device_power(device_state)
@@ -996,6 +1105,25 @@ class SolarController:
                         })
                         logger.info(f"Device {device.name} must stay off due to minimum off time")
                         continue
+
+                # Car protection floor: below car_floor_soc the car charges in any
+                # mode and at any tariff, at maximum rate
+                if device.is_car and self.get_car_charge_tier(device_state) == 'floor':
+                    if device.has_variable_amperage:
+                        floor_amperage = device.max_amperage
+                        floor_power = voltage * floor_amperage
+                    else:
+                        floor_amperage = None
+                        floor_power = self.get_device_power(device_state) if device_state.is_on else device.typical_power_draw
+                    mandatory_devices.append({
+                        'name': device.name,
+                        'power': floor_power,
+                        'reason': f'Car below protection floor ({device.car_floor_soc:.0f}%)'
+                    })
+                    devices_to_turn_on.append((device_state, floor_power, floor_amperage))
+                    logger.info(f"Car {device.name} below protection floor "
+                                f"(SoC {device_state.car_soc}%) - mandatory charge at max rate")
+                    continue
 
             self.debug_state.mandatory_devices = mandatory_devices
 
@@ -1085,6 +1213,12 @@ class SolarController:
         # First, handle mandatory devices that must stay on
         for device_state, power, amperage in devices_to_turn_on[:]:
             device = device_state.device
+            # Cars below the protection floor keep the max-amperage decision from
+            # phase 1 — don't downscale them to fit the solar budget
+            if device.is_car and self.get_car_charge_tier(device_state) == 'floor':
+                available_power -= power
+                logger.info(f"Mandatory car {device.name} below protection floor - keeping max rate")
+                continue
             if device.has_variable_amperage:
                 # Determine optimal amperage to set on the device
                 if device_state.current_amperage is None:
@@ -1141,7 +1275,17 @@ class SolarController:
                     'reason': 'Task completed'
                 })
                 continue
-                
+
+            # Skip fully-charged cars
+            if device.is_car and self.get_car_charge_tier(device_state) == 'full':
+                logger.info(f"Skipping {device.name} - car fully charged")
+                optional_devices.append({
+                    'name': device.name,
+                    'power': 0,
+                    'reason': 'Car fully charged'
+                })
+                continue
+
             # Skip if device is in minimum off time
             if not device_state.is_on and device_state.last_state_change:
                 time_since_change = (datetime.now(timezone.utc) - device_state.last_state_change).total_seconds()
@@ -1244,12 +1388,16 @@ class SolarController:
             
             # Check if device is already in devices_to_turn_on
             existing_index = next((i for i, (d, _, _) in enumerate(devices_to_turn_on) if d == device_state), None)
-            
-            # Skip if neither min_daily_power nor one-off charge is configured
+
+            # Car SoC tier ('floor'/'cheap' means the car wants this power)
+            car_tier = self.get_car_charge_tier(device_state) if device.is_car else None
+            car_needs_charging = car_tier in ('floor', 'cheap')
+
+            # Skip if no charging requirement of any kind applies
             has_one_off = device_state.one_off_charge_target is not None
             has_regular = bool(device.min_daily_power)
 
-            if not has_one_off and not has_regular:
+            if not has_one_off and not has_regular and not device.is_car:
                 logger.info(f"Skipping {device.name} - no minimum daily power specified")
                 optional_devices.append({
                     'name': device.name,
@@ -1327,8 +1475,18 @@ class SolarController:
                 if device.energy_delivered_today < device.min_daily_power:
                     needs_charging = True
 
+            if not needs_charging and car_needs_charging:
+                needs_charging = True
+                logger.info(f"Car {device.name} needs charging on cheap/free power "
+                            f"(SoC {device_state.car_soc}%, tier {car_tier})")
+
             if not needs_charging:
-                reason = 'Charge target met' if not has_one_off and not has_regular else 'Minimum daily power requirement met'
+                if device.is_car and not has_one_off and not has_regular:
+                    reason = 'Car fully charged' if car_tier == 'full' else 'Car SoC target met - waiting for solar'
+                elif not has_one_off and not has_regular:
+                    reason = 'Charge target met'
+                else:
+                    reason = 'Minimum daily power requirement met'
                 logger.info(f"Turning off {device.name} - {reason}")
                 optional_devices.append({
                     'name': device.name,
@@ -1359,12 +1517,18 @@ class SolarController:
                 else:
                     devices_to_turn_on.append((device_state, power_needed, None))
                 
+            if car_needs_charging and not has_one_off and not has_regular:
+                turn_on_reason = ('Car below protection floor' if car_tier == 'floor'
+                                  else 'Car charging to road trip target (100%)' if device_state.road_trip
+                                  else f'Car charging on cheap power (target {device.car_cheap_soc:.0f}%)')
+            else:
+                turn_on_reason = 'Minimum daily power requirement not met'
             optional_devices.append({
                 'name': device.name,
                 'power': power_needed,
-                'reason': 'Minimum daily power requirement not met'
+                'reason': turn_on_reason
             })
-            
+
         self.debug_state.optional_devices = optional_devices
 
     def _apply_state_changes(self, devices_to_turn_on: List[Tuple]):

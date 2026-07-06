@@ -106,6 +106,7 @@ class TestDeviceToDict:
             "min_amperage", "max_amperage", "variable_amperage_control",
             "min_on_time", "min_off_time", "run_once", "completion_sensor",
             "order", "energy_delivered_today", "min_daily_power",
+            "is_car", "car_soc_sensor", "car_floor_soc", "car_cheap_soc",
         }
         assert set(result.keys()) == expected_keys
 
@@ -252,3 +253,41 @@ class TestDeviceFileOperations:
 
         loaded = Device.load_all(devices_file)
         assert len(loaded) == 1
+
+
+class TestDeviceCarFields:
+    def test_defaults_for_non_car(self):
+        device = make_device()
+        assert device.is_car is False
+        assert device.car_soc_sensor is None
+        assert device.car_floor_soc is None
+        assert device.car_cheap_soc is None
+
+    def test_car_fields_round_trip(self):
+        device = make_device(
+            is_car=True,
+            car_soc_sensor="sensor.car_battery",
+            car_floor_soc=20.0,
+            car_cheap_soc=70.0,
+        )
+        restored = Device.from_dict(device.to_dict())
+        assert restored.is_car is True
+        assert restored.car_soc_sensor == "sensor.car_battery"
+        assert restored.car_floor_soc == 20.0
+        assert restored.car_cheap_soc == 70.0
+
+    def test_from_dict_converts_string_soc_values(self):
+        data = make_device_dict(is_car=True, car_floor_soc="20", car_cheap_soc="70.5")
+        device = Device.from_dict(data)
+        assert device.car_floor_soc == 20.0
+        assert device.car_cheap_soc == 70.5
+
+    def test_from_dict_handles_empty_soc_values(self):
+        data = make_device_dict(is_car=True, car_floor_soc="", car_cheap_soc=None)
+        device = Device.from_dict(data)
+        assert device.car_floor_soc is None
+        assert device.car_cheap_soc is None
+
+    def test_old_config_without_car_fields_loads(self):
+        device = Device.from_dict(make_device_dict())
+        assert device.is_car is False

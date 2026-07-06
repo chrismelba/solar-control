@@ -27,8 +27,12 @@ class Device:
     run_once: bool = False
     completion_sensor: Optional[str] = None  # Home Assistant entity ID for completion status
     order: int = 0  # For drag-and-drop ordering
-    energy_delivered_today: float = 0.0  # in watt-hours
-    min_daily_power: Optional[float] = None  # Minimum power required per day in watt-hours
+    energy_delivered_today: float = 0.0  # in kWh (since dawn)
+    min_daily_power: Optional[float] = None  # Minimum energy required per day in kWh
+    is_car: bool = False  # Car/EV: enables SoC-based charging targets
+    car_soc_sensor: Optional[str] = None  # Home Assistant entity ID for the car's state of charge (%)
+    car_floor_soc: Optional[float] = None  # Always charge below this SoC (%), any tariff, max rate
+    car_cheap_soc: Optional[float] = None  # Charge on cheap/free power below this SoC (%)
 
     def to_dict(self) -> dict:
         return {
@@ -48,7 +52,11 @@ class Device:
             'completion_sensor': self.completion_sensor,
             'order': self.order,
             'energy_delivered_today': self.energy_delivered_today,
-            'min_daily_power': self.min_daily_power
+            'min_daily_power': self.min_daily_power,
+            'is_car': self.is_car,
+            'car_soc_sensor': self.car_soc_sensor,
+            'car_floor_soc': self.car_floor_soc,
+            'car_cheap_soc': self.car_cheap_soc
         }
 
     @staticmethod
@@ -83,7 +91,9 @@ class Device:
             'min_off_time': int,
             'order': int,
             'energy_delivered_today': float,
-            'min_daily_power': float
+            'min_daily_power': float,
+            'car_floor_soc': float,
+            'car_cheap_soc': float
         }
         
         # Apply conversions

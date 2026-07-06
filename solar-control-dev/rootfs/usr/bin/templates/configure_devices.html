@@ -22,6 +22,7 @@
                     <button type="button" class="tab-button" data-tab="amperage">Variable Amperage</button>
                     <button type="button" class="tab-button" data-tab="runtime">Runtime Settings</button>
                     <button type="button" class="tab-button" data-tab="offpeak">Off-Peak Charging</button>
+                    <button type="button" class="tab-button" data-tab="car">Car / EV</button>
                 </div>
 
                 <div class="tab-content active" id="basic-tab">
@@ -133,6 +134,36 @@
                         {{ entity_widget('completion_sensor_offpeak', entities, filter_type='binary_sensor', placeholder='Search for a completion sensor...', input_name='completion_sensor') }}
                     </div>
                 </div>
+
+                <div class="tab-content" id="car-tab">
+                    <h3>Car / EV Settings</h3>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="is_car" name="is_car">
+                            This device is a car <span class="tooltip">ⓘ<span class="tooltiptext">Enables state-of-charge based charging targets for an EV charger.</span></span>
+                        </label>
+                    </div>
+
+                    <div id="car-controls" style="display:none">
+                        {{ entity_field(
+                            'car_soc_sensor', entities,
+                            label='Car Battery Sensor:',
+                            filter_type='sensor_battery',
+                            placeholder='Search for a battery sensor...',
+                            tooltip='Sensor reporting the car\'s state of charge (0-100%).'
+                        ) }}
+
+                        <div class="form-group">
+                            <label for="car_floor_soc">Always charge to (%): <span class="tooltip">ⓘ<span class="tooltiptext">Below this the car charges immediately at full rate on any tariff — protects the car's battery.</span></span></label>
+                            <input type="number" id="car_floor_soc" name="car_floor_soc" min="0" max="100" step="1">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="car_cheap_soc">Charge on cheap power to (%): <span class="tooltip">ⓘ<span class="tooltiptext">Charged during cheap/free tariff windows. Above this, excess solar only.</span></span></label>
+                            <input type="number" id="car_cheap_soc" name="car_cheap_soc" min="0" max="100" step="1">
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="form-actions">
@@ -172,6 +203,33 @@
                 });
             });
         });
+
+        // Handle car checkbox
+        document.getElementById('is_car').addEventListener('change', function() {
+            document.getElementById('car-controls').style.display = this.checked ? 'block' : 'none';
+            if (!this.checked) {
+                ['car_floor_soc', 'car_cheap_soc', 'car_soc_sensor', 'car_soc_sensor_input'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+            }
+        });
+
+        // Convert car form fields on a device data object (shared by add + edit)
+        function applyCarFields(deviceData) {
+            deviceData.is_car = deviceData.is_car === 'on';
+            if (deviceData.is_car) {
+                deviceData.car_floor_soc = deviceData.car_floor_soc ? parseFloat(deviceData.car_floor_soc) : null;
+                deviceData.car_cheap_soc = deviceData.car_cheap_soc ? parseFloat(deviceData.car_cheap_soc) : null;
+            } else {
+                deviceData.car_soc_sensor = null;
+                deviceData.car_floor_soc = null;
+                deviceData.car_cheap_soc = null;
+            }
+            if (deviceData.min_daily_power) {
+                deviceData.min_daily_power = parseFloat(deviceData.min_daily_power);
+            }
+        }
 
         // Handle variable amperage checkbox
         document.getElementById('has_variable_amperage').addEventListener('change', function() {
@@ -269,6 +327,7 @@
             // Convert checkbox values to boolean
             deviceData.has_variable_amperage = deviceData.has_variable_amperage === 'on';
             deviceData.run_once = deviceData.run_once === 'on';
+            applyCarFields(deviceData);
 
             // Validate variable amperage fields
             if (deviceData.has_variable_amperage) {
@@ -375,6 +434,22 @@
                     document.getElementById('completion_sensor_offpeak_input').value = device.completion_sensor;
                 }
 
+                // Populate car settings
+                document.getElementById('is_car').checked = !!device.is_car;
+                if (device.is_car) {
+                    document.getElementById('car-controls').style.display = 'block';
+                    if (device.car_soc_sensor) {
+                        document.getElementById('car_soc_sensor').value = device.car_soc_sensor;
+                        document.getElementById('car_soc_sensor_input').value = device.car_soc_sensor;
+                    }
+                    if (device.car_floor_soc != null) {
+                        document.getElementById('car_floor_soc').value = device.car_floor_soc;
+                    }
+                    if (device.car_cheap_soc != null) {
+                        document.getElementById('car_cheap_soc').value = device.car_cheap_soc;
+                    }
+                }
+
                 // Remove the old submit handler and add the new one
                 const form = document.getElementById('addDeviceForm');
                 form.onsubmit = async (e) => {
@@ -386,6 +461,7 @@
                     // Convert checkbox values to boolean
                     deviceData.has_variable_amperage = deviceData.has_variable_amperage === 'on';
                     deviceData.run_once = deviceData.run_once === 'on';
+                    applyCarFields(deviceData);
 
                     // Convert numeric values
                     deviceData.typical_power_draw = parseFloat(deviceData.typical_power_draw);

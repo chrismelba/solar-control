@@ -20,6 +20,12 @@
         <button class="delete-device button" data-device-name="{{ device.name }}">Delete</button>
     </div>
     {% else %}
+    {% if device.is_car %}
+    <div class="car-section" data-device-name="{{ device.name }}">
+        <span class="car-soc">🔋 --%</span>
+        <button class="road-trip-btn" data-device-name="{{ device.name }}" title="Charge to 100% on cheap/free power">🧳 Road trip</button>
+    </div>
+    {% endif %}
     {% if device.energy_sensor %}
     <div class="one-off-charge-section" data-device-name="{{ device.name }}">
         <div class="one-off-charge-status" style="display:none"></div>

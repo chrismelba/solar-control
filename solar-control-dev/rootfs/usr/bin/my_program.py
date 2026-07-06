@@ -110,45 +110,53 @@ except Exception as e:
 logger.info("Starting solar controller control loop...")
 controller.start_control_loop()
 
-# --- One-off charge state persistence ---
+# --- Runtime state persistence (one-off charges, road trip mode) ---
 
-def save_one_off_state():
-    """Save in-progress one-off charge state to disk."""
+def save_runtime_state():
+    """Save per-device runtime state (one-off charges, road trip flags) to disk."""
     try:
         state = {}
         for name, ds in controller.device_states.items():
+            entry = {}
             if ds.one_off_charge_target is not None:
-                state[name] = {
-                    'one_off_charge_target': ds.one_off_charge_target,
-                    'one_off_charge_start_energy': ds.one_off_charge_start_energy,
-                }
+                entry['one_off_charge_target'] = ds.one_off_charge_target
+                entry['one_off_charge_start_energy'] = ds.one_off_charge_start_energy
+            if ds.road_trip:
+                entry['road_trip'] = True
+            if entry:
+                state[name] = entry
         with open(STATE_FILE, 'w') as f:
             json.dump(state, f)
     except Exception as e:
-        logger.error(f"Error saving one-off charge state: {e}")
+        logger.error(f"Error saving runtime state: {e}")
 
-def load_one_off_state():
-    """Restore one-off charge state from disk after a restart."""
+def load_runtime_state():
+    """Restore per-device runtime state from disk after a restart."""
     try:
         with open(STATE_FILE, 'r') as f:
             state = json.load(f)
         for name, values in state.items():
             ds = controller.device_states.get(name)
-            if ds and values.get('one_off_charge_target') is not None:
+            if not ds:
+                continue
+            if values.get('one_off_charge_target') is not None:
                 ds.one_off_charge_target = values['one_off_charge_target']
                 ds.one_off_charge_start_energy = values.get('one_off_charge_start_energy')
                 logger.info(f"Restored one-off charge for {name}: target={ds.one_off_charge_target} kWh")
+            if values.get('road_trip'):
+                ds.road_trip = True
+                logger.info(f"Restored road trip mode for {name}")
     except FileNotFoundError:
         pass
     except Exception as e:
-        logger.error(f"Error loading one-off charge state: {e}")
+        logger.error(f"Error loading runtime state: {e}")
 
 def _state_save_loop():
     while True:
         time.sleep(60)
-        save_one_off_state()
+        save_runtime_state()
 
-load_one_off_state()
+load_runtime_state()
 _state_thread = threading.Thread(target=_state_save_loop, daemon=True, name='state-saver')
 _state_thread.start()
 
@@ -652,6 +660,8 @@ def get_devices():
                 'current_amperage': device_state.current_amperage,
                 'has_completed': device_state.has_completed,
                 'current_power': controller.get_device_power(device_state),
+                'car_soc': device_state.car_soc,
+                'road_trip': device_state.road_trip,
                 'one_off_charge_target': device_state.one_off_charge_target,
                 'one_off_charge_delivered': (
                     max(0, device.energy_delivered_today - (device_state.one_off_charge_start_energy or 0))
@@ -682,10 +692,25 @@ def set_one_off_charge(name):
         else:
             device_state.one_off_charge_target = float(target_kwh)
             device_state.one_off_charge_start_energy = device_state.device.energy_delivered_today
-        save_one_off_state()
+        save_runtime_state()
         return jsonify({'status': 'success'})
     except Exception as e:
         logger.error(f"Error setting one-off charge for {name}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/devices/<name>/road_trip', methods=['POST'])
+def set_road_trip(name):
+    try:
+        data = request.json
+        device_state = controller.device_states.get(name)
+        if not device_state:
+            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+        device_state.road_trip = bool(data.get('enabled'))
+        logger.info(f"Road trip mode for {name} set to {device_state.road_trip}")
+        save_runtime_state()
+        return jsonify({'status': 'success', 'road_trip': device_state.road_trip})
+    except Exception as e:
+        logger.error(f"Error setting road trip mode for {name}: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/devices', methods=['POST'])
@@ -702,9 +727,9 @@ def add_device():
         
         # Set order to be the next available index
         device_data['order'] = len(devices)
-        
-        # Create new device
-        device = Device(**device_data)
+
+        # Create new device (from_dict applies numeric conversions and cleanup)
+        device = Device.from_dict(device_data)
         devices.append(device)
         Device.save_all(devices, DEVICES_FILE)
         controller.initialize_device_states()
@@ -732,8 +757,8 @@ def update_device(name):
         if 'order' not in device_data:
             device_data['order'] = devices[device_index].order
         
-        # Update device
-        devices[device_index] = Device(**device_data)
+        # Update device (from_dict applies numeric conversions and cleanup)
+        devices[device_index] = Device.from_dict(device_data)
         Device.save_all(devices, DEVICES_FILE)
         controller.initialize_device_states()
 

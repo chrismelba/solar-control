@@ -1157,6 +1157,31 @@ input:checked + .slider:before {
     gap: 0.3rem;
 }
 
+/* ── Car / EV card section ── */
+.car-section {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    flex-wrap: wrap;
+}
+
+.road-trip-btn {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.4rem;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--card-background);
+    color: var(--text-color);
+}
+
+.road-trip-btn.active {
+    border-color: #22c55e;
+    color: #22c55e;
+}
+
 /* ── Mobile Responsiveness ── */
 @media (max-width: 640px) {
     .content { padding: 0.75rem; }

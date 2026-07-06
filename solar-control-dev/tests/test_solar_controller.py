@@ -493,3 +493,319 @@ class TestGetCurrentTariffMode:
         with patch("requests.get", side_effect=Exception("timeout")):
             result = ctrl.get_current_tariff_mode()
         assert result == "normal"
+
+
+# ---------------------------------------------------------------------------
+# Bug fix: repeated turn_on must not reset the min_on_time timer
+# ---------------------------------------------------------------------------
+
+class TestSetDeviceStateTimerReset:
+    def test_amperage_change_does_not_reset_timer(self, tmp_path):
+        """Setting a new amperage on an already-on device must not re-send the
+        switch command or reset last_state_change (which used to re-arm
+        min_on_time indefinitely)."""
+        ctrl = make_controller(tmp_path)
+        device = make_device(
+            has_variable_amperage=True,
+            min_amperage=6.0,
+            max_amperage=32.0,
+            variable_amperage_control="number.charger_amps",
+            min_on_time=1800,
+        )
+        old_change = datetime.now(timezone.utc) - timedelta(seconds=3600)
+        ds = DeviceState(device=device, is_on=True, last_state_change=old_change,
+                         current_amperage=10.0)
+
+        mock_entity = make_mock_response("16")
+        mock_entity.json.return_value["entity_id"] = "number.charger_amps"
+        with patch("requests.get", return_value=mock_entity), \
+             patch("requests.post", return_value=MagicMock(raise_for_status=MagicMock())), \
+             patch.object(device, "set_state") as mock_set_state:
+            ctrl.set_device_state(ds, True, amperage=16.0)
+
+        mock_set_state.assert_not_called()
+        assert ds.last_state_change == old_change
+        assert ds.current_amperage == 16.0
+        assert ds.is_on is True
+
+    def test_actual_turn_on_sets_timer(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        device = make_device()
+        ds = DeviceState(device=device, is_on=False, last_state_change=None)
+        with patch.object(device, "set_state", return_value=True):
+            ctrl.set_device_state(ds, True)
+        assert ds.is_on is True
+        assert ds.last_state_change is not None
+
+    def test_turn_off_blocked_during_min_on_time(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        device = make_device(min_on_time=600)
+        recent = datetime.now(timezone.utc) - timedelta(seconds=60)
+        ds = DeviceState(device=device, is_on=True, last_state_change=recent)
+        with patch.object(device, "set_state") as mock_set_state:
+            ctrl.set_device_state(ds, False)
+        mock_set_state.assert_not_called()
+        assert ds.is_on is True
+
+
+# ---------------------------------------------------------------------------
+# Bug fix: completion status resets in every control mode
+# ---------------------------------------------------------------------------
+
+class TestRefreshCompletionStatus:
+    def test_clears_flag_when_sensor_off(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        device = make_device(run_once=True, completion_sensor="binary_sensor.done")
+        ds = DeviceState(device=device, has_completed=True)
+        with patch.object(ctrl, "check_device_completion", return_value=False):
+            ctrl.refresh_completion_status(ds)
+        assert ds.has_completed is False
+
+    def test_keeps_flag_when_sensor_on(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        device = make_device(run_once=True, completion_sensor="binary_sensor.done")
+        ds = DeviceState(device=device, has_completed=True)
+        with patch.object(ctrl, "check_device_completion", return_value=True):
+            ctrl.refresh_completion_status(ds)
+        assert ds.has_completed is True
+
+    def test_no_sensor_leaves_flag(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        device = make_device(run_once=True)
+        ds = DeviceState(device=device, has_completed=True)
+        ctrl.refresh_completion_status(ds)
+        assert ds.has_completed is True
+
+
+# ---------------------------------------------------------------------------
+# Bug fix: amperage never floored below (fractional) min_amperage
+# ---------------------------------------------------------------------------
+
+class TestCalculateOptimalAmperageFractionalMin:
+    def test_fractional_min_not_floored_below(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        with patch.object(ctrl, "get_grid_voltage", return_value=230.0):
+            device = make_device(
+                has_variable_amperage=True,
+                min_amperage=6.5,
+                max_amperage=32.0,
+            )
+            # Only 3A of power available - clamp to min 6.5, not floor(6.5)=6
+            result = ctrl.calculate_optimal_amperage(device, 230.0 * 3)
+            assert result == 6.5
+
+    def test_infinite_power_returns_max(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        device = make_device(
+            has_variable_amperage=True,
+            min_amperage=6.0,
+            max_amperage=32.0,
+        )
+        result = ctrl.calculate_optimal_amperage(device, float("inf"))
+        assert result == 32.0
+
+
+# ---------------------------------------------------------------------------
+# Bug fix: HA API errors don't flap device state
+# ---------------------------------------------------------------------------
+
+class TestDeviceStateErrorHandling:
+    def test_get_device_state_returns_none_on_error(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        device = make_device()
+        with patch("requests.get", side_effect=Exception("timeout")):
+            assert ctrl.get_device_state_from_hass(device) is None
+
+    def test_initialize_keeps_state_on_fetch_error(self, tmp_path):
+        devices = [make_device().to_dict()]
+        ctrl = make_controller(tmp_path, devices=devices)
+        old_change = datetime.now(timezone.utc) - timedelta(hours=1)
+        ctrl.device_states["Test Device"] = DeviceState(
+            device=make_device(), is_on=True, last_state_change=old_change
+        )
+        with patch.object(ctrl, "get_device_state_from_hass", return_value=None):
+            ctrl.initialize_device_states()
+        assert ctrl.device_states["Test Device"].is_on is True
+        assert ctrl.device_states["Test Device"].last_state_change == old_change
+
+    def test_initialize_detects_real_external_change(self, tmp_path):
+        devices = [make_device().to_dict()]
+        ctrl = make_controller(tmp_path, devices=devices)
+        ctrl.device_states["Test Device"] = DeviceState(
+            device=make_device(), is_on=True, last_state_change=None
+        )
+        with patch.object(ctrl, "get_device_state_from_hass", return_value=False):
+            ctrl.initialize_device_states()
+        assert ctrl.device_states["Test Device"].is_on is False
+        assert ctrl.device_states["Test Device"].last_state_change is not None
+
+
+# ---------------------------------------------------------------------------
+# Bug fix: control loop lock prevents overlapping runs
+# ---------------------------------------------------------------------------
+
+class TestControlLoopLock:
+    def test_skips_iteration_when_lock_held(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        with patch.object(ctrl, "_run_control_loop_iteration") as mock_iter:
+            ctrl._loop_lock.acquire()
+            try:
+                ctrl.run_control_loop()
+            finally:
+                ctrl._loop_lock.release()
+        mock_iter.assert_not_called()
+
+    def test_runs_iteration_when_free(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        with patch.object(ctrl, "_run_control_loop_iteration") as mock_iter:
+            ctrl.run_control_loop()
+        mock_iter.assert_called_once()
+        # Lock must be released afterwards
+        assert ctrl._loop_lock.acquire(blocking=False)
+        ctrl._loop_lock.release()
+
+
+# ---------------------------------------------------------------------------
+# Car charge tiers
+# ---------------------------------------------------------------------------
+
+def make_car_state(soc, floor=20.0, cheap=70.0, road_trip=False, **device_kwargs):
+    device = Device(
+        name="Car",
+        switch_entity="switch.charger",
+        typical_power_draw=7000.0,
+        is_car=True,
+        car_soc_sensor="sensor.car_battery",
+        car_floor_soc=floor,
+        car_cheap_soc=cheap,
+        **device_kwargs,
+    )
+    return DeviceState(device=device, car_soc=soc, road_trip=road_trip)
+
+
+class TestCarChargeTier:
+    def test_below_floor(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        assert ctrl.get_car_charge_tier(make_car_state(soc=15.0)) == "floor"
+
+    def test_between_floor_and_cheap(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        assert ctrl.get_car_charge_tier(make_car_state(soc=50.0)) == "cheap"
+
+    def test_between_cheap_and_full(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        assert ctrl.get_car_charge_tier(make_car_state(soc=85.0)) == "solar"
+
+    def test_at_100_is_full(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        assert ctrl.get_car_charge_tier(make_car_state(soc=100.0)) == "full"
+
+    def test_road_trip_extends_cheap_to_100(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        assert ctrl.get_car_charge_tier(make_car_state(soc=85.0, road_trip=True)) == "cheap"
+
+    def test_road_trip_still_floor_below_floor(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        assert ctrl.get_car_charge_tier(make_car_state(soc=10.0, road_trip=True)) == "floor"
+
+    def test_unreadable_soc_falls_back_to_solar(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        assert ctrl.get_car_charge_tier(make_car_state(soc=None)) == "solar"
+
+    def test_no_targets_configured(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        state = make_car_state(soc=50.0, floor=None, cheap=None)
+        assert ctrl.get_car_charge_tier(state) == "solar"
+
+
+class TestRefreshCarStates:
+    def test_reads_soc_and_caches_it(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        state = make_car_state(soc=None)
+        ctrl.device_states["Car"] = state
+        with patch.object(ctrl, "get_car_soc", return_value=42.0):
+            ctrl.refresh_car_states()
+        assert state.car_soc == 42.0
+
+    def test_road_trip_auto_clears_when_full(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        state = make_car_state(soc=None, road_trip=True)
+        ctrl.device_states["Car"] = state
+        with patch.object(ctrl, "get_car_soc", return_value=99.8):
+            ctrl.refresh_car_states()
+        assert state.road_trip is False
+
+    def test_road_trip_stays_when_not_full(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        state = make_car_state(soc=None, road_trip=True)
+        ctrl.device_states["Car"] = state
+        with patch.object(ctrl, "get_car_soc", return_value=80.0):
+            ctrl.refresh_car_states()
+        assert state.road_trip is True
+
+    def test_road_trip_kept_when_soc_unreadable(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        state = make_car_state(soc=None, road_trip=True)
+        ctrl.device_states["Car"] = state
+        with patch.object(ctrl, "get_car_soc", return_value=None):
+            ctrl.refresh_car_states()
+        assert state.road_trip is True
+
+    def test_non_car_soc_cleared(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        device = make_device()
+        state = DeviceState(device=device, car_soc=50.0)
+        ctrl.device_states["Test Device"] = state
+        ctrl.refresh_car_states()
+        assert state.car_soc is None
+
+
+# ---------------------------------------------------------------------------
+# Car behaviour in tariff control
+# ---------------------------------------------------------------------------
+
+class TestCarTariffControl:
+    def _run(self, ctrl, state):
+        ctrl.device_states["Car"] = state
+        ctrl.debug_state = DebugState(
+            timestamp=datetime.now(timezone.utc),
+            available_power=0,
+            grid_voltage=230.0,
+            grid_power=0,
+        )
+        devices_to_turn_on = []
+        with patch.object(ctrl, "get_current_tariff_mode", return_value="cheap"), \
+             patch.object(ctrl, "check_device_completion", return_value=False):
+            ctrl._run_tariff_control(230.0, devices_to_turn_on)
+        return devices_to_turn_on
+
+    def test_car_charges_on_cheap_when_below_target(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        state = make_car_state(
+            soc=50.0,
+            has_variable_amperage=True,
+            min_amperage=6.0,
+            max_amperage=32.0,
+            variable_amperage_control="number.amps",
+        )
+        result = self._run(ctrl, state)
+        assert len(result) == 1
+        assert result[0][2] == 32.0  # max amperage on cheap power
+
+    def test_car_not_charged_on_cheap_above_target(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        state = make_car_state(soc=85.0)
+        result = self._run(ctrl, state)
+        assert result == []
+
+    def test_road_trip_charges_above_cheap_target(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        state = make_car_state(soc=85.0, road_trip=True)
+        result = self._run(ctrl, state)
+        assert len(result) == 1
+
+    def test_full_car_not_charged_even_on_road_trip(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        state = make_car_state(soc=100.0, road_trip=True)
+        result = self._run(ctrl, state)
+        assert result == []
