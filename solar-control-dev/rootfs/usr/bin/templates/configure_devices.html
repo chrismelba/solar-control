@@ -131,7 +131,9 @@
 
                     <div class="form-group completion-sensor-group">
                         <label for="completion_sensor_offpeak_input">Completion Sensor (optional): <span class="tooltip">ⓘ<span class="tooltiptext">Select a sensor that indicates when the device has completed its task. In future patches the system will use this to run the device off-peak if not completed.</span></span></label>
-                        {{ entity_widget('completion_sensor_offpeak', entities, filter_type='binary_sensor', placeholder='Search for a completion sensor...', input_name='completion_sensor') }}
+                        {# Mirror of the Runtime tab field. Deliberately NOT named completion_sensor:
+                           only the Runtime copy is submitted, this one is synced via JS callbacks. #}
+                        {{ entity_widget('completion_sensor_offpeak', entities, filter_type='binary_sensor', placeholder='Search for a completion sensor...', input_name='completion_sensor_offpeak') }}
                     </div>
                 </div>
 
@@ -217,6 +219,8 @@
 
         // Convert car form fields on a device data object (shared by add + edit)
         function applyCarFields(deviceData) {
+            // Off-peak completion widget is a synced mirror, not a real field
+            delete deviceData.completion_sensor_offpeak;
             deviceData.is_car = deviceData.is_car === 'on';
             if (deviceData.is_car) {
                 deviceData.car_floor_soc = deviceData.car_floor_soc ? parseFloat(deviceData.car_floor_soc) : null;
@@ -544,24 +548,26 @@
         // Load devices when page loads
         document.addEventListener('DOMContentLoaded', loadDevices);
 
-        // Synchronize completion sensor inputs
+        // Synchronize completion sensor inputs between the Runtime and Off-Peak
+        // tabs. Uses SearchableSelect callbacks (fired on both selection and
+        // clearing) rather than 'change' events, which never fire for
+        // programmatic updates and let the two copies drift.
         document.addEventListener('DOMContentLoaded', function() {
             const completionSensorInput = document.getElementById('completion_sensor_input');
             const completionSensorInputOffpeak = document.getElementById('completion_sensor_offpeak_input');
             const completionSensor = document.getElementById('completion_sensor');
             const completionSensorOffpeak = document.getElementById('completion_sensor_offpeak');
 
-            // Sync from runtime to off-peak
-            completionSensorInput.addEventListener('change', function() {
-                completionSensorInputOffpeak.value = this.value;
-                completionSensorOffpeak.value = completionSensor.value;
-            });
-
-            // Sync from off-peak to runtime
-            completionSensorInputOffpeak.addEventListener('change', function() {
-                completionSensorInput.value = this.value;
-                completionSensor.value = completionSensorOffpeak.value;
-            });
+            const rt = SearchableSelect.getOrCreate('completion_sensor_input', 'completion_sensor_options', 'completion_sensor');
+            const op = SearchableSelect.getOrCreate('completion_sensor_offpeak_input', 'completion_sensor_offpeak_options', 'completion_sensor_offpeak');
+            rt.onSelectCallback = (value, text) => {
+                completionSensorOffpeak.value = value;
+                completionSensorInputOffpeak.value = text;
+            };
+            op.onSelectCallback = (value, text) => {
+                completionSensor.value = value;
+                completionSensorInput.value = text;
+            };
         });
     </script>
 {% endblock %}

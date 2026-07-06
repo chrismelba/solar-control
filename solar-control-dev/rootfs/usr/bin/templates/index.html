@@ -306,7 +306,9 @@
 
                         <div class="form-group">
                             <label for="dm_completion_sensor_offpeak_input">Completion Sensor <span class="optional-label">(optional)</span></label>
-                            {{ entity_widget('dm_completion_sensor_offpeak', entities, filter_type='binary_sensor', placeholder='Search binary sensors...', input_name='completion_sensor') }}
+                            {# Mirror of the Runtime tab field. Deliberately NOT named completion_sensor:
+                               only the Runtime copy is submitted, this one is synced via JS callbacks. #}
+                            {{ entity_widget('dm_completion_sensor_offpeak', entities, filter_type='binary_sensor', placeholder='Search binary sensors...', input_name='completion_sensor_offpeak') }}
                             <small class="help-text">When on, the device is considered fully charged and off-peak top-up is skipped.</small>
                         </div>
                     </div>
@@ -904,6 +906,9 @@
             deviceData.order = parseInt(deviceData.order || 0);
             deviceData.min_daily_power = deviceData.min_daily_power ? parseFloat(deviceData.min_daily_power) : null;
 
+            // Off-peak completion widget is a synced mirror, not a real field
+            delete deviceData.completion_sensor_offpeak;
+
             deviceData.is_car = !!form.querySelector('[name="is_car"]').checked;
             if (deviceData.is_car) {
                 deviceData.car_floor_soc = deviceData.car_floor_soc ? parseFloat(deviceData.car_floor_soc) : null;
@@ -999,21 +1004,26 @@
                 }
             });
 
-            // Sync completion sensor between Runtime and Off-Peak tabs
+            // Sync completion sensor between Runtime and Off-Peak tabs.
+            // Uses SearchableSelect callbacks (fired on both selection and clearing)
+            // rather than 'change' events, which never fire for programmatic updates —
+            // the old approach let the two copies drift and the stale one get saved.
             const completionInput = document.getElementById('dm_completion_sensor_input');
             const completionOffpeakInput = document.getElementById('dm_completion_sensor_offpeak_input');
             const completionHidden = document.getElementById('dm_completion_sensor');
             const completionOffpeakHidden = document.getElementById('dm_completion_sensor_offpeak');
 
             if (completionInput && completionOffpeakInput) {
-                completionInput.addEventListener('change', function() {
-                    completionOffpeakInput.value = this.value;
-                    completionOffpeakHidden.value = completionHidden.value;
-                });
-                completionOffpeakInput.addEventListener('change', function() {
-                    completionInput.value = this.value;
-                    completionHidden.value = completionOffpeakHidden.value;
-                });
+                const rt = SearchableSelect.getOrCreate('dm_completion_sensor_input', 'dm_completion_sensor_options', 'dm_completion_sensor');
+                const op = SearchableSelect.getOrCreate('dm_completion_sensor_offpeak_input', 'dm_completion_sensor_offpeak_options', 'dm_completion_sensor_offpeak');
+                rt.onSelectCallback = (value, text) => {
+                    completionOffpeakHidden.value = value;
+                    completionOffpeakInput.value = text;
+                };
+                op.onSelectCallback = (value, text) => {
+                    completionHidden.value = value;
+                    completionInput.value = text;
+                };
             }
         });
 

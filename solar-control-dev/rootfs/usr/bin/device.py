@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Optional
 import json
 import os
@@ -101,13 +101,14 @@ class Device:
             if field in converted_data:
                 converted_data[field] = cls._safe_convert(converted_data[field], target_type)
         
-        # Remove legacy fields that are no longer supported
-        legacy_fields = ['last_power_update', 'last_dawn_reset']
-        for field in legacy_fields:
-            if field in converted_data:
-                logger.info(f"Removing legacy field '{field}' from device data")
-                del converted_data[field]
-        
+        # Drop unknown keys (legacy fields, UI mirror inputs, runtime state) so
+        # they can never break device construction
+        valid_fields = {f.name for f in fields(cls)}
+        unknown = set(converted_data) - valid_fields
+        for field in unknown:
+            logger.info(f"Ignoring unknown field '{field}' in device data")
+            del converted_data[field]
+
         return cls(**converted_data)
 
     def update_energy_delivered(self) -> None:

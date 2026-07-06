@@ -1,5 +1,10 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.8.12] - 2026-07-06
+### Fixed
+- Completion sensor could not be removed (and selecting one on the Runtime tab could silently fail to save): the field exists on two tabs and both copies were submitted under the same name, synced only by `change` events that never fire for dropdown picks or programmatic updates — so a stale copy could win on save. Now only the Runtime copy is submitted and the two widgets are mirrored via select/clear callbacks. Verified in a headless browser: set and clear round-trip correctly from either tab.
+- Device API now ignores unknown fields instead of failing, so stray form keys can never break a save.
+
 ## [1.8.11] - 2026-07-06
 ### Fixed
 - Entity selector: clearing the text of a searchable select now clears the saved value too. Previously the hidden input kept the old entity id, so removing e.g. a completion sensor and saving brought it straight back. Applies to all entity fields on every form.
