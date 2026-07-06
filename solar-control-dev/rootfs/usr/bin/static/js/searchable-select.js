@@ -89,6 +89,22 @@ class SearchableSelect {
             this.options.classList.add('active');
         });
 
+        // Text cleared by the user — immediately clear the underlying hidden
+        // value too, otherwise the old selection silently comes back on save.
+        // Not debounced: the completion sensor field is duplicated across tabs
+        // and synced on blur, so the clear must land before focus leaves.
+        this.input.addEventListener('input', () => {
+            if (this.input.value === '' && this.hiddenInput.value !== '') {
+                this.hiddenInput.value = '';
+                this.options.querySelectorAll('.option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                if (this.onSelectCallback) {
+                    this.onSelectCallback('', '');
+                }
+            }
+        });
+
         this.input.addEventListener('input', this._debounce(() => {
             const searchText = this.input.value.toLowerCase();
             const footer = this.options.querySelector('.options-footer');

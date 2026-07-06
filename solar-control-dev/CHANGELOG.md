@@ -1,5 +1,9 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.8.11] - 2026-07-06
+### Fixed
+- Entity selector: clearing the text of a searchable select now clears the saved value too. Previously the hidden input kept the old entity id, so removing e.g. a completion sensor and saving brought it straight back. Applies to all entity fields on every form.
+
 ## [1.8.10] - 2026-07-06
 ### Added
 - Car / EV device type: mark a device as a car (with a state-of-charge sensor) and set two SoC targets — "Always charge to X%" (protection floor: charges immediately at max rate on any tariff when below X%) and "Charge on cheap power to Y%" (topped up during cheap/free tariff windows). Above Y% the car charges on excess solar only, up to 100%.
