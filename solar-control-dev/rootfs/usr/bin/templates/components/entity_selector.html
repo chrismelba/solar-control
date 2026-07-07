@@ -13,7 +13,7 @@
 {%- set _name = input_name if input_name else field_name -%}
 {%- set _selected = selected_value if selected_value else '' -%}
 {%- set _placeholders = {
-    'switch':           'Search switches...',
+    'switch':           'Search switches and climate entities...',
     'sensor_power':     'Search power and energy sensors...',
     'sensor_battery':   'Search battery sensors...',
     'sensor_forecast':  'Search forecast sensors...',
@@ -40,8 +40,10 @@
             {%- set is_extended = false -%}
 
             {%- if filter_type == 'switch' -%}
-                {%- if eid.startswith('switch.') or eid.startswith('input_boolean.') -%}
+                {%- if eid.startswith('switch.') or eid.startswith('input_boolean.') or eid.startswith('climate.') -%}
                     {%- set is_primary = true -%}
+                {%- elif eid.startswith('fan.') or eid.startswith('humidifier.') or eid.startswith('water_heater.') or eid.startswith('light.') -%}
+                    {%- set is_extended = true -%}
                 {%- endif -%}
 
             {%- elif filter_type == 'sensor_power' -%}

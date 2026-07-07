@@ -201,7 +201,8 @@
 
                         <div class="form-group">
                             <label for="dm_switch_entity_input">Switch Entity</label>
-                            {{ entity_widget('dm_switch_entity', entities, filter_type='switch', placeholder='Search switches...', required=true, input_name='switch_entity') }}
+                            {{ entity_widget('dm_switch_entity', entities, filter_type='switch', placeholder='Search switches and climate entities...', required=true, input_name='switch_entity') }}
+                            <small class="help-text">Switch, input_boolean or climate entity; fans, humidifiers, water heaters and lights under "Show all".</small>
                         </div>
 
                         <hr class="form-section-divider">

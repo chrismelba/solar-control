@@ -1,5 +1,12 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.8.13] - 2026-07-07
+### Added
+- Climate entities can now be used as a device's switch entity — the entity picker lists `climate.*` alongside switches and input_booleans, with fans, humidifiers, water heaters and lights available under "Show all". Control already worked domain-generically (`climate/turn_on` / `turn_off`).
+
+### Fixed
+- On/off state reading now understands non-switch domains: a climate entity reporting `heat`/`cool`/`auto` etc. counts as on (previously anything that wasn't literally `on` read as off, which would have made the controller fight climate devices). `unavailable`/`unknown` states keep the last-known state instead of reading as off. Applies to the control loop and the dashboard toggles.
+
 ## [1.8.12] - 2026-07-06
 ### Fixed
 - Completion sensor could not be removed (and selecting one on the Runtime tab could silently fail to save): the field exists on two tabs and both copies were submitted under the same name, synced only by `change` events that never fire for dropdown picks or programmatic updates — so a stale copy could win on save. Now only the Runtime copy is submitted and the two widgets are mirrored via select/clear callbacks. Verified in a headless browser: set and clear round-trip correctly from either tab.

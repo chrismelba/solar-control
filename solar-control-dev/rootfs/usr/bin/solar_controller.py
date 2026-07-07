@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from device import Device
 from battery import Battery
 import json
-from utils import setup_logging
+from utils import setup_logging, entity_state_to_is_on
 
 # Configure logging
 logger = setup_logging()
@@ -252,8 +252,10 @@ class SolarController:
     def get_device_state_from_hass(self, device: Device) -> Optional[bool]:
         """Get the current state of a device from Home Assistant.
 
-        Returns None on error so callers can keep the last-known state instead
-        of treating an API failure as the device having turned off."""
+        Returns None on error or unavailable/unknown so callers can keep the
+        last-known state instead of treating it as the device turning off.
+        Understands non-switch domains: a climate entity in 'heat'/'cool'/...
+        counts as on."""
         try:
             logger.debug(f"Fetching state for device {device.name} from {device.switch_entity}")
             response = requests.get(
@@ -261,8 +263,8 @@ class SolarController:
                 headers=self.get_headers()
             )
             response.raise_for_status()
-            state = response.json().get('state', 'off').lower() == 'on'
-            logger.debug(f"Device {device.name} state: {'on' if state else 'off'}")
+            state = entity_state_to_is_on(response.json().get('state'))
+            logger.debug(f"Device {device.name} state: {state}")
             return state
         except Exception as e:
             logger.error(f"Failed to get state for {device.name}: {e}")

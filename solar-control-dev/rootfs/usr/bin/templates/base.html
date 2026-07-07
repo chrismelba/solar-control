@@ -181,7 +181,8 @@
                     return apiCall(`/api/devices/${encodeURIComponent(deviceName)}/state`);
                 })
                 .then(data => {
-                    toggle.checked = data.state === 'on';
+                    // is_on handles non-switch domains (climate reports 'heat'/'cool'/... when on)
+                    toggle.checked = data.is_on === true;
                 })
                 .catch(error => {
                     console.error(`Error fetching device state for ${deviceName}:`, error);

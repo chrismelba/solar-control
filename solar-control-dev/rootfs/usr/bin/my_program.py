@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from device import Device
 from battery import Battery
 from solar_controller import SolarController
-from utils import get_sunrise_time, setup_logging
+from utils import get_sunrise_time, setup_logging, entity_state_to_is_on
 from mqtt_client import connect as mqtt_connect, disconnect as mqtt_disconnect, publish_message, update_device_state, publish_status
 
 HASS_URL = os.environ.get('HASS_URL', 'http://supervisor/core')
@@ -204,11 +204,12 @@ def get_device_state(name):
         response.raise_for_status()
         state = response.json().get('state', 'off')
         logger.debug(f"Retrieved state for device {name}: {state}")
-        
+
         # Publish state to MQTT
         update_device_state(name, {'state': state})
-        
-        return jsonify({'state': state})
+
+        # is_on normalizes non-switch domains (climate reports 'heat'/'cool'/... when on)
+        return jsonify({'state': state, 'is_on': entity_state_to_is_on(state)})
     except requests.exceptions.RequestException as e:
         logger.error(f"Network error getting device state for {name}: {e}")
         return jsonify({'status': 'error', 'message': f'Network error: {str(e)}'}), 400

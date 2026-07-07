@@ -809,3 +809,36 @@ class TestCarTariffControl:
         state = make_car_state(soc=100.0, road_trip=True)
         result = self._run(ctrl, state)
         assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Cross-domain on/off state interpretation (climate entities etc.)
+# ---------------------------------------------------------------------------
+
+class TestEntityStateInterpretation:
+    def _state(self, ctrl, raw_state):
+        device = make_device(switch_entity="climate.hvac")
+        mock_resp = make_mock_response(raw_state)
+        with patch("requests.get", return_value=mock_resp):
+            return ctrl.get_device_state_from_hass(device)
+
+    def test_switch_on(self, tmp_path):
+        assert self._state(make_controller(tmp_path), "on") is True
+
+    def test_switch_off(self, tmp_path):
+        assert self._state(make_controller(tmp_path), "off") is False
+
+    def test_climate_heat_counts_as_on(self, tmp_path):
+        assert self._state(make_controller(tmp_path), "heat") is True
+
+    def test_climate_cool_counts_as_on(self, tmp_path):
+        assert self._state(make_controller(tmp_path), "cool") is True
+
+    def test_climate_off(self, tmp_path):
+        assert self._state(make_controller(tmp_path), "off") is False
+
+    def test_unavailable_returns_none(self, tmp_path):
+        assert self._state(make_controller(tmp_path), "unavailable") is None
+
+    def test_unknown_returns_none(self, tmp_path):
+        assert self._state(make_controller(tmp_path), "unknown") is None

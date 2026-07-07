@@ -100,6 +100,22 @@ def set_mqtt_settings():
         logger.error(f"Error setting MQTT settings: {e}")
         return None
 
+def entity_state_to_is_on(state):
+    """Interpret an entity state string as on/off across domains.
+
+    Switches report 'on'/'off', but climate entities report an HVAC mode
+    ('heat', 'cool', 'auto', ...) when running — anything other than 'off'
+    counts as on. Returns None for unavailable/unknown so callers can keep
+    the last-known state instead of misreading an outage as 'off'.
+    """
+    if state is None:
+        return None
+    state = str(state).lower()
+    if state in ('unavailable', 'unknown', 'none', ''):
+        return None
+    return state != 'off'
+
+
 def get_sunrise_time():
     try:
         supervisor_token = os.environ.get('SUPERVISOR_TOKEN')
