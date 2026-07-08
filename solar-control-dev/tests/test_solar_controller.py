@@ -842,3 +842,105 @@ class TestEntityStateInterpretation:
 
     def test_unknown_returns_none(self, tmp_path):
         assert self._state(make_controller(tmp_path), "unknown") is None
+
+
+# ---------------------------------------------------------------------------
+# Auto control (hands-off) behaviour
+# ---------------------------------------------------------------------------
+
+class TestAutoControlHandsOff:
+    def _make_debug_state(self, ctrl):
+        ctrl.debug_state = DebugState(
+            timestamp=datetime.now(timezone.utc),
+            available_power=0,
+            grid_voltage=230.0,
+            grid_power=0,
+        )
+
+    def test_default_is_true(self):
+        state = DeviceState(device=make_device())
+        assert state.auto_control is True
+
+    def test_apply_state_changes_never_commands_hands_off_device(self, tmp_path):
+        """A hands-off device that is ON must not be force-turned-off."""
+        ctrl = make_controller(tmp_path)
+        state = DeviceState(device=make_device(), is_on=True, auto_control=False)
+        ctrl.device_states["Test Device"] = state
+        with patch.object(ctrl, "set_device_state") as mock_set:
+            ctrl._apply_state_changes([])
+        mock_set.assert_not_called()
+
+    def test_apply_state_changes_still_commands_managed_devices(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        managed = DeviceState(device=make_device(name="Managed"), is_on=True)
+        hands_off = DeviceState(device=make_device(name="Manual"), is_on=True,
+                                auto_control=False)
+        ctrl.device_states = {"Managed": managed, "Manual": hands_off}
+        with patch.object(ctrl, "set_device_state") as mock_set:
+            ctrl._apply_state_changes([])
+        mock_set.assert_called_once_with(managed, False)
+
+    def test_free_mode_skips_hands_off_device(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        self._make_debug_state(ctrl)
+        state = DeviceState(device=make_device(), auto_control=False)
+        ctrl.device_states["Test Device"] = state
+        devices_to_turn_on = []
+        ctrl._run_free_mode(230.0, devices_to_turn_on)
+        assert devices_to_turn_on == []
+
+    def test_tariff_cheap_mode_skips_hands_off_device(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        self._make_debug_state(ctrl)
+        state = make_car_state(soc=10.0)  # below floor: would normally charge
+        state.auto_control = False
+        ctrl.device_states["Car"] = state
+        devices_to_turn_on = []
+        with patch.object(ctrl, "get_current_tariff_mode", return_value="cheap"), \
+             patch.object(ctrl, "check_device_completion", return_value=False):
+            ctrl._run_tariff_control(230.0, devices_to_turn_on)
+        assert devices_to_turn_on == []
+
+    def test_solar_mode_skips_hands_off_device(self, tmp_path):
+        ctrl = make_controller(tmp_path)
+        self._make_debug_state(ctrl)
+        state = DeviceState(device=make_device(), auto_control=False)
+        ctrl.device_states["Test Device"] = state
+        devices_to_turn_on = []
+        ctrl._run_solar_control(5000.0, 230.0, devices_to_turn_on)
+        assert devices_to_turn_on == []
+
+    def test_car_floor_does_not_fire_when_hands_off(self, tmp_path):
+        """Hands-off wins over the car protection floor."""
+        ctrl = make_controller(tmp_path)
+        state = make_car_state(soc=5.0)  # far below floor
+        state.auto_control = False
+        ctrl.device_states["Car"] = state
+        with patch.object(ctrl, "initialize_device_states"), \
+             patch.object(ctrl, "get_grid_voltage", return_value=230.0), \
+             patch.object(ctrl, "get_available_power", return_value=0.0), \
+             patch.object(ctrl, "get_current_tariff_mode", return_value="normal"), \
+             patch.object(ctrl, "is_between_dawn_and_dusk", return_value=False), \
+             patch.object(ctrl, "refresh_car_states"), \
+             patch.object(ctrl, "check_device_completion", return_value=False), \
+             patch.object(ctrl, "set_device_state") as mock_set:
+            ctrl._run_control_loop_iteration()
+        mock_set.assert_not_called()
+        reasons = [d["reason"] for d in ctrl.debug_state.mandatory_devices]
+        assert "Manual control - auto control disabled" in reasons
+
+    def test_available_power_excludes_hands_off_draw(self, tmp_path):
+        """A hands-off device's consumption must not be added back to the budget."""
+        ctrl = make_controller(tmp_path, config={"grid_power": "sensor.grid"})
+        managed = DeviceState(device=make_device(name="Managed"), is_on=True)
+        hands_off = DeviceState(device=make_device(name="Manual"), is_on=True,
+                                auto_control=False)
+        ctrl.device_states = {"Managed": managed, "Manual": hands_off}
+        mock_resp = make_mock_response("0", {"unit_of_measurement": "W"})
+        with patch("requests.get", return_value=mock_resp), \
+             patch.object(ctrl, "get_current_tariff_mode", return_value="normal"), \
+             patch.object(ctrl, "get_device_power", return_value=1000.0) as mock_power:
+            power = ctrl.get_available_power()
+        # Only the managed device's 1000W is added back (grid reads 0W)
+        assert power == pytest.approx(1000.0)
+        mock_power.assert_called_once_with(managed)

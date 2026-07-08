@@ -18,9 +18,40 @@ DEVICE_CONTROL_TOPIC = "solar_control/devices/{device_name}/control"
 # Home Assistant MQTT discovery
 DISCOVERY_PREFIX = "homeassistant"
 HA_STATUS_TOPIC = "homeassistant/status"  # HA publishes online/offline here
-ROAD_TRIP_CONFIG_TOPIC = DISCOVERY_PREFIX + "/switch/solar_control/{slug}_road_trip/config"
-ROAD_TRIP_STATE_TOPIC = "solar_control/devices/{slug}/road_trip/state"
-ROAD_TRIP_COMMAND_TOPIC = "solar_control/devices/{slug}/road_trip/set"
+
+# Discoverable switch kinds. per_device kinds get one switch per registered
+# device (topics contain the device slug); global kinds get exactly one switch.
+SWITCH_KINDS = {
+    "road_trip": {
+        "config_topic": DISCOVERY_PREFIX + "/switch/solar_control/{slug}_road_trip/config",
+        "state_topic": "solar_control/devices/{slug}/road_trip/state",
+        "command_topic": "solar_control/devices/{slug}/road_trip/set",
+        "name": "{name} road trip",
+        "icon": "mdi:bag-suitcase",
+        "per_device": True,
+    },
+    "auto_control": {
+        "config_topic": DISCOVERY_PREFIX + "/switch/solar_control/{slug}_auto_control/config",
+        "state_topic": "solar_control/devices/{slug}/auto_control/state",
+        "command_topic": "solar_control/devices/{slug}/auto_control/set",
+        "name": "{name} auto control",
+        "icon": "mdi:robot",
+        "per_device": True,
+    },
+    "optimization": {
+        "config_topic": DISCOVERY_PREFIX + "/switch/solar_control/optimization/config",
+        "state_topic": "solar_control/optimization/state",
+        "command_topic": "solar_control/optimization/set",
+        "name": "Power optimization",
+        "icon": "mdi:lightning-bolt",
+        "per_device": False,
+    },
+}
+
+# Back-compat aliases (older callers/tests import these directly)
+ROAD_TRIP_CONFIG_TOPIC = SWITCH_KINDS["road_trip"]["config_topic"]
+ROAD_TRIP_STATE_TOPIC = SWITCH_KINDS["road_trip"]["state_topic"]
+ROAD_TRIP_COMMAND_TOPIC = SWITCH_KINDS["road_trip"]["command_topic"]
 
 # Global variables
 mqtt_client: mqtt.Client = None
@@ -28,11 +59,12 @@ subscribed_topics = []
 device_states = {}
 last_data_update = None
 
-# Discovery registry: slug -> {"name": device name, "state": bool}
-# Kept so discovery can be republished on reconnect / HA restart, and so
-# command topics (which carry the slug) can be mapped back to device names.
-_road_trip_registry = {}
-_road_trip_command_handler = None  # callable(device_name: str, enabled: bool)
+# Discovery registry: kind -> {slug: {"name": device name, "state": bool}}
+# (global kinds use a single None slug). Kept so discovery can be republished
+# on reconnect / HA restart, and so command topics (which carry the slug) can
+# be mapped back to device names.
+_switch_registry = {}
+_command_handlers = {}  # kind -> callable(device_name_or_None, enabled: bool)
 _sw_version = None
 
 
@@ -109,7 +141,8 @@ def on_connect(client, userdata, flags, rc):
         # Subscribe to control topics
         client.subscribe(CONTROL_TOPIC)
         client.subscribe(DEVICE_CONTROL_TOPIC.format(device_name="+"))
-        client.subscribe(ROAD_TRIP_COMMAND_TOPIC.format(slug="+"))
+        for spec in SWITCH_KINDS.values():
+            client.subscribe(spec["command_topic"].format(slug="+"))
         # HA publishes its birth message here; discovery must be republished
         # when HA restarts or it forgets our entities
         client.subscribe(HA_STATUS_TOPIC)
@@ -143,8 +176,12 @@ def on_message(client, userdata, msg):
             if payload == "online":
                 logging.info("Home Assistant came online - republishing MQTT discovery")
                 _publish_all_discovery()
+        elif topic == SWITCH_KINDS["optimization"]["command_topic"]:
+            _handle_switch_command("optimization", None, payload)
         elif topic.endswith("/road_trip/set"):
-            handle_road_trip_command(topic.split("/")[2], payload)
+            _handle_switch_command("road_trip", topic.split("/")[2], payload)
+        elif topic.endswith("/auto_control/set"):
+            _handle_switch_command("auto_control", topic.split("/")[2], payload)
         elif topic.startswith("solar_control/devices/"):
             device_name = topic.split("/")[2]
             handle_device_control(device_name, payload)
@@ -192,26 +229,26 @@ def handle_device_control(device_name, payload):
     except Exception as e:
         logging.error(f"Error handling device control for {device_name}: {e}")
 
-def handle_road_trip_command(slug, payload):
-    """Handle an ON/OFF command from a discovered road trip switch."""
-    entry = _road_trip_registry.get(slug)
-    if not entry:
-        logging.warning(f"Road trip command for unknown device slug: {slug}")
+def _handle_switch_command(kind, slug, payload):
+    """Handle an ON/OFF command from a discovered switch."""
+    entry = _switch_registry.get(kind, {}).get(slug)
+    if entry is None:
+        logging.warning(f"{kind} command for unknown device slug: {slug}")
         return
-    if _road_trip_command_handler is None:
-        logging.warning("Road trip command received but no handler registered")
+    handler = _command_handlers.get(kind)
+    if handler is None:
+        logging.warning(f"{kind} command received but no handler registered")
         return
     try:
-        _road_trip_command_handler(entry["name"], payload.strip().upper() == "ON")
+        handler(entry["name"], payload.strip().upper() == "ON")
     except Exception as e:
-        logging.error(f"Error handling road trip command for {entry['name']}: {e}")
+        logging.error(f"Error handling {kind} command for {entry['name']}: {e}")
 
 
-def set_road_trip_command_handler(handler):
-    """Register the callback invoked as handler(device_name, enabled) when a
-    road trip switch is flipped from Home Assistant."""
-    global _road_trip_command_handler
-    _road_trip_command_handler = handler
+def set_switch_command_handler(kind, handler):
+    """Register the callback invoked as handler(device_name_or_None, enabled)
+    when a switch of this kind is flipped from Home Assistant."""
+    _command_handlers[kind] = handler
 
 
 def _device_info():
@@ -226,63 +263,96 @@ def _device_info():
     return info
 
 
-def _publish_road_trip_config(slug, device_name):
+def _publish_switch_config(kind, slug, device_name):
+    spec = SWITCH_KINDS[kind]
     config = {
-        "name": f"{device_name} road trip",
-        "unique_id": f"solar_control_{slug}_road_trip",
-        "state_topic": ROAD_TRIP_STATE_TOPIC.format(slug=slug),
-        "command_topic": ROAD_TRIP_COMMAND_TOPIC.format(slug=slug),
-        "icon": "mdi:bag-suitcase",
+        "name": spec["name"].format(name=device_name),
+        "unique_id": "solar_control_" + (f"{slug}_" if slug else "") + kind,
+        "state_topic": spec["state_topic"].format(slug=slug),
+        "command_topic": spec["command_topic"].format(slug=slug),
+        "icon": spec["icon"],
         "availability_topic": AVAILABILITY_TOPIC,
         "device": _device_info(),
     }
-    publish_message(ROAD_TRIP_CONFIG_TOPIC.format(slug=slug), config, retain=True)
+    publish_message(spec["config_topic"].format(slug=slug), config, retain=True)
 
 
-def _publish_all_discovery():
-    """(Re)publish discovery configs and current states for all registered cars."""
-    for slug, entry in _road_trip_registry.items():
-        _publish_road_trip_config(slug, entry["name"])
-        publish_message(ROAD_TRIP_STATE_TOPIC.format(slug=slug),
-                        "ON" if entry["state"] else "OFF", retain=True)
-
-
-def publish_road_trip_state(device_name, enabled):
-    """Publish a car's current road trip state to its discovered switch."""
-    slug = slugify(device_name)
-    entry = _road_trip_registry.get(slug)
-    if entry is None:
-        return  # not a registered car (e.g. discovery not synced yet)
-    entry["state"] = bool(enabled)
-    publish_message(ROAD_TRIP_STATE_TOPIC.format(slug=slug),
+def _publish_switch_state_raw(kind, slug, enabled):
+    publish_message(SWITCH_KINDS[kind]["state_topic"].format(slug=slug),
                     "ON" if enabled else "OFF", retain=True)
 
 
-def sync_road_trip_discovery(cars, sw_version=None):
-    """Reconcile discovered road trip switches with the current device list.
+def _publish_all_discovery():
+    """(Re)publish discovery configs and current states for every registered switch."""
+    for kind, entries in _switch_registry.items():
+        for slug, entry in entries.items():
+            _publish_switch_config(kind, slug, entry["name"])
+            _publish_switch_state_raw(kind, slug, entry["state"])
 
-    cars: {device_name: road_trip_enabled} for every device that is a car.
-    Publishes discovery + state for new/updated cars and removes the retained
-    discovery config for devices that are no longer cars.
+
+def publish_switch_state(kind, device_name, enabled):
+    """Publish the current state of a discovered switch.
+
+    device_name is None for global kinds. No-op if the switch isn't
+    registered (e.g. discovery not synced yet)."""
+    slug = slugify(device_name) if device_name else None
+    entry = _switch_registry.get(kind, {}).get(slug)
+    if entry is None:
+        return
+    entry["state"] = bool(enabled)
+    _publish_switch_state_raw(kind, slug, enabled)
+
+
+def sync_device_switch_discovery(kind, states, sw_version=None):
+    """Reconcile discovered per-device switches of one kind with the device list.
+
+    states: {device_name: enabled} for every device that should have this
+    switch. Publishes discovery + state for new/updated devices and removes
+    the retained discovery config for devices no longer in the dict.
     """
     global _sw_version
     if sw_version:
         _sw_version = sw_version
 
-    desired = {slugify(name): name for name in cars}
+    spec = SWITCH_KINDS[kind]
+    registry = _switch_registry.setdefault(kind, {})
+    desired = {slugify(name): name for name in states}
 
-    # Remove switches for devices that are gone / no longer cars
-    for slug in list(_road_trip_registry):
+    for slug in list(registry):
         if slug not in desired:
-            del _road_trip_registry[slug]
+            del registry[slug]
             # Empty retained payload deletes the entity from HA
-            publish_message(ROAD_TRIP_CONFIG_TOPIC.format(slug=slug), "", retain=True)
-            publish_message(ROAD_TRIP_STATE_TOPIC.format(slug=slug), "", retain=True)
+            publish_message(spec["config_topic"].format(slug=slug), "", retain=True)
+            publish_message(spec["state_topic"].format(slug=slug), "", retain=True)
 
     for slug, name in desired.items():
-        _road_trip_registry[slug] = {"name": name, "state": bool(cars[name])}
+        registry[slug] = {"name": name, "state": bool(states[name])}
+        _publish_switch_config(kind, slug, name)
+        _publish_switch_state_raw(kind, slug, registry[slug]["state"])
 
-    _publish_all_discovery()
+
+def sync_global_switch_discovery(kind, enabled, sw_version=None):
+    """Register + publish a single global (non-per-device) switch."""
+    global _sw_version
+    if sw_version:
+        _sw_version = sw_version
+    _switch_registry.setdefault(kind, {})[None] = {"name": None, "state": bool(enabled)}
+    _publish_switch_config(kind, None, None)
+    _publish_switch_state_raw(kind, None, enabled)
+
+
+# --- Back-compat wrappers (older callers/tests use the road-trip names) ---
+
+def sync_road_trip_discovery(cars, sw_version=None):
+    sync_device_switch_discovery("road_trip", cars, sw_version)
+
+
+def publish_road_trip_state(device_name, enabled):
+    publish_switch_state("road_trip", device_name, enabled)
+
+
+def set_road_trip_command_handler(handler):
+    set_switch_command_handler("road_trip", handler)
 
 
 def publish_message(topic, payload, retain=False):

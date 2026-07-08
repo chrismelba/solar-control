@@ -633,9 +633,12 @@
                                 ? `\u{1F50B} ${Math.round(device.car_soc)}%`
                                 : '\u{1F50B} --%';
                         }
-                        const rtBtn = carSection.querySelector('.road-trip-btn');
-                        if (rtBtn) rtBtn.classList.toggle('active', !!device.road_trip);
+                        const rtToggle = carSection.querySelector('.road-trip-toggle');
+                        if (rtToggle) rtToggle.checked = !!device.road_trip;
                     }
+
+                    const acToggle = card.querySelector('.auto-control-toggle');
+                    if (acToggle) acToggle.checked = device.auto_control !== false;
 
                     const chargeSection = card.querySelector('.one-off-charge-section');
                     if (chargeSection) {
@@ -729,6 +732,7 @@
                     if (!e.target.closest('.device-toggle') &&
                         !e.target.closest('.switch') &&
                         !e.target.closest('.car-section') &&
+                        !e.target.closest('.auto-control-section') &&
                         !e.target.closest('.one-off-charge-section')) {
                         openDeviceModal(card.dataset.deviceName);
                     }
@@ -765,17 +769,6 @@
                     updateDeviceCards();
                 }
             }
-            if (e.target.classList.contains('road-trip-btn')) {
-                e.stopPropagation();
-                const name = e.target.dataset.deviceName;
-                const enable = !e.target.classList.contains('active');
-                await apiCall(`/api/devices/${encodeURIComponent(name)}/road_trip`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ enabled: enable })
-                });
-                updateDeviceCards();
-            }
             if (e.target.classList.contains('one-off-charge-cancel')) {
                 e.stopPropagation();
                 const name = e.target.dataset.deviceName;
@@ -785,6 +778,32 @@
                     body: JSON.stringify({ target_kwh: null })
                 });
                 updateDeviceCards();
+            }
+        });
+
+        // ── Road trip / auto control toggles ──
+        // The checkbox flips natively (instant feedback); revert it if the API
+        // call fails. The 60s poll reconciles with server state.
+        async function postToggle(toggle, endpoint) {
+            const name = toggle.dataset.deviceName;
+            const enable = toggle.checked;
+            try {
+                await apiCall(`/api/devices/${encodeURIComponent(name)}/${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: enable })
+                });
+            } catch (error) {
+                console.error(`Error setting ${endpoint} for ${name}:`, error);
+                toggle.checked = !enable;
+            }
+        }
+        document.addEventListener('change', (e) => {
+            if (e.target.classList.contains('road-trip-toggle')) {
+                postToggle(e.target, 'road_trip');
+            }
+            if (e.target.classList.contains('auto-control-toggle')) {
+                postToggle(e.target, 'auto_control');
             }
         });
 

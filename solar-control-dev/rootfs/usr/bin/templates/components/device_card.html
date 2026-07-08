@@ -23,9 +23,24 @@
     {% if device.is_car %}
     <div class="car-section" data-device-name="{{ device.name }}">
         <span class="car-soc">🔋 --%</span>
-        <button class="road-trip-btn" data-device-name="{{ device.name }}" title="Charge to 100% on cheap/free power">🧳 Road trip</button>
+        <span class="mini-toggle" title="Charge to 100% on cheap/free power">
+            <label class="switch mini-switch">
+                <input type="checkbox" class="road-trip-toggle" data-device-name="{{ device.name }}">
+                <span class="slider round"></span>
+            </label>
+            <span class="mini-toggle-label">🧳 Road trip</span>
+        </span>
     </div>
     {% endif %}
+    <div class="auto-control-section" data-device-name="{{ device.name }}">
+        <span class="mini-toggle" title="When off, Solar Control leaves this device alone so you can control it manually">
+            <label class="switch mini-switch">
+                <input type="checkbox" class="auto-control-toggle" data-device-name="{{ device.name }}" checked>
+                <span class="slider round"></span>
+            </label>
+            <span class="mini-toggle-label">Auto</span>
+        </span>
+    </div>
     {% if device.energy_sensor %}
     <div class="one-off-charge-section" data-device-name="{{ device.name }}">
         <div class="one-off-charge-status" style="display:none"></div>

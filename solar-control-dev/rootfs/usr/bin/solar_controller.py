@@ -33,6 +33,7 @@ class DeviceState:
     one_off_charge_start_energy: Optional[float] = None  # energy_delivered_today at request time
     road_trip: bool = False                          # car: charge to 100% on cheap/free power
     car_soc: Optional[float] = None                  # car: SoC %, refreshed once per control loop
+    auto_control: bool = True                        # False = hands off: controller never commands this device
 
 @dataclass
 class DebugState:
@@ -174,6 +175,12 @@ class SolarController:
             on_devices = []
             for device_state in self.device_states.values():
                 if device_state.is_on:
+                    if not device_state.auto_control:
+                        # Hands-off device: its draw is not ours to reallocate
+                        breakdown.append({'label': f'  {device_state.device.name} (manual, on)',
+                                          'value': None,
+                                          'note': 'not added back — auto control disabled'})
+                        continue
                     power = self.get_device_power(device_state)
                     controlled_power += power
                     on_devices.append((device_state.device.name, power))
@@ -926,10 +933,14 @@ class SolarController:
         # Turn on all devices at maximum power
         for device_state in self.device_states.values():
             device = device_state.device
-            
+
+            # Hands-off device: already listed in the mandatory debug list
+            if not device_state.auto_control:
+                continue
+
             # Check if device is already in devices_to_turn_on
             existing_index = next((i for i, (d, _, _) in enumerate(devices_to_turn_on) if d == device_state), None)
-            
+
             # Skip if device has completed its task
             if device.run_once and device_state.has_completed:
                 optional_devices.append({
@@ -1077,6 +1088,17 @@ class SolarController:
                         device_state.has_completed = True
                         logger.info(f"Device {device.name} has completed its task")
                         continue
+
+                # Hands-off device: track its state above, but never add it to
+                # the control lists — min on/off timers and the car protection
+                # floor don't apply while the user is controlling it manually
+                if not device_state.auto_control:
+                    mandatory_devices.append({
+                        'name': device.name,
+                        'power': self.get_device_power(device_state) if device_state.is_on else 0,
+                        'reason': 'Manual control - auto control disabled'
+                    })
+                    continue
 
                 # Check minimum on/off times
                 if device_state.last_state_change:
@@ -1269,7 +1291,11 @@ class SolarController:
         for device_state in sorted_devices:
             device = device_state.device
             logger.debug(f"Processing device {device.name} with {available_power}W available")
-            
+
+            # Hands-off device: already listed in the mandatory debug list
+            if not device_state.auto_control:
+                continue
+
             # Skip if device has completed its task
             if device.run_once and device_state.has_completed:
                 logger.info(f"Skipping {device.name} - task completed")
@@ -1377,6 +1403,8 @@ class SolarController:
         if current_mode not in ['cheap', 'free']:
             logger.info(f"Skipping tariff control - current mode is {current_mode}, not 'cheap' or 'free'")
             for device_state in self.device_states.values():
+                if not device_state.auto_control:
+                    continue  # already listed in the mandatory debug list
                 optional_devices.append({
                     'name': device_state.device.name,
                     'power': 0,
@@ -1389,7 +1417,11 @@ class SolarController:
         for device_state in self.device_states.values():
             device = device_state.device
             logger.debug(f"Processing device {device.name} in tariff control mode")
-            
+
+            # Hands-off device: already listed in the mandatory debug list
+            if not device_state.auto_control:
+                continue
+
             # Check if device is already in devices_to_turn_on
             existing_index = next((i for i, (d, _, _) in enumerate(devices_to_turn_on) if d == device_state), None)
 
@@ -1538,6 +1570,12 @@ class SolarController:
     def _apply_state_changes(self, devices_to_turn_on: List[Tuple]):
         """Apply state changes to devices"""
         for device_state in self.device_states.values():
+            # Hands-off device: never send it commands. Without this guard a
+            # manually-on device would be force-turned-off (anything not in
+            # devices_to_turn_on gets switched off below).
+            if not device_state.auto_control:
+                continue
+
             # Find if this device should be on
             should_be_on = False
             power_needed = 0

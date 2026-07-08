@@ -1167,19 +1167,47 @@ input:checked + .slider:before {
     flex-wrap: wrap;
 }
 
-.road-trip-btn {
-    font-size: 0.75rem;
-    padding: 0.2rem 0.4rem;
+/* Small labelled toggles on device cards (road trip, auto control).
+   Deliberately NOT .device-toggle — that class carries the set_state handler. */
+.mini-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
     cursor: pointer;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: var(--card-background);
-    color: var(--text-color);
 }
 
-.road-trip-btn.active {
-    border-color: #22c55e;
-    color: #22c55e;
+.mini-toggle-label {
+    font-size: 0.75rem;
+    color: var(--text-color);
+    white-space: nowrap;
+}
+
+.switch.mini-switch {
+    width: 36px;
+    height: 20px;
+}
+
+.mini-switch .slider:before {
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+}
+
+.mini-switch input:checked + .slider:before {
+    transform: translateX(16px);
+}
+
+.mini-switch input:checked + .slider {
+    background-color: #22c55e;
+}
+
+.auto-control-section {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
 }
 
 /* ── Mobile Responsiveness ── */

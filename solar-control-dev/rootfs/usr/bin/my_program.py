@@ -11,10 +11,11 @@ from device import Device
 from battery import Battery
 from solar_controller import SolarController
 from utils import get_sunrise_time, setup_logging, entity_state_to_is_on
+from runtime_state import serialize_runtime_state, apply_runtime_state
 from mqtt_client import (connect as mqtt_connect, disconnect as mqtt_disconnect,
                          publish_message, update_device_state, publish_status,
-                         sync_road_trip_discovery, publish_road_trip_state,
-                         set_road_trip_command_handler)
+                         sync_device_switch_discovery, sync_global_switch_discovery,
+                         publish_switch_state, set_switch_command_handler)
 
 HASS_URL = os.environ.get('HASS_URL', 'http://supervisor/core')
 
@@ -117,18 +118,9 @@ controller.start_control_loop()
 # --- Runtime state persistence (one-off charges, road trip mode) ---
 
 def save_runtime_state():
-    """Save per-device runtime state (one-off charges, road trip flags) to disk."""
+    """Save per-device runtime state (one-off charges, road trip, auto control) to disk."""
     try:
-        state = {}
-        for name, ds in controller.device_states.items():
-            entry = {}
-            if ds.one_off_charge_target is not None:
-                entry['one_off_charge_target'] = ds.one_off_charge_target
-                entry['one_off_charge_start_energy'] = ds.one_off_charge_start_energy
-            if ds.road_trip:
-                entry['road_trip'] = True
-            if entry:
-                state[name] = entry
+        state = serialize_runtime_state(controller.device_states)
         with open(STATE_FILE, 'w') as f:
             json.dump(state, f)
     except Exception as e:
@@ -139,17 +131,7 @@ def load_runtime_state():
     try:
         with open(STATE_FILE, 'r') as f:
             state = json.load(f)
-        for name, values in state.items():
-            ds = controller.device_states.get(name)
-            if not ds:
-                continue
-            if values.get('one_off_charge_target') is not None:
-                ds.one_off_charge_target = values['one_off_charge_target']
-                ds.one_off_charge_start_energy = values.get('one_off_charge_start_energy')
-                logger.info(f"Restored one-off charge for {name}: target={ds.one_off_charge_target} kWh")
-            if values.get('road_trip'):
-                ds.road_trip = True
-                logger.info(f"Restored road trip mode for {name}")
+        apply_runtime_state(controller.device_states, state)
     except FileNotFoundError:
         pass
     except Exception as e:
@@ -164,14 +146,46 @@ load_runtime_state()
 _state_thread = threading.Thread(target=_state_save_loop, daemon=True, name='state-saver')
 _state_thread.start()
 
-# --- MQTT discovery: expose road trip switches as HA entities ---
+# --- MQTT discovery: expose switches as HA entities ---
+
+def _load_power_optimization():
+    """Read the current power optimization setting from disk."""
+    try:
+        with open(SETTINGS_FILE, 'r') as f:
+            return bool(json.load(f).get('power_optimization_enabled', False))
+    except Exception:
+        return False
+
+def _set_power_optimization(enabled):
+    """Persist the power optimization setting and publish it everywhere.
+
+    Shared by the REST API route and the MQTT switch command handler."""
+    try:
+        with open(SETTINGS_FILE, 'r') as f:
+            settings = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        settings = {}
+    settings['power_optimization_enabled'] = enabled
+    with open(SETTINGS_FILE, 'w') as f:
+        json.dump(settings, f, indent=4)
+    # Legacy plain topic (kept for existing user automations) + discovered switch
+    publish_message('solar_control/optimization_enabled', str(enabled).lower(), retain=True)
+    publish_switch_state('optimization', None, enabled)
+    logger.info(f"Power optimization set to: {enabled}")
 
 def sync_mqtt_discovery():
-    """Publish/refresh discovered HA entities (road trip switch per car)."""
+    """Publish/refresh all discovered HA entities:
+    road trip switch per car, auto-control switch per device, and the
+    global power optimization switch."""
     try:
         cars = {name: ds.road_trip for name, ds in controller.device_states.items()
                 if ds.device.is_car}
-        sync_road_trip_discovery(cars, sw_version=APP_VERSION)
+        sync_device_switch_discovery('road_trip', cars, sw_version=APP_VERSION)
+        all_devices = {name: ds.auto_control
+                       for name, ds in controller.device_states.items()}
+        sync_device_switch_discovery('auto_control', all_devices, sw_version=APP_VERSION)
+        sync_global_switch_discovery('optimization', _load_power_optimization(),
+                                     sw_version=APP_VERSION)
     except Exception as e:
         logger.error(f"Error syncing MQTT discovery: {e}")
 
@@ -184,24 +198,30 @@ def _handle_road_trip_command(device_name, enabled):
     device_state.road_trip = enabled
     logger.info(f"Road trip mode for {device_name} set to {enabled} via MQTT")
     save_runtime_state()
-    publish_road_trip_state(device_name, enabled)
+    publish_switch_state('road_trip', device_name, enabled)
 
-set_road_trip_command_handler(_handle_road_trip_command)
-sync_mqtt_discovery()
+def _handle_auto_control_command(device_name, enabled):
+    """An auto-control switch was flipped from Home Assistant."""
+    device_state = controller.device_states.get(device_name)
+    if not device_state:
+        logger.warning(f"MQTT auto control command for unknown device: {device_name}")
+        return
+    device_state.auto_control = enabled
+    logger.info(f"Auto control for {device_name} set to {enabled} via MQTT")
+    save_runtime_state()
+    publish_switch_state('auto_control', device_name, enabled)
 
-# Function to update device states via MQTT
-def update_device_states_mqtt():
+def _handle_optimization_command(_device_name, enabled):
+    """The power optimization switch was flipped from Home Assistant."""
     try:
-        for device_name, device_state in controller.device_states.items():
-            state = {
-                'is_on': device_state.is_on,
-                'last_state_change': device_state.last_state_change.isoformat() if device_state.last_state_change else None,
-                'current_amperage': device_state.current_amperage,
-                'has_completed': device_state.has_completed
-            }
-            update_device_state(device_name, state)
+        _set_power_optimization(enabled)
     except Exception as e:
-        logger.error(f"Error updating device states via MQTT: {e}")
+        logger.error(f"Error handling optimization command: {e}")
+
+set_switch_command_handler('road_trip', _handle_road_trip_command)
+set_switch_command_handler('auto_control', _handle_auto_control_command)
+set_switch_command_handler('optimization', _handle_optimization_command)
+sync_mqtt_discovery()
 
 # Modify the device state endpoints to publish MQTT updates
 @app.route('/api/devices/<name>/state', methods=['GET'])
@@ -689,6 +709,7 @@ def get_devices():
                 'current_power': controller.get_device_power(device_state),
                 'car_soc': device_state.car_soc,
                 'road_trip': device_state.road_trip,
+                'auto_control': device_state.auto_control,
                 'one_off_charge_target': device_state.one_off_charge_target,
                 'one_off_charge_delivered': (
                     max(0, device.energy_delivered_today - (device_state.one_off_charge_start_energy or 0))
@@ -735,10 +756,26 @@ def set_road_trip(name):
         device_state.road_trip = bool(data.get('enabled'))
         logger.info(f"Road trip mode for {name} set to {device_state.road_trip}")
         save_runtime_state()
-        publish_road_trip_state(name, device_state.road_trip)
+        publish_switch_state('road_trip', name, device_state.road_trip)
         return jsonify({'status': 'success', 'road_trip': device_state.road_trip})
     except Exception as e:
         logger.error(f"Error setting road trip mode for {name}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/devices/<name>/auto_control', methods=['POST'])
+def set_auto_control(name):
+    try:
+        data = request.json
+        device_state = controller.device_states.get(name)
+        if not device_state:
+            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+        device_state.auto_control = bool(data.get('enabled'))
+        logger.info(f"Auto control for {name} set to {device_state.auto_control}")
+        save_runtime_state()
+        publish_switch_state('auto_control', name, device_state.auto_control)
+        return jsonify({'status': 'success', 'auto_control': device_state.auto_control})
+    except Exception as e:
+        logger.error(f"Error setting auto control for {name}: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/api/devices', methods=['POST'])
@@ -864,7 +901,7 @@ def get_status():
         
         status = {
             'status': 'running',
-            'version': '1.0.0',  # TODO: Get actual version
+            'version': APP_VERSION,
             'power_optimization_enabled': settings.get('power_optimization_enabled', False)
         }
         
@@ -895,26 +932,7 @@ def update_power_optimization():
     try:
         data = request.json
         enabled = data.get('enabled', False)
-        logger.debug(f"Updating power optimization setting: {enabled}")
-        
-        # Load current settings
-        try:
-            with open(SETTINGS_FILE, 'r') as f:
-                settings = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            settings = {}
-        
-        # Update settings
-        settings['power_optimization_enabled'] = enabled
-        
-        # Save settings
-        with open(SETTINGS_FILE, 'w') as f:
-            json.dump(settings, f, indent=4)
-        
-        # Publish state to MQTT
-        publish_message('solar_control/optimization_enabled', str(enabled).lower(), retain=True)
-        
-        logger.info(f"Successfully updated power optimization setting to: {enabled}")
+        _set_power_optimization(enabled)
         return jsonify({'status': 'success'})
     except Exception as e:
         logger.error(f"Error updating power optimization setting: {e}")

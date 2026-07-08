@@ -1,5 +1,17 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.8.17] - 2026-07-08
+### Added
+- Auto-control switch per device (MQTT discovery + a small "Auto" toggle on each device card): switch it off and Solar Control keeps its hands off that device — no turn-on, no turn-off, no amperage changes — so you or HA automations can control it manually. While off, the device's power draw is treated as ordinary household load (not reallocatable), the debug page lists it as "Manual control", and it overrides everything including the car protection floor and one-off charges. Survives restarts.
+- Power optimization master switch as an HA entity (`switch` "Power optimization" under the Solar Control device) — pauses/resumes all device switching from automations. Stays in sync with the dashboard toggle both ways; the legacy `solar_control/optimization_enabled` topic is still published for existing automations.
+
+### Changed
+- Road trip button on the device card replaced with a proper toggle switch (green = on) that updates instantly on click — the old button gave almost no on/off feedback.
+
+### Fixed
+- `/api/status` reported a hardcoded version `1.0.0`; it now reports the real add-on version.
+- Removed dead code (`update_device_states_mqtt` was never called).
+
 ## [1.8.16] - 2026-07-08
 ### Fixed
 - MQTT client failed to start on paho-mqtt 2.x ("Unsupported callback API version"): the Dockerfile installed unpinned dependencies instead of requirements.txt, pulling in paho-mqtt 2.x which needs an explicit callback API version. The client now supports both paho 1.x and 2.x, and the image installs the pinned requirements.txt so it matches what the tests run against.
