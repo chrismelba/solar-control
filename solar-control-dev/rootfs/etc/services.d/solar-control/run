@@ -64,6 +64,19 @@ HASS_URL="http://supervisor/core"
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN}"
 export HASS_URL="${HASS_URL}"
 export PORT=5000
+export IS_HA_ADDON=1
+
+# Provide MQTT connection details from the Supervisor services API
+# (requires "services: mqtt:want" in config.yaml)
+if bashio::services.available "mqtt"; then
+    export MQTTHOST="$(bashio::services mqtt 'host')"
+    export MQTTPORT="$(bashio::services mqtt 'port')"
+    export MQTTUSER="$(bashio::services mqtt 'username')"
+    export MQTTPASS="$(bashio::services mqtt 'password')"
+    bashio::log.info "MQTT service available at ${MQTTHOST}:${MQTTPORT}"
+else
+    bashio::log.warning "No MQTT service available - MQTT features disabled"
+fi
 
 # Start Python web server with debug logging
 bashio::log.info "Starting Python web server on port ${PORT}..."

@@ -1,5 +1,9 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.8.15] - 2026-07-08
+### Fixed
+- MQTT could never connect inside the HA container ("Failed to get MQTT settings"): the add-on never declared the `mqtt` service in config.yaml and the startup script never exported `IS_HA_ADDON`/`MQTTHOST`/`MQTTPORT`/`MQTTUSER`/`MQTTPASS`, so broker credentials were never handed to the app. The Supervisor services API now supplies them automatically; no MQTT settings need to be entered in the add-on configuration.
+
 ## [1.8.14] - 2026-07-08
 ### Added
 - Road trip switches are now real Home Assistant entities via MQTT discovery: each car device gets a `switch` (e.g. `switch.solar_control_<car>_road_trip`) under a "Solar Control" device, usable in automations, dashboards and voice assistants. State stays in sync in both directions (HA switch, add-on UI button, and the automatic clear at 100% SoC), survives HA and add-on restarts, and the switch is removed from HA when a device stops being a car. Requires the MQTT integration (e.g. Mosquitto add-on).
