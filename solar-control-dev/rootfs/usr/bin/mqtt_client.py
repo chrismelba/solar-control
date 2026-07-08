@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 import paho.mqtt.client as mqtt
 import json
@@ -14,11 +15,30 @@ STATE_TOPIC = "solar_control/state"
 DEVICE_STATE_TOPIC = "solar_control/devices/{device_name}/state"
 DEVICE_CONTROL_TOPIC = "solar_control/devices/{device_name}/control"
 
+# Home Assistant MQTT discovery
+DISCOVERY_PREFIX = "homeassistant"
+HA_STATUS_TOPIC = "homeassistant/status"  # HA publishes online/offline here
+ROAD_TRIP_CONFIG_TOPIC = DISCOVERY_PREFIX + "/switch/solar_control/{slug}_road_trip/config"
+ROAD_TRIP_STATE_TOPIC = "solar_control/devices/{slug}/road_trip/state"
+ROAD_TRIP_COMMAND_TOPIC = "solar_control/devices/{slug}/road_trip/set"
+
 # Global variables
 mqtt_client: mqtt.Client = None
 subscribed_topics = []
 device_states = {}
 last_data_update = None
+
+# Discovery registry: slug -> {"name": device name, "state": bool}
+# Kept so discovery can be republished on reconnect / HA restart, and so
+# command topics (which carry the slug) can be mapped back to device names.
+_road_trip_registry = {}
+_road_trip_command_handler = None  # callable(device_name: str, enabled: bool)
+_sw_version = None
+
+
+def slugify(name):
+    """Turn a device name into a topic/unique_id-safe slug."""
+    return re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')
 
 def connect():
     """Establish MQTT connection with the broker"""
@@ -35,8 +55,9 @@ def connect():
         client_id = "solar_control" if os.environ.get("IS_HA_ADDON") else f"solar_control_{os.getpid()}"
         client = mqtt.Client(client_id)
 
-        # Set will message for availability
-        client.will_set(AVAILABILITY_TOPIC, "offline", 0, False)
+        # Set will message for availability (retained, so HA sees the correct
+        # availability even if it restarts after this add-on died)
+        client.will_set(AVAILABILITY_TOPIC, "offline", 0, True)
 
         # Set credentials if provided
         if mqtt_settings.get("username") and mqtt_settings.get("password"):
@@ -83,6 +104,13 @@ def on_connect(client, userdata, flags, rc):
         # Subscribe to control topics
         client.subscribe(CONTROL_TOPIC)
         client.subscribe(DEVICE_CONTROL_TOPIC.format(device_name="+"))
+        client.subscribe(ROAD_TRIP_COMMAND_TOPIC.format(slug="+"))
+        # HA publishes its birth message here; discovery must be republished
+        # when HA restarts or it forgets our entities
+        client.subscribe(HA_STATUS_TOPIC)
+
+        # Republish discovery + states after a reconnect
+        _publish_all_discovery()
     else:
         logging.error(f"Failed to connect to MQTT broker with code: {rc}")
 
@@ -106,6 +134,12 @@ def on_message(client, userdata, msg):
         # Handle control messages
         if topic == CONTROL_TOPIC:
             handle_control_message(payload)
+        elif topic == HA_STATUS_TOPIC:
+            if payload == "online":
+                logging.info("Home Assistant came online - republishing MQTT discovery")
+                _publish_all_discovery()
+        elif topic.endswith("/road_trip/set"):
+            handle_road_trip_command(topic.split("/")[2], payload)
         elif topic.startswith("solar_control/devices/"):
             device_name = topic.split("/")[2]
             handle_device_control(device_name, payload)
@@ -152,6 +186,99 @@ def handle_device_control(device_name, payload):
         logging.error(f"Invalid JSON in device control message for {device_name}")
     except Exception as e:
         logging.error(f"Error handling device control for {device_name}: {e}")
+
+def handle_road_trip_command(slug, payload):
+    """Handle an ON/OFF command from a discovered road trip switch."""
+    entry = _road_trip_registry.get(slug)
+    if not entry:
+        logging.warning(f"Road trip command for unknown device slug: {slug}")
+        return
+    if _road_trip_command_handler is None:
+        logging.warning("Road trip command received but no handler registered")
+        return
+    try:
+        _road_trip_command_handler(entry["name"], payload.strip().upper() == "ON")
+    except Exception as e:
+        logging.error(f"Error handling road trip command for {entry['name']}: {e}")
+
+
+def set_road_trip_command_handler(handler):
+    """Register the callback invoked as handler(device_name, enabled) when a
+    road trip switch is flipped from Home Assistant."""
+    global _road_trip_command_handler
+    _road_trip_command_handler = handler
+
+
+def _device_info():
+    info = {
+        "identifiers": ["solar_control"],
+        "name": "Solar Control",
+        "manufacturer": "chrismelba",
+        "model": "Solar Control Add-on",
+    }
+    if _sw_version:
+        info["sw_version"] = _sw_version
+    return info
+
+
+def _publish_road_trip_config(slug, device_name):
+    config = {
+        "name": f"{device_name} road trip",
+        "unique_id": f"solar_control_{slug}_road_trip",
+        "state_topic": ROAD_TRIP_STATE_TOPIC.format(slug=slug),
+        "command_topic": ROAD_TRIP_COMMAND_TOPIC.format(slug=slug),
+        "icon": "mdi:bag-suitcase",
+        "availability_topic": AVAILABILITY_TOPIC,
+        "device": _device_info(),
+    }
+    publish_message(ROAD_TRIP_CONFIG_TOPIC.format(slug=slug), config, retain=True)
+
+
+def _publish_all_discovery():
+    """(Re)publish discovery configs and current states for all registered cars."""
+    for slug, entry in _road_trip_registry.items():
+        _publish_road_trip_config(slug, entry["name"])
+        publish_message(ROAD_TRIP_STATE_TOPIC.format(slug=slug),
+                        "ON" if entry["state"] else "OFF", retain=True)
+
+
+def publish_road_trip_state(device_name, enabled):
+    """Publish a car's current road trip state to its discovered switch."""
+    slug = slugify(device_name)
+    entry = _road_trip_registry.get(slug)
+    if entry is None:
+        return  # not a registered car (e.g. discovery not synced yet)
+    entry["state"] = bool(enabled)
+    publish_message(ROAD_TRIP_STATE_TOPIC.format(slug=slug),
+                    "ON" if enabled else "OFF", retain=True)
+
+
+def sync_road_trip_discovery(cars, sw_version=None):
+    """Reconcile discovered road trip switches with the current device list.
+
+    cars: {device_name: road_trip_enabled} for every device that is a car.
+    Publishes discovery + state for new/updated cars and removes the retained
+    discovery config for devices that are no longer cars.
+    """
+    global _sw_version
+    if sw_version:
+        _sw_version = sw_version
+
+    desired = {slugify(name): name for name in cars}
+
+    # Remove switches for devices that are gone / no longer cars
+    for slug in list(_road_trip_registry):
+        if slug not in desired:
+            del _road_trip_registry[slug]
+            # Empty retained payload deletes the entity from HA
+            publish_message(ROAD_TRIP_CONFIG_TOPIC.format(slug=slug), "", retain=True)
+            publish_message(ROAD_TRIP_STATE_TOPIC.format(slug=slug), "", retain=True)
+
+    for slug, name in desired.items():
+        _road_trip_registry[slug] = {"name": name, "state": bool(cars[name])}
+
+    _publish_all_discovery()
+
 
 def publish_message(topic, payload, retain=False):
     """Publish a message to the MQTT broker"""

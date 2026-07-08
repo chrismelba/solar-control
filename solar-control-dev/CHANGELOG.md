@@ -1,5 +1,13 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.8.14] - 2026-07-08
+### Added
+- Road trip switches are now real Home Assistant entities via MQTT discovery: each car device gets a `switch` (e.g. `switch.solar_control_<car>_road_trip`) under a "Solar Control" device, usable in automations, dashboards and voice assistants. State stays in sync in both directions (HA switch, add-on UI button, and the automatic clear at 100% SoC), survives HA and add-on restarts, and the switch is removed from HA when a device stops being a car. Requires the MQTT integration (e.g. Mosquitto add-on).
+
+### Fixed
+- MQTT connection was silently dropped on the first web request (a Flask `teardown_appcontext` handler ran the shutdown disconnect after every request), so all MQTT publishing effectively died moments after startup. Disconnect now only happens at process exit.
+- MQTT availability ("offline" will message) is now retained, so Home Assistant shows the correct availability even if it restarts after the add-on stopped uncleanly.
+
 ## [1.8.13] - 2026-07-07
 ### Added
 - Climate entities can now be used as a device's switch entity — the entity picker lists `climate.*` alongside switches and input_booleans, with fans, humidifiers, water heaters and lights available under "Show all". Control already worked domain-generically (`climate/turn_on` / `turn_off`).

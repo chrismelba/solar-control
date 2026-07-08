@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from device import Device
 from battery import Battery
 import json
+import mqtt_client
 from utils import setup_logging, entity_state_to_is_on
 
 # Configure logging
@@ -512,6 +513,7 @@ class SolarController:
                     logger.info(f"Road trip charge complete for {device.name} "
                                 f"(SoC {device_state.car_soc:.1f}%) - clearing road trip mode")
                     device_state.road_trip = False
+                    mqtt_client.publish_road_trip_state(device.name, False)
             else:
                 device_state.car_soc = None
 

@@ -1,4 +1,5 @@
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash, abort, json, make_response
+import atexit
 import os
 import logging
 import json
@@ -10,7 +11,10 @@ from device import Device
 from battery import Battery
 from solar_controller import SolarController
 from utils import get_sunrise_time, setup_logging, entity_state_to_is_on
-from mqtt_client import connect as mqtt_connect, disconnect as mqtt_disconnect, publish_message, update_device_state, publish_status
+from mqtt_client import (connect as mqtt_connect, disconnect as mqtt_disconnect,
+                         publish_message, update_device_state, publish_status,
+                         sync_road_trip_discovery, publish_road_trip_state,
+                         set_road_trip_command_handler)
 
 HASS_URL = os.environ.get('HASS_URL', 'http://supervisor/core')
 
@@ -160,6 +164,31 @@ load_runtime_state()
 _state_thread = threading.Thread(target=_state_save_loop, daemon=True, name='state-saver')
 _state_thread.start()
 
+# --- MQTT discovery: expose road trip switches as HA entities ---
+
+def sync_mqtt_discovery():
+    """Publish/refresh discovered HA entities (road trip switch per car)."""
+    try:
+        cars = {name: ds.road_trip for name, ds in controller.device_states.items()
+                if ds.device.is_car}
+        sync_road_trip_discovery(cars, sw_version=APP_VERSION)
+    except Exception as e:
+        logger.error(f"Error syncing MQTT discovery: {e}")
+
+def _handle_road_trip_command(device_name, enabled):
+    """A road trip switch was flipped from Home Assistant."""
+    device_state = controller.device_states.get(device_name)
+    if not device_state or not device_state.device.is_car:
+        logger.warning(f"MQTT road trip command for unknown car: {device_name}")
+        return
+    device_state.road_trip = enabled
+    logger.info(f"Road trip mode for {device_name} set to {enabled} via MQTT")
+    save_runtime_state()
+    publish_road_trip_state(device_name, enabled)
+
+set_road_trip_command_handler(_handle_road_trip_command)
+sync_mqtt_discovery()
+
 # Function to update device states via MQTT
 def update_device_states_mqtt():
     try:
@@ -249,13 +278,10 @@ def set_device_state(name):
         logger.error(f"Error setting device state for {name}: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
-# Add cleanup on application shutdown
-@app.teardown_appcontext
-def cleanup(exception=None):
-    try:
-        mqtt_disconnect()
-    except Exception as e:
-        logger.error(f"Error during MQTT cleanup: {e}")
+# Disconnect MQTT cleanly on interpreter shutdown. (Must NOT be a Flask
+# teardown_appcontext handler — those run after every request, which was
+# silently killing the MQTT connection on the first page load.)
+atexit.register(mqtt_disconnect)
 
 # Log static file configuration
 logger.info('Static folder: %s', app.static_folder)
@@ -709,6 +735,7 @@ def set_road_trip(name):
         device_state.road_trip = bool(data.get('enabled'))
         logger.info(f"Road trip mode for {name} set to {device_state.road_trip}")
         save_runtime_state()
+        publish_road_trip_state(name, device_state.road_trip)
         return jsonify({'status': 'success', 'road_trip': device_state.road_trip})
     except Exception as e:
         logger.error(f"Error setting road trip mode for {name}: {e}")
@@ -734,6 +761,7 @@ def add_device():
         devices.append(device)
         Device.save_all(devices, DEVICES_FILE)
         controller.initialize_device_states()
+        sync_mqtt_discovery()
 
         logger.info(f"Successfully added device: {device.name}")
         return jsonify(device.to_dict())
@@ -762,6 +790,7 @@ def update_device(name):
         devices[device_index] = Device.from_dict(device_data)
         Device.save_all(devices, DEVICES_FILE)
         controller.initialize_device_states()
+        sync_mqtt_discovery()
 
         logger.info(f"Successfully updated device: {name}")
         return jsonify(devices[device_index].to_dict())
@@ -779,6 +808,7 @@ def delete_device(name):
         devices = [d for d in devices if d.name != name]
         Device.save_all(devices, DEVICES_FILE)
         controller.initialize_device_states()
+        sync_mqtt_discovery()
 
         logger.info(f"Successfully deleted device: {name}")
         return jsonify({'status': 'success'})
