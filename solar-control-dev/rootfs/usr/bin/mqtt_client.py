@@ -53,7 +53,12 @@ def connect():
 
         # Create client with unique ID
         client_id = "solar_control" if os.environ.get("IS_HA_ADDON") else f"solar_control_{os.getpid()}"
-        client = mqtt.Client(client_id)
+        if hasattr(mqtt, "CallbackAPIVersion"):
+            # paho-mqtt >= 2.0 requires an explicit callback API version;
+            # VERSION1 keeps the pre-2.0 callback signatures working
+            client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id)
+        else:
+            client = mqtt.Client(client_id)
 
         # Set will message for availability (retained, so HA sees the correct
         # availability even if it restarts after this add-on died)

@@ -1,5 +1,9 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.8.16] - 2026-07-08
+### Fixed
+- MQTT client failed to start on paho-mqtt 2.x ("Unsupported callback API version"): the Dockerfile installed unpinned dependencies instead of requirements.txt, pulling in paho-mqtt 2.x which needs an explicit callback API version. The client now supports both paho 1.x and 2.x, and the image installs the pinned requirements.txt so it matches what the tests run against.
+
 ## [1.8.15] - 2026-07-08
 ### Fixed
 - MQTT could never connect inside the HA container ("Failed to get MQTT settings"): the add-on never declared the `mqtt` service in config.yaml and the startup script never exported `IS_HA_ADDON`/`MQTTHOST`/`MQTTPORT`/`MQTTUSER`/`MQTTPASS`, so broker credentials were never handed to the app. The Supervisor services API now supplies them automatically; no MQTT settings need to be entered in the add-on configuration.

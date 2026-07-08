@@ -10,9 +10,11 @@ RUN \
         py3-pip \
         nginx \
     && \
-    python3 -m venv /opt/venv \
-    && \
-    /opt/venv/bin/pip install --no-cache-dir flask requests pytz paho-mqtt
+    python3 -m venv /opt/venv
+
+# Install pinned Python dependencies (same versions the tests run against)
+COPY requirements.txt /tmp/requirements.txt
+RUN /opt/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt
 
 ENV PATH="/opt/venv/bin:$PATH"
 
