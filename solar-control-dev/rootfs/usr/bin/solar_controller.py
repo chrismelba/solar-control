@@ -154,7 +154,22 @@ class SolarController:
                 headers=self.get_headers()
             )
             response.raise_for_status()
-            grid_power = float(response.json().get('state', 0))
+            raw_state = response.json().get('state')
+            try:
+                grid_power = float(raw_state)
+            except (TypeError, ValueError):
+                # Fail safe: with no trustworthy grid reading we can't know
+                # there's a surplus, so offer no power (optional loads shed;
+                # min-on-time and car-floor devices are unaffected).
+                logger.warning(f"Grid power sensor {config['grid_power']} is '{raw_state}' - "
+                               f"assuming no surplus (0W available)")
+                if self.debug_state:
+                    self.debug_state.power_breakdown = [{
+                        'label': f'Grid power ({config["grid_power"]})',
+                        'value': None,
+                        'note': f"sensor is '{raw_state}' — failing safe with 0W available"
+                    }]
+                return 0.0
 
             # Convert to watts if needed
             unit = response.json().get('attributes', {}).get('unit_of_measurement', 'W')

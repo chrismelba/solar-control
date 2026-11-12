@@ -275,6 +275,21 @@ class TestGetAvailablePower:
                 power = ctrl.get_available_power()
         assert power == 0.0
 
+    @pytest.mark.parametrize("state", ["unknown", "unavailable", "", None])
+    def test_non_numeric_grid_state_fails_safe(self, tmp_path, state):
+        """A faulted grid sensor must give 0W, even with controlled devices on —
+        their draw must not be added back as if it were surplus."""
+        ctrl = make_controller(tmp_path, config={"grid_power": "sensor.grid"})
+        ctrl.device_states = {"D": DeviceState(device=make_device(name="D"), is_on=True)}
+        ctrl.debug_state = MagicMock()
+        mock_resp = make_mock_response(state, {"unit_of_measurement": "W"})
+        with patch("requests.get", return_value=mock_resp), \
+             patch.object(ctrl, "get_current_tariff_mode", return_value="normal"), \
+             patch.object(ctrl, "get_device_power", return_value=3000.0):
+            power = ctrl.get_available_power()
+        assert power == 0.0
+        assert "failing safe" in ctrl.debug_state.power_breakdown[0]["note"]
+
     def test_controlled_device_power_adds_back(self, tmp_path):
         """Power consumed by a controlled device is added back to available power."""
         ctrl = make_controller(tmp_path, config={"grid_power": "sensor.grid"})

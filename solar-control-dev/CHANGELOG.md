@@ -1,5 +1,9 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## [1.8.18] - 2026-11-12
+### Fixed
+- Grid power sensor reading `unknown`/`unavailable` (e.g. during a battery fault) is now explicitly treated as "no surplus": available power is 0W so optional loads are shed rather than switched on, and the debug page shows the sensor state and that the controller is failing safe. Previously this only happened as a side effect of a parse error. Note: if your grid sensor is a template that defaults missing inputs to 0 (`float(default=0)`), it will report a bogus number instead of `unknown` — give such templates an `availability:` so this protection can kick in.
+
 ## [1.8.17] - 2026-07-08
 ### Added
 - Auto-control switch per device (MQTT discovery + a small "Auto" toggle on each device card): switch it off and Solar Control keeps its hands off that device — no turn-on, no turn-off, no amperage changes — so you or HA automations can control it manually. While off, the device's power draw is treated as ordinary household load (not reallocatable), the debug page lists it as "Manual control", and it overrides everything including the car protection floor and one-off charges. Survives restarts.
